@@ -1,0 +1,16 @@
+.idea
+.phpunit.cache
+build
+coverage
+phpunit.xml
+phpstan.neon
+testbench.yaml
+vendor
+node_modules
+
+.token
+
+*.note.txt
+*.note.md
+
+.env
