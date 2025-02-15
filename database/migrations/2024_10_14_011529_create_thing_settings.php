@@ -31,7 +31,7 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->comment("The id of the action, see type to lookup");
 
-            $table->index(['action_type','action_type_id'],'udx_thing_action_type_id');
+            $table->index(['setting_action_type','setting_action_type_id'],'udx_setting_action_type_id');
 
             $table->smallInteger('setting_rank')->nullable(false)->default(0)
                 ->comment('higher rank settings will be used, equal ranks will use the lowest in each category, lower ranks will be ignored');

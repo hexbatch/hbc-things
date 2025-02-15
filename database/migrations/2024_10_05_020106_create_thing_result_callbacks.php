@@ -31,7 +31,7 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->comment("The id of the caller, see type to lookup");
 
-            $table->index(['caller_type','caller_type_id'],'udx_thing_action_type_id');
+            $table->index(['caller_type','caller_type_id'],'udx_callback_action_type_id');
 
             $table->integer('http_code_callback')->nullable()->default(null)
                 ->comment('When the callback was made, what was the http code from that url');

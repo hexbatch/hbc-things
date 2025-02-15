@@ -22,8 +22,8 @@
         "ext-pdo_pgsql": "*",
         "ext-pgsql": "*",
         "php": "^8.2",
-        "../../vendor/spatie/laravel-package-tools": "^1.19",
-        "../../vendor/zircote/swagger-php": "^5.0"
+        "spatie/laravel-package-tools": "^1.19",
+        "zircote/swagger-php": "^5.0"
     },
 
     "autoload": {
