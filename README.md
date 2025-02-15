@@ -1,3 +1,9 @@
+# Things
+
+Processes groups of actions
+
+
+
 # Abstraction of things
 
 it appears that the things are THE central logic point for this huge code. And I need to understand it and refine it before I put it in the mix.

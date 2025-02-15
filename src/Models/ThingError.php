@@ -3,8 +3,6 @@
 namespace Hexbatch\Things\Models;
 
 
-use App\Exceptions\RefCodes;
-use App\Helpers\Utilities;
 use ArrayObject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
@@ -18,9 +16,11 @@ use Illuminate\Database\Eloquent\Model;
  * @property int id
  * @property int thing_error_code
  * @property int thing_error_line
- * @property float thing_code_version
+ * @property string thing_code_version
+ * @property string hbc_version
  * @property string thing_error_message
  * @property ArrayObject thing_error_trace
+ * @property ArrayObject thing_previous_errors
  * @property string thing_error_file
  *
  * @property string created_at
@@ -53,30 +53,33 @@ class ThingError extends Model
      */
     protected $casts = [
         'thing_error_trace' => AsArrayObject::class,
+        'thing_previous_errors' => AsArrayObject::class,
     ];
 
-    public static function createFromException(\Exception $e) : ThingError{
+    public static function createFromException(\Exception $e) : ThingError {
         $node = new ThingError();
-        //todo fill in the props
+        $node->thing_error_code = $e->getCode();
+        $node->thing_error_line = $e->getLine();
+        $node->thing_error_file = $e->getLine();
+        $node->thing_code_version = \Hexbatch\Things\Helpers\Utilities::getVersionAsString(for_lib: true);
+        $node->hbc_version = \Hexbatch\Things\Helpers\Utilities::getVersionAsString(for_lib: false);
+        $node->thing_error_message = $e->getMessage();
+        $node->thing_error_trace = $e->getTrace();
+
+        $previous_errors = [];
+        while($prev = $e->getPrevious()) {
+            $x = [];
+            $x['message'] = $prev->getMessage();
+            $x['code'] = $prev->getCode();
+            $x['line'] = $prev->getLine();
+            $x['file'] = $prev->getFile();
+            $x['trace'] = $prev->getTrace();
+            $previous_errors[] = $x;
+        }
+        $node->thing_previous_errors = $previous_errors;
+        $node->save();
         return $node;
     }
-    public function getErrorJson() : array {
 
-        return [
-            'type' => $this->getRefCodeUrl(),
-            'version' => Utilities::getVersionString(),
-            'instance' => $this->thing_error_code,
-            'message' => $this->thing_error_message,
-            'file' => $this->thing_error_file,
-            'line' => $this->thing_error_line,
-            'trace' => $this->thing_error_trace->getArrayCopy(),
-
-        ];
-    }
-
-    public function getRefCodeUrl(): ?string
-    {
-        return (RefCodes::URLS[$this->thing_error_code]??null);
-    }
 
 }

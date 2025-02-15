@@ -28,7 +28,7 @@ class RunThing implements ShouldQueue
     {
         if ($this->thing->thing_status !== TypeOfThingStatus::THING_PENDING) {return;}
         try {
-            $this->thing->setProcessedAt();
+            $this->thing->setStartedAt();
             $this->thing->runThing();
 
         } catch (\Exception $e) {

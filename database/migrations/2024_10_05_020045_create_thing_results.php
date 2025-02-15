@@ -25,14 +25,7 @@ return new class extends Migration
 
 
 
-            $table->foreignId('result_thing_error_id')
-                ->nullable()
-                ->default(null)
-                ->comment("When something goes wrong")
-                ->index('idx_thing_thing_error_id')
-                ->constrained('thing_errors')
-                ->cascadeOnUpdate()
-                ->cascadeOnDelete();
+
 
 
             $table->integer('result_http_status')->nullable()->default(null)

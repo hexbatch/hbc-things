@@ -26,13 +26,15 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->foreignId('after_thing_id')
-                ->nullable()->default(null)
-                ->comment("runs after the parent, which is then a child to any leaf nodes of the after tree")
+            $table->foreignId('thing_error_id')
+                ->nullable()
+                ->default(null)
+                ->comment("When something goes wrong")
                 ->index()
-                ->constrained('things')
+                ->constrained('thing_errors')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
+
 
             $table->char('action_type',3)
                 ->nullable()->default(null)
@@ -41,6 +43,10 @@ return new class extends Migration
             $table->bigInteger('action_type_id')
                 ->nullable()->default(null)
                 ->comment("The id of the action, see type to lookup");
+
+            $table->integer('action_priority')
+                ->nullable(false)->default(0)
+                ->comment("the higher priority will run first, equal will run at the same time");
 
             $table->index(['action_type','action_type_id'],'udx_thing_action_type_id');
 
@@ -55,21 +61,15 @@ return new class extends Migration
             $table->timestamp('thing_invalid_at')->nullable()->default(null)
                 ->comment('if set, then this thing will return false to its parent if the time its processed is after');
 
-            $table->timestamp('process_started_at')->nullable()->default(null)
+            $table->timestamp('thing_started_at')->nullable()->default(null)
                 ->comment('if set, then this thing started processing at this time');
 
 
-            $table->boolean('is_waiting_on_hook')->default(false)->nullable(false)
-                ->comment('if true then look at the hook cluster table for pending hook returns');
 
             $table->smallInteger('debugging_breakpoint')
                 ->nullable(false)->default(0)
                 ->comment("when breakpoint set for the debugger in the row. Do not need a hook to pause here");
 
-
-            $table->smallInteger('thing_rank')
-                ->nullable(false)->default(0)
-                ->comment("orders child rules");
 
 
 

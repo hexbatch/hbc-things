@@ -21,11 +21,8 @@ return new class extends Migration
             $table->integer('thing_error_line')->default(null)->nullable()
                 ->comment('The line of the exception');
 
-            $table->float('thing_code_version')->default(null)->nullable()
-                ->comment('The version of the thing code');
-
-            $table->float('hbc_version')->default(null)->nullable()
-                ->comment('The version of the hexbatch code');
+            $table->text('thing_error_file')->default(null)->nullable()
+                ->comment('The file of the exception');
 
             $table->text('thing_error_message')->default(null)->nullable()
                 ->comment('the message');
@@ -33,8 +30,17 @@ return new class extends Migration
             $table->jsonb('thing_error_trace')->default(null)->nullable()
                 ->comment('the stack trace');
 
-            $table->string('thing_error_file')->default(null)->nullable()
-                ->comment('The file of the exception');
+            $table->jsonb('thing_previous_errors')->default(null)->nullable()
+                ->comment('Previous error info goes here');
+
+            $table->string('thing_code_version',20)->default(null)->nullable()
+                ->comment('The version of the thing code');
+
+            $table->string('hbc_version',20)->default(null)->nullable()
+                ->comment('The version of the hexbatch code');
+
+
+
 
 
         });

@@ -16,7 +16,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int owner_thing_id
- * @property int result_thing_error_id
  * @property int result_http_status
  * @property ArrayObject result_response
  *
@@ -54,9 +53,6 @@ class ThingResult extends Model
         'result_response' => AsArrayObject::class,
     ];
 
-    public function thing_error() : BelongsTo {
-        return $this->belongsTo(ThingError::class,'result_thing_error_id','id');
-    }
 
     public function result_owner_thing() : BelongsTo {
         return $this->belongsTo(Thing::class,'owner_thing_id','id');
