@@ -42,15 +42,43 @@ return new class extends Migration
         });
 
 
-        DB::statement("CREATE TYPE type_thing_callback_status AS ENUM (
+        DB::statement("CREATE TYPE type_of_thing_callback_status AS ENUM (
             'no_followup',
             'direct_followup',
             'polled_followup',
             'followup_callback_successful',
-            'followup_callback_error'
+            'followup_callback_error',
+            'followup_internal_error'
             );");
 
-        DB::statement("ALTER TABLE thing_result_callbacks Add COLUMN thing_callback_status type_thing_callback_status NOT NULL default 'no_followup';");
+        DB::statement("ALTER TABLE thing_result_callbacks Add COLUMN thing_callback_status type_of_thing_callback_status NOT NULL default 'no_followup';");
+
+
+        DB::statement("CREATE TYPE type_of_thing_callback AS ENUM (
+            'manual',
+            'push'
+            );");
+
+        DB::statement("ALTER TABLE thing_result_callbacks Add COLUMN thing_callback_type type_of_thing_callback NOT NULL default 'manual';");
+
+
+        DB::statement("CREATE TYPE type_of_callback_method AS ENUM (
+            'get',
+            'post',
+            'put',
+            'patch',
+            'delete'
+            );");
+
+        DB::statement("ALTER TABLE thing_result_callbacks Add COLUMN thing_callback_method type_of_callback_method NOT NULL default 'post';");
+
+
+        DB::statement("CREATE TYPE type_of_callback_encoding AS ENUM (
+            'regular',
+            'form'
+            );");
+
+        DB::statement("ALTER TABLE thing_result_callbacks Add COLUMN thing_callback_encoding type_of_callback_encoding NOT NULL default 'regular';");
 
         Schema::table('thing_result_callbacks', function (Blueprint $table) {
 
@@ -72,6 +100,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('thing_result_callbacks');
-        DB::statement("DROP TYPE type_thing_callback_status;");
+        DB::statement("DROP TYPE type_of_thing_callback_status;");
+        DB::statement("DROP TYPE type_of_thing_callback;");
+        DB::statement("DROP TYPE type_of_callback_method;");
+        DB::statement("DROP TYPE type_of_callback_encoding;");
     }
 };

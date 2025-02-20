@@ -1,0 +1,12 @@
+todo insert hook calls at the proper places
+  * find way to pause stuff until hook completes
+
+todo see if settings are blown: need to call the action itself to find the pagination of the data, and size
+  * check tree for depth
+  * create way to back off by changing the active times
+
+todo Have way for action to insert new subtrees to things at any time (only ancestors can do that)
+
+todo Figure out how to do direct calls, and not just callbacks
+
+todo abstract ownership of hooks and settings

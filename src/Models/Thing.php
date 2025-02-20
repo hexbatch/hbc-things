@@ -4,6 +4,7 @@ namespace Hexbatch\Things\Models;
 
 
 
+
 use Carbon\Carbon;
 use Exception;
 use Hexbatch\Things\Exceptions\HbcThingException;
@@ -24,6 +25,7 @@ use LogicException;
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int parent_thing_id
+ * @property int root_thing_id
  * @property int thing_error_id
  * @property int action_priority
  * @property string action_type
@@ -46,6 +48,7 @@ use LogicException;
  * @property ThingResult thing_result
  * @property ThingError thing_error
  * @property Thing thing_parent
+ * @property Thing thing_root
  * @property Thing[]|\Illuminate\Database\Eloquent\Collection thing_children
  */
 class Thing extends Model
@@ -87,8 +90,14 @@ class Thing extends Model
         return $this->belongsTo(Thing::class,'parent_thing_id','id');
     }
 
+    public function thing_root() : BelongsTo {
+        return $this->belongsTo(Thing::class,'root_thing_id','id');
+    }
+
     public function thing_result() : HasOne {
-        return $this->hasOne(ThingResult::class,'owner_thing_id','id');
+        return $this->hasOne(ThingResult::class,'owner_thing_id','id')
+            /** @uses ThingResult::result_callbacks() */
+            ->with('result_callbacks');
     }
 
     public function thing_error() : BelongsTo {
@@ -99,6 +108,9 @@ class Thing extends Model
     protected static array $action_type_lookup = [];
 
 
+    public function getAction() : IThingAction {
+        return static::resolveAction(action_type: $this->action_type,action_id: $this->action_type_id);
+    }
 
     protected static function resolveAction(string $action_type, int $action_id) : ?IThingAction {
         $resolver = static::$action_type_lookup[$action_type]??null;
@@ -162,6 +174,8 @@ class Thing extends Model
             RunThing::dispatch($this);
             return;
         }
+        /** @var IThingAction|null $action */
+
         try {
             DB::beginTransaction();
             $action = static::resolveAction(action_type: $this->action_type,action_id: $this->action_type_id);
@@ -176,7 +190,22 @@ class Thing extends Model
                 TypeOfThingStatus::THING_SUCCESS => TypeOfThingStatus::THING_SUCCESS,
                 TypeOfThingStatus::THING_ERROR => TypeOfThingStatus::THING_ERROR
             };
+
             $this->save();
+
+            if (in_array($action->getActionStatus(),[TypeOfThingStatus::THING_SUCCESS,TypeOfThingStatus::THING_ERROR]) ) {
+                //it is done, for better or worse
+
+                if ($this->parent_thing_id) {
+                    //notify parent action of result
+                    $this->thing_parent->getAction()->setChildActionResult($action->getActionResult());
+                } else {
+                    $this->thing_result->result_response = $action->getActionResult();
+                    $this->thing_result->result_http_status = $action->getActionHttpCode();
+                    $this->thing_result->save();
+                    $this->thing_result->dispatchResult();
+                }
+            }
 
             DB::commit();
         } catch (Exception $e) {
@@ -185,6 +214,8 @@ class Thing extends Model
             $this->save();
             throw $e;
         }
+
+
     }
 
     public function maybeQueueParent() : bool {
@@ -220,35 +251,55 @@ class Thing extends Model
 
         $root = new Thing();
         if ($start_at) {
-            $root->thing_start_at  = Carbon::parse($start_at,'UTC')->toIso8601String();
+            $root->thing_start_at  = Carbon::parse($start_at)->timezone('UTC')->toIso8601String();
         }
         if ($invalid_at) {
-            $root->thing_invalid_at  = Carbon::parse($invalid_at,'UTC')->toIso8601String(); //todo skip running if after invalid at
+            $root->thing_invalid_at  = Carbon::parse($invalid_at)->timezone('UTC')->toIso8601String();
         }
-        $root->save();
-        static::makeAction($root,$action);
-        return static::getThing(id:$root->id);
 
+        $root->action_type = $action::getActionType();
+        $root->action_type_id = $action->getActionId();
+        $root->action_priority = $action->getActionPriority();
+        $root->save();
+
+        //make result
+        $result = new ThingResult();
+        $result->owner_thing_id = $root->id;
+        $result->save();
+
+        $tree = $action->getChildrenTree();
+        $roots = $tree->getRootNodes();
+        foreach ( $roots as $a_node) {
+            static::makeTreeNodes(parent_thing:$root,node: $a_node);
+        }
+        $thing =  static::getThing(id:$root->id);
+        $thing->pushLeavesToJobs();
+        return $thing;
     }
 
 
 
-    public static function makeAction(Thing $parent_thing,IThingAction $action) : Thing {
 
-        $node = new Thing();
-        $node->parent_thing_id = $parent_thing->id;
+    protected static function makeTreeNodes(Thing $parent_thing, \BlueM\Tree\Node $node) : void {
 
-        $node->save();
-        $tree = $action->getChildrenTree();
-        $roots = $tree->getRootNodes(); //todo each root needs to register top level children, but the root is already registered by this time? next level
+        /** @var IThingAction $root_action */
+        /** @noinspection PhpUndefinedFieldInspection accessed via magic method*/
+        $the_action = $node->action;
 
-        foreach ( $roots as $root_node) {
-            /** @var IThingAction $root_action */
-            $root_action = $root_node->action;
-            static::makeAction($node,$action);
+        $tree_node = new Thing();
+        $tree_node->thing_start_at = $parent_thing->thing_start_at;
+        $tree_node->thing_invalid_at = $parent_thing->thing_invalid_at;
+        $tree_node->parent_thing_id = $parent_thing->id;
+        $tree_node->action_type = $the_action::getActionType();
+        $tree_node->action_type_id = $the_action->getActionId();
+        $tree_node->action_priority = $the_action->getActionPriority();
+        $tree_node->save();
+
+        $children = $node->getChildren();
+
+        foreach ( $children as $child) {
+            static::makeTreeNodes(parent_thing: $tree_node,node: $child);
         }
-        return $node;
-
     }
 
 
@@ -311,9 +362,9 @@ class Thing extends Model
         $build->with('thing_collection');
 
         /**
-         * @uses Thing::thing_result(),Thing::thing_parent(),Thing::thing_children(),Thing::thing_error()
+         * @uses Thing::thing_result(),Thing::thing_parent(),Thing::thing_children(),Thing::thing_error(),Thing::thing_root()
          */
-        $build->with('thing_result','thing_parent','thing_children','thing_error');
+        $build->with('thing_result','thing_parent','thing_children','thing_error','thing_root');
 
         return $build;
     }

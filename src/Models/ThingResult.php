@@ -4,10 +4,12 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
+use Hexbatch\Things\Jobs\SendResult;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * this stores the user getting back the api info, as well as the outgoing and incoming remotes
@@ -21,8 +23,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  *  @property string created_at
  *  @property string updated_at
- *  @property ThingError thing_error
- *  @property Thing result_owner_thing
+ *
+ *  @property Thing thing_owner
+ *  @property ThingResultCallback[] result_callbacks
  */
 class ThingResult extends Model
 {
@@ -54,8 +57,22 @@ class ThingResult extends Model
     ];
 
 
-    public function result_owner_thing() : BelongsTo {
+    public function thing_owner() : BelongsTo {
         return $this->belongsTo(Thing::class,'owner_thing_id','id');
+    }
+
+    public function result_callbacks() : HasMany {
+        return $this->hasMany(ThingResultCallback::class,'thing_result_id','id')
+            /** @uses ThingResultCallback::result_owner() */
+            ->with('result_owner');
+    }
+
+
+
+    public function dispatchResult() : void {
+        foreach ($this->result_callbacks as $callback) {
+            SendResult::dispatch($callback);
+        }
     }
 
 

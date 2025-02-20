@@ -16,6 +16,9 @@ interface IThingAction
 
     public function runAction(): void;
     public function getActionResult() : ?array ;
+    public function setChildActionResult(?array $data) : void ;
+
+    public function getActionHttpCode() : int;
 
     public static function resolveAction(int $action_id) : IThingAction;
 
