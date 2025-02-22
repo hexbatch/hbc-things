@@ -73,7 +73,7 @@ class ThingResultCallback extends Model
     }
 
     public function callbackUrl() :void  {
-        if ($this->thing_callback_type !== TypeOfThingCallback::PUSH || !$this->result_callback_url) {
+        if ($this->thing_callback_type !== TypeOfThingCallback::HTTP || !$this->result_callback_url) {
             return;
         }
 

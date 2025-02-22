@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 
 class RunThing implements ShouldQueue
@@ -26,17 +27,11 @@ class RunThing implements ShouldQueue
 
     public function handle(): void
     {
-        if ($this->thing->thing_status !== TypeOfThingStatus::THING_PENDING) {return;}
+
         try {
-            $this->thing->setStartedAt();
             $this->thing->runThing();
-
         } catch (\Exception $e) {
-            $this->thing->thing_status = TypeOfThingStatus::THING_ERROR;
-            $this->thing->setException($e);
+            Log::error(message: $e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
         }
-
-        //see if all children ran, if so, put the parent on the processing
-        $this->thing->maybeQueueParent();
     }
 }

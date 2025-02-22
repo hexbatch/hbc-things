@@ -4,10 +4,14 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
-use Hexbatch\Things\Models\Enums\TypeThingHookMode;
+use Hexbatch\Things\Models\Enums\TypeOfThingHookMode;
+use Hexbatch\Things\Models\Traits\ThingActionHandler;
+use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 /**
  * if the thing has a debugger, it will call this url with a data dump of it, and its data for each breakpoint or single-step
@@ -24,8 +28,10 @@ use Illuminate\Database\Eloquent\Model;
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
- * @property string hook_on_action_type
- * @property int hook_on_action_type_id
+ * @property string action_type
+ * @property int action_type_id
+ * @property string owner_type
+ * @property int owner_type_id
  * @property bool is_on
  * @property bool is_blocking
  *
@@ -34,12 +40,12 @@ use Illuminate\Database\Eloquent\Model;
  * @property string hook_name
  * @property string hook_notes
  * @property ArrayObject extra_data
- * @property TypeThingHookMode thing_hook_mode
+ * @property TypeOfThingHookMode thing_hook_mode
  *
  */
 class ThingHook extends Model
 {
-
+    use ThingOwnerHandler,ThingActionHandler;
 
     protected $table = 'thing_hooks';
     public $timestamps = false;
@@ -65,16 +71,19 @@ class ThingHook extends Model
      */
     protected $casts = [
         'extra_data' => AsArrayObject::class,
-        'thing_hook_mode' => TypeThingHookMode::class,
+        'thing_hook_mode' => TypeOfThingHookMode::class,
     ];
 
-    public function checkHookOwnership(Thing $thing) : ?ThingHookCluster{
-        /** @var ThingHookCluster|null $bonding */
-        return ThingHookCluster::where('hooked_thing_id',$thing->id)->where('owning_thing_hook_id',$this->id)->first();
-    }
 
-    public function getName() : string {
-        return $this->hook_name;
+
+    /**
+     * @param Thing $thing
+     * @return ThingHooker[]
+     */
+    public static function makeHooksForThing(Thing $thing) : array {
+        Log::info('hooked');
+        //todo see if tree matches any hooks, if so add the hookers
+        return [];
     }
 
 }

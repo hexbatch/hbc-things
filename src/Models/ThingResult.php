@@ -4,7 +4,9 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
+use Hexbatch\Things\Helpers\IThingCallback;
 use Hexbatch\Things\Jobs\SendResult;
+use Hexbatch\Things\Models\Enums\TypeOfThingCallback;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -71,7 +73,27 @@ class ThingResult extends Model
 
     public function dispatchResult() : void {
         foreach ($this->result_callbacks as $callback) {
-            SendResult::dispatch($callback);
+            if ($callback->thing_callback_type === TypeOfThingCallback::HTTP || !$callback->result_callback_url) {
+                SendResult::dispatch($callback);
+            }
+        }
+    }
+
+    /**
+     * @param IThingCallback[] $callbacks
+     * @return void
+     */
+    public function setCallbacks(array $callbacks) : void {
+        foreach ($callbacks as $callback) {
+            $c = new ThingResultCallback();
+            $c->thing_result_id = $this->id;
+            $c->caller_type = $callback->getCallbackOwner()::getOwnerType();
+            $c->caller_type_id = $callback->getCallbackOwner()->getOwnerId();
+            $c->thing_callback_type = $callback->getCallbackType();
+            $c->thing_callback_method = $callback->getCallbackMethod();
+            $c->thing_callback_encoding = $callback->getCallbackEncoding();
+            $c->result_callback_url = $callback->getCallbackUrl();
+            $c->save();
         }
     }
 

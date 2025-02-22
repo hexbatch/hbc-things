@@ -10,6 +10,8 @@ enum TypeOfThingStatus : string {
   case THING_WAITING = 'thing_waiting'; //when waiting for incoming remote, event or signal
   case THING_HOOKED = 'thing_hooked'; //when waiting for remote hook to complete
   case THING_PAUSED = 'thing_paused'; //-- to stop auto running of things, when the debugger is single stepping or breakpoint
+  case THING_SHORT_CIRCUITED = 'thing_short_circuited'; //-- these will not run, and if queued, will be finished without processing
+  case THING_RESOURCES = 'thing_resources'; //not enough resources to finish building the tree
   case THING_SUCCESS = 'thing_success';
   case THING_ERROR = 'thing_error';
 

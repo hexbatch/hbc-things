@@ -12,7 +12,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('thing_hook_clusters', function (Blueprint $table) {
+        Schema::create('thing_hookers', function (Blueprint $table) {
             $table->id();
 
             $table->foreignId('hooked_thing_id')
@@ -25,7 +25,7 @@ return new class extends Migration
 
             $table->foreignId('owning_thing_hook_id')
                 ->nullable()->default(null)
-                ->comment("when there is some hook(s) to run here")
+                ->comment("the hook that added the entry")
                 ->index()
                 ->constrained('thing_hooks')
                 ->cascadeOnUpdate()
@@ -33,7 +33,7 @@ return new class extends Migration
 
 
             $table->integer('hook_http_status')->default(null)->nullable()
-                ->comment('when calling the hook, or having it set, there is a status for it');
+                ->comment('when calling the hook, or having it set, there is a status for it. If multiple callbacks, the highest http result wins');
 
 
 
@@ -45,17 +45,13 @@ return new class extends Migration
                 ->comment("used for display and id outside the code");
 
 
-            $table->jsonb('hook_data')
-                ->nullable()->default(null)->comment("what the callback returned, also contains any error data from url");
-
-
         });
 
         DB::statement("CREATE TYPE type_hooked_thing_status AS ENUM (
             'none',
             'waiting_for_thing',
             'waiting_for_hook',
-            'waiting_for_update',
+            'waiting_for_manual',
             'callback_error',
             'hook_complete',
             'hook_complete_with_error',
@@ -65,15 +61,15 @@ return new class extends Migration
 
             );");
 
-        DB::statement("ALTER TABLE thing_hook_clusters Add COLUMN hooked_thing_status type_hooked_thing_status NOT NULL default 'none';");
+        DB::statement("ALTER TABLE thing_hookers Add COLUMN hooked_thing_status type_hooked_thing_status NOT NULL default 'none';");
 
-        DB::statement("ALTER TABLE thing_hook_clusters ALTER COLUMN created_at SET DEFAULT NOW();");
+        DB::statement("ALTER TABLE thing_hookers ALTER COLUMN created_at SET DEFAULT NOW();");
 
         DB::statement("
-            CREATE TRIGGER update_modified_time BEFORE UPDATE ON thing_hook_clusters FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+            CREATE TRIGGER update_modified_time BEFORE UPDATE ON thing_hookers FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
         ");
 
-        DB::statement('ALTER TABLE thing_hook_clusters ALTER COLUMN ref_uuid SET DEFAULT uuid_generate_v4();');
+        DB::statement('ALTER TABLE thing_hookers ALTER COLUMN ref_uuid SET DEFAULT uuid_generate_v4();');
 
 
     }
@@ -83,7 +79,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('thing_hook_clusters');
+        Schema::dropIfExists('thing_hookers');
         DB::statement("DROP TYPE type_hooked_thing_status;");
     }
 };

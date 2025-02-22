@@ -8,7 +8,7 @@ use Hexbatch\Things\Models\Enums\TypeHookedThingStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
-
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 
 /**
@@ -22,17 +22,18 @@ use Illuminate\Database\Eloquent\Model;
  *
  * @property string ref_uuid
  * @property TypeHookedThingStatus hooked_thing_status
- * @property ArrayObject hook_data
-
-
+ * @property ArrayObject outgoing_hook_data
+ *
+ * @property ThingHook hooker_parent
+ * @property Thing hooker_thing
  *
  *
  */
-class ThingHookCluster extends Model
+class ThingHooker extends Model
 {
 
 
-    protected $table = 'thing_hook_clusters';
+    protected $table = 'thing_hookers';
     public $timestamps = false;
 
     /**
@@ -55,8 +56,30 @@ class ThingHookCluster extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'hook_data' => AsArrayObject::class,
+        'outgoing_hook_data' => AsArrayObject::class,
         'hooked_thing_status' => TypeHookedThingStatus::class,
     ];
+
+    public function hooker_parent() : BelongsTo {
+        return $this->belongsTo(ThingHook::class,'owning_thing_hook_id','id');
+    }
+
+    public function hooker_thing() : BelongsTo {
+        return $this->belongsTo(Thing::class,'hooked_thing_id','id');
+    }
+
+    public function dispatchHooker() {
+        //todo get the data from the thing action, but the thing tree needs some env too for context
+    }
+
+    public function resolveHooker(int $status) {
+        $this->hooked_thing_status = $status;
+        $this->save();
+        if ($status < 300 && $status >= 200) {
+            if ($this->hooker_parent->is_blocking) {
+                $this->hooker_thing->resumeBlockedThing();
+            }
+        }
+    }
 
 }

@@ -23,52 +23,57 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->char('setting_action_type',3)
+            $table->char('action_type',4)
                 ->nullable()->default(null)
                 ->comment("The type of action");
 
-            $table->bigInteger('setting_action_type_id')
+            $table->char('owner_type',4)
+                ->nullable()->default(null)
+                ->comment("The type of owner");
+
+            $table->bigInteger('owner_type_id')
+                ->nullable()->default(null)
+                ->comment("The id of the owner, see type to lookup");
+
+            $table->bigInteger('action_type_id')
                 ->nullable()->default(null)
                 ->comment("The id of the action, see type to lookup");
 
-            $table->index(['setting_action_type','setting_action_type_id'],'udx_setting_action_type_id');
 
-            $table->smallInteger('setting_rank')->nullable(false)->default(0)
+            $table->integer('setting_rank')->nullable(false)->default(0)
                 ->comment('higher rank settings will be used, equal ranks will use the lowest in each category, lower ranks will be ignored');
 
 
-            $table->smallInteger('thing_pagination_size')->nullable()->default(null)
-                ->comment('if set, then the path will use this for paginition');
+            $table->integer('descendants_limit')->nullable()->default(null)
+                ->comment('if set, then the count of child levels in this tree will calculated, and if over, the building will pause with status of thing_resources');
+
+            $table->integer('data_byte_row_limit')->nullable()->default(null)
+                ->comment('if set, then total data size associated with the tree');
+
+            $table->integer('tree_limit')->nullable()->default(null)
+                ->comment('if set, then total number trees not completed at any one time');
 
 
-            $table->smallInteger('thing_pagination_limit')->nullable()->default(null)
-                ->comment('if set, then the count of pages in this tree will be calcuated, and if over then backoff applied to future pages');
-
-            $table->smallInteger('thing_depth_limit')->nullable()->default(null)
-                ->comment('if set, then the count of child levels in this tree will calculated, and if over, the subtree or tree returns false');
-
-            $table->smallInteger('thing_rate_limit')->nullable()->default(null)
-                ->comment('if set, then the count of actions this tree will calculated, and if over, the backoff happens');
-
-            $table->smallInteger('thing_backoff_page_policy')->nullable()->default(null)
+            $table->integer('backoff_data_policy')->nullable()->default(null)
                 ->comment('if set, then if over any limits here or in ancestors, then how long to backoff will be determined here');
-
-            $table->smallInteger('thing_backoff_rate_policy')->nullable()->default(null)
-                ->comment('if set, then if over any limits here or in ancestors, then how long to backoff will be determined here');
-
-            $table->integer('thing_json_size_limit')->nullable()->default(null)
-                ->comment('if set, then if any write or read over this size in utf8mb4 will result in an error');
 
 
             $table->timestamps();
 
+            $table->index(['action_type','action_type_id'],'idx_setting_action_type_id');
+            $table->index(['owner_type','owner_type_id'],'idx_setting_owner_type_id');
+
         });
 
-        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_pagination_size CHECK (thing_pagination_size IS NULL OR  thing_pagination_size > 0)');
-        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_pagination_limit CHECK (thing_pagination_limit IS NULL OR  thing_pagination_limit > 0)');
-        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_depth_limit CHECK (thing_depth_limit IS NULL OR  thing_depth_limit > 0)');
-        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_rate_limit CHECK (thing_rate_limit IS NULL OR  thing_rate_limit > 0)');
-        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_json_size_limit CHECK (thing_json_size_limit IS NULL OR  thing_json_size_limit > 0)');
+        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_depth_limit CHECK (descendants_limit IS NULL OR  descendants_limit > 0)');
+        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_data_limit CHECK (data_byte_row_limit IS NULL OR  data_byte_row_limit > 0)');
+        DB::statement('ALTER TABLE thing_settings ADD CONSTRAINT unsigned_thing_tree_limit CHECK (tree_limit IS NULL OR  tree_limit > 0)');
+
+        DB::statement("ALTER TABLE thing_settings ALTER COLUMN created_at SET DEFAULT NOW();");
+
+        DB::statement("
+            CREATE TRIGGER update_modified_time BEFORE UPDATE ON thing_settings FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+        ");
     }
 
     /**

@@ -15,13 +15,23 @@ return new class extends Migration
         Schema::create('thing_hooks', function (Blueprint $table) {
             $table->id();
 
-            $table->char('hook_on_action_type',3)
+            $table->bigInteger('owner_type_id')
+                ->nullable()->default(null)
+                ->comment("The id of the owner, see type to lookup");
+
+
+            $table->bigInteger('action_type_id')
+                ->nullable()->default(null)
+                ->comment("The id of the action, see type to lookup");
+
+
+            $table->char('action_type',6)
                 ->nullable()->default(null)
                 ->comment("The type of action");
 
-            $table->bigInteger('hook_on_action_type_id')
+            $table->char('owner_type',6)
                 ->nullable()->default(null)
-                ->comment("The id of the action, see type to lookup");
+                ->comment("The type of owner");
 
 
             $table->boolean('is_on')->default(true)->nullable(false)
@@ -39,8 +49,15 @@ return new class extends Migration
 
 
 
-            $table->jsonb('extra_data')
-                ->nullable()->default(null)->comment("Passed through to the hook url");
+            $table->jsonb('outgoing_constant_data')
+                ->nullable()->default(null)
+                ->comment("This is merged with the results of the action, if duplicate keys, the action wins");
+
+            $table->jsonb('outgoing_header')
+                ->nullable()->default(null)
+                ->comment("This is what will be in the header for http calls,".
+                " placeholders can be used in the values, which are filled in by the key in the action result, if present,".
+                " or removed if not there");
 
 
             $table->string('hooked_thing_callback_url')->nullable()->default(null)
@@ -52,14 +69,15 @@ return new class extends Migration
             $table->text('hook_notes')->nullable()->default(null)
                 ->comment('optional notes');
 
-
+            $table->index(['action_type','action_type_id'],'idx_hook_action_type_id');
+            $table->index(['owner_type','owner_type_id'],'idx_hook_owner_type_id');
 
         });
 
         /*
          * Breakpoints are set to the entire tree if matched, or can manually put a breakpoint on a single thing or collection of them
          */
-        DB::statement("CREATE TYPE type_thing_hook_mode AS ENUM (
+        DB::statement("CREATE TYPE type_of_thing_hook_mode AS ENUM (
             'none',
             'debug_breakpoint',
 
@@ -81,7 +99,7 @@ return new class extends Migration
 
             );");
 
-        DB::statement("ALTER TABLE thing_hooks Add COLUMN thing_hook_mode type_thing_hook_mode NOT NULL default 'none';");
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN thing_hook_mode type_of_thing_hook_mode NOT NULL default 'none';");
 
         DB::statement("ALTER TABLE thing_hooks ALTER COLUMN created_at SET DEFAULT NOW();");
 
@@ -99,6 +117,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('thing_hooks');
-        DB::statement("DROP TYPE type_thing_hook_mode;");
+        DB::statement("DROP TYPE type_of_thing_hook_mode;");
     }
 };

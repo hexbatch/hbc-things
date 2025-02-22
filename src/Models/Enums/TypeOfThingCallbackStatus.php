@@ -4,13 +4,11 @@ namespace Hexbatch\Things\Models\Enums;
  * postgres enum type_of_thing_callback_status
  */
 enum TypeOfThingCallbackStatus : string {
-    case NO_FOLLOWUP = 'no_followup';
-    case DIRECT_FOLLOWUP = 'direct_followup';
-    case POLLED_FOLLOWUP = 'polled_followup';
-    case FOLLOWUP_CALLBACK_SUCCESSFUL = 'followup_callback_successful';
-    case FOLLOWUP_CALLBACK_ERROR = 'followup_callback_error';
-    case FOLLOWUP_INTERNAL_ERROR = 'followup_internal_error';
 
+    case WAITING_TO_SEND = 'waiting_to_send';
+    case WAITING_DIRECT_FOLLOWUP = 'waiting_direct_followup';
+    case CALLBACK_SUCCESSFUL = 'callback_successful';
+    case CALLBACK_ERROR = 'callback_error';
 
     public static function tryFromInput(string|int|bool|null $test ) : TypeOfThingCallbackStatus {
         $maybe  = TypeOfThingCallbackStatus::tryFrom($test);

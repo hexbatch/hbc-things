@@ -5,30 +5,27 @@ namespace Hexbatch\Things\Models;
 
 
 
+use Hexbatch\Things\Models\Traits\ThingActionHandler;
+use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
 
 use Illuminate\Database\Eloquent\Model;
 
-/*
- * thing is marked as done when all children done, and there is no pagination id
- */
+
 /**
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int setting_about_thing_id
- * @property string setting_action_type
- * @property int setting_action_type_id
-
+ * @property string action_type
+ * @property int action_type_id
+ * @property string owner_type
+ * @property int owner_type_id
  * @property int setting_rank
- * @property int thing_pagination_size
- * @property int thing_pagination_limit
- * @property int thing_depth_limit
- * @property int thing_rate_limit
- * @property int thing_backoff_page_policy
- * @property int thing_backoff_rate_policy
- * @property int thing_json_size_limit
- *
+ * @property int descendants_limit
+ * @property int data_byte_row_limit
+ * @property int tree_limit
+ * @property int backoff_data_policy
  *
  * @property string created_at
  * @property string updated_at
@@ -37,7 +34,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ThingSetting extends Model
 {
-
+    use ThingOwnerHandler,ThingActionHandler;
     protected $table = 'thing_settings';
     public $timestamps = false;
 
@@ -61,23 +58,27 @@ class ThingSetting extends Model
 
     ];
 
-    const DEFAULT_PAGINATION_SIZE = 100;
-    const DEFAULT_PAGINATION_LIMIT = 100;
-    const DEFAULT_DEPTH_LIMIT = 100;
-    const DEFAULT_BACKOFF_PAGE_POLICY = 100;
-    const DEFAULT_BACKOFF_RATE_POLICY = 100;
-    const DEFAULT_RATE_LIMIT = 10000;
-    const DEFAULT_JSON_SIZE_LIMIT = 10000;
+    const DEFAULT_DATA_BYTE_ROWS_LIMIT = 100;
+    const DEFAULT_ANCESTOR_LIMIT = 100;
+    const DEFAULT_BACKOFF_DATA_POLICY = 100;
+    const DEFAULT_TREE_LIMIT = 100;
 
 
-    public function checkSettingOwnership(Thing $thing) : ?ThingSettingCluster{
-        /** @var ThingSettingCluster|null $bonding */
-        return ThingSettingCluster::where('setting_cluster_thing_id',$thing->id)->where('owning_setting_id',$this->id)->first();
+    /**
+     * @return int  the limit for trees
+     */
+    public static function checkForTreeOverflow(string $action_type,int $action_type_id,string $owner_type,int $owner_type_id)
+    : int
+    {
+        return 0;
+        //todo find rule to count trees, count them that way, and see if tree count limit reached
     }
 
-    public function getName() : string {
-        return "Setting Id # $this->id";
+    public static function makeStatFromSettings(Thing $thing) : ThingStat {
+        $node = new ThingStat();
+        $node->stat_thing_id = $thing;
+        //todo fill in rest of stats rows based on settings or defaults
+        return $node;
     }
-
 
 }

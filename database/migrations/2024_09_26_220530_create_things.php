@@ -44,19 +44,28 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
 
-            $table->char('action_type',3)
-                ->nullable()->default(null)
-                ->comment("The type of action");
-
             $table->bigInteger('action_type_id')
                 ->nullable()->default(null)
                 ->comment("The id of the action, see type to lookup");
 
-            $table->integer('action_priority')
+            $table->bigInteger('owner_type_id')
+                ->nullable()->default(null)
+                ->comment("The id of the owner, see type to lookup");
+
+            $table->char('action_type',6)
+                ->nullable()->default(null)
+                ->comment("The type of action");
+
+            $table->char('owner_type',6)
+                ->nullable()->default(null)
+                ->comment("The type of owner");
+
+            $table->integer('thing_priority')
                 ->nullable(false)->default(0)
                 ->comment("the higher priority will run first, equal will run at the same time");
 
-            $table->index(['action_type','action_type_id'],'udx_thing_action_type_id');
+            $table->index(['action_type','action_type_id'],'idx_thing_action_type_id');
+            $table->index(['owner_type','owner_type_id'],'idx_thing_owner_type_id');
 
 
 
@@ -74,26 +83,36 @@ return new class extends Migration
 
 
 
-            $table->smallInteger('debugging_breakpoint')
+            $table->integer('debugging_breakpoint')
                 ->nullable(false)->default(0)
                 ->comment("when breakpoint set for the debugger in the row. Do not need a hook to pause here");
 
 
+            $table->tinyInteger('is_async')
+                ->nullable(false)->default(0)
+                ->comment("if true, then will not complete immediately");
 
 
             $table->uuid('ref_uuid')
                 ->unique()
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
+
+            $table->jsonb('thing_constant_data')
+                ->nullable()->default(null)
+                ->comment("This is merged with the data going into each action before it runs, if duplicate keys, the data elsewhere wins");
+
         });
 
 
-
+//short cuc
         DB::statement("CREATE TYPE type_of_thing_status AS ENUM (
             'thing_building',
             'thing_pending',
             'thing_waiting',
             'thing_paused',
+            'thing_short_circuited',
+            'thing_resources',
             'thing_success',
             'thing_error'
             );");
