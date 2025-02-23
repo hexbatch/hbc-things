@@ -1,3 +1,4 @@
 todo insert hook calls at the proper places
   * find way to pause stuff until hook completes
 
+todo hooks can set data in the action run

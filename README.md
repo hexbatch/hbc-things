@@ -67,19 +67,7 @@ Not sure if the logic should be in the data structure or if its just that functi
 Here, the thing data, waits, is not used, that is a reference source for the main project to use
 But the callbacks, results, hooks, options are used
 
-settings used
-thing_depth_limit
-thing_rate_limit
-thing_backoff_rate_policy
-thing_pagination_size
-thing_pagination_limit
 
-hooks used
-hook activated on action type
-is_on
-is_blocking
-name
-mode
 
 
 The thing nodes do not point to data, but the running/waiting actions will point to the thing node.

@@ -5,6 +5,7 @@ namespace Hexbatch\Things\Models;
 
 
 
+use ArrayObject;
 use Carbon\Carbon;
 use Exception;
 use Hexbatch\Things\Exceptions\HbcThingStackException;
@@ -17,6 +18,7 @@ use Hexbatch\Things\Models\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -25,6 +27,14 @@ use Illuminate\Support\Facades\DB;
 use LogicException;
 
 /**
+ *
+ * thing_start_at
+ * thing_invalid_at
+ * thing_started_at
+ * is_async
+ * ref_uuid
+ *
+ * thing_status
  *
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
@@ -40,13 +50,13 @@ use LogicException;
  *
  * @property bool is_async
  *
- * @property int debugging_breakpoint
  *
  * @property string thing_start_at
  * @property string thing_invalid_at
  * @property string thing_started_at
  * @property string ref_uuid
  * @property TypeOfThingStatus thing_status
+ * @property ArrayObject thing_constant_data
  *
  * @property string created_at
  * @property int created_at_ts
@@ -74,7 +84,6 @@ class Thing extends Model
         'thing_priority',
         'action_type',
         'action_type_id',
-        'debugging_breakpoint',
         'thing_start_at',
         'thing_started_at',
         'thing_invalid_at',
@@ -86,7 +95,8 @@ class Thing extends Model
 
     /* @var array<string, string> */
     protected $casts = [
-        'thing_status' => TypeOfThingStatus::class
+        'thing_status' => TypeOfThingStatus::class,
+        'thing_constant_data' => AsArrayObject::class,
     ];
 
 
@@ -132,7 +142,7 @@ class Thing extends Model
     public function dispatchHooksOfMode(TypeOfThingHookMode $mode) : array {
         $blocking = [];
         foreach ($this->hasHooksOfMode(mode:$mode) as $hooker) {
-            if ($hooker->hooker_parent->is_blocking) {
+            if ($hooker->hooker_parent->isBlocking()) {
                 $blocking[] = $hooker;
             }
             $hooker->dispatchHooker();
@@ -152,7 +162,7 @@ class Thing extends Model
     public function hasHooksOfMode(TypeOfThingHookMode $mode) : array {
         $ret = [];
         foreach ($this->da_hooks as $hooker) {
-            if ($hooker->hooker_parent->thing_hook_mode === $mode) {
+            if ($hooker->hooker_parent->hook_mode === $mode) {
                 $ret[] = $hooker;
             }
         }
@@ -175,7 +185,6 @@ class Thing extends Model
     public function isIntrupted() : bool {
         if ($this->thing_status === TypeOfThingStatus::THING_RESOURCES ||
             $this->thing_status === TypeOfThingStatus::THING_PAUSED   ||
-            $this->thing_status === TypeOfThingStatus::THING_WAITING   ||
             $this->thing_status === TypeOfThingStatus::THING_HOOKED
 
         ) {
@@ -255,14 +264,14 @@ class Thing extends Model
                 return;
             }
             $action->setLimitDataByteRows($this->thing_stat->getDataLimit());
-            $action->runAction(); //set page length
+            $data_from_hook = [];
+            $action->runAction($data_from_hook); //set page length
             $this->thing_stat->updateDataStats(action: $action);
 
             $this->thing_status = match ($action->getActionStatus()) {
                 TypeOfThingStatus::THING_PAUSED,
                 TypeOfThingStatus::THING_HOOKED,
                 TypeOfThingStatus::THING_PENDING,
-                TypeOfThingStatus::THING_WAITING,
                 TypeOfThingStatus::THING_BUILDING => TypeOfThingStatus::THING_PENDING,
                 TypeOfThingStatus::THING_SUCCESS => TypeOfThingStatus::THING_SUCCESS,
                 TypeOfThingStatus::THING_ERROR => TypeOfThingStatus::THING_ERROR,

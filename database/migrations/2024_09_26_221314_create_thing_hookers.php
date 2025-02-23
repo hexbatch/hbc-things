@@ -50,15 +50,8 @@ return new class extends Migration
         DB::statement("CREATE TYPE type_hooked_thing_status AS ENUM (
             'none',
             'waiting_for_thing',
-            'waiting_for_hook',
-            'waiting_for_manual',
-            'callback_error',
-            'hook_complete',
-            'hook_complete_with_error',
-            'hook_success',
-            'hook_fail'
-
-
+            'waiting_for_callbacks',
+            'hook_complete'
             );");
 
         DB::statement("ALTER TABLE thing_hookers Add COLUMN hooked_thing_status type_hooked_thing_status NOT NULL default 'none';");

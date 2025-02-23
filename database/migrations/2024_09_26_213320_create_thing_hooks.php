@@ -37,8 +37,9 @@ return new class extends Migration
             $table->boolean('is_on')->default(true)->nullable(false)
                 ->comment('if false then this hook is not used');
 
-            $table->boolean('is_blocking')->default(false)->nullable(false)
-                ->comment('if true then thing needs this hook to be successful to continue. Otherwise the cluster reports hook_complete (or errors) after running');
+            $table->boolean('ttl_callbacks')->default(true)->nullable(false)
+                ->comment('if data in callback older then this, reset callback and do again before returning data');
+
 
             $table->timestamps();
 
@@ -49,22 +50,11 @@ return new class extends Migration
 
 
 
-            $table->jsonb('outgoing_constant_data')
+            $table->jsonb('callback_constant_data')
                 ->nullable()->default(null)
-                ->comment("This is merged with the results of the action, if duplicate keys, the action wins");
-
-            $table->jsonb('outgoing_header')
-                ->nullable()->default(null)
-                ->comment("This is what will be in the header for http calls,".
-                " placeholders can be used in the values, which are filled in by the key in the action result, if present,".
-                " or removed if not there");
+                ->comment("This is merged with the callback outgoing data, if duplicate keys, the callback wins");
 
 
-            $table->string('hooked_thing_callback_url')->nullable()->default(null)
-                ->comment('If set, this will be called with the result or error, if null and blocking, then hook needs to be updated manually');
-
-            $table->string('hook_name')->nullable()->default(null)
-                ->comment('optional name');
 
             $table->text('hook_notes')->nullable()->default(null)
                 ->comment('optional notes');
@@ -86,7 +76,7 @@ return new class extends Migration
             'node_before_running_hook',
             'node_after_running_hook',
 
-            'tree_paused_notice',
+            'node_resources',
             'tree_unpaused_notice',
             'tree_finished_notice',
             'tree_success_notice',
@@ -99,7 +89,36 @@ return new class extends Migration
 
             );");
 
-        DB::statement("ALTER TABLE thing_hooks Add COLUMN thing_hook_mode type_of_thing_hook_mode NOT NULL default 'none';");
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_mode type_of_thing_hook_mode NOT NULL default 'none';");
+
+
+        DB::statement("CREATE TYPE type_of_thing_hook_blocking AS ENUM (
+            'none',
+            'block',
+            'block_add_data_to_parent',
+            'block_add_data_to_current'
+            );");
+
+
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN blocking_mode type_of_thing_hook_blocking NOT NULL default 'none';");
+
+
+        DB::statement("CREATE TYPE type_of_thing_hook_scope AS ENUM (
+            'current',
+            'all_descendants',
+            'all_tree',
+            'global'
+            );");
+
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_scope type_of_thing_hook_scope NOT NULL default 'current';");
+
+
+        Schema::table('thing_hooks', function (Blueprint $table) {
+
+            $table->string('hook_name')->nullable()->default(null)
+                ->comment('optional name');
+        });
+
 
         DB::statement("ALTER TABLE thing_hooks ALTER COLUMN created_at SET DEFAULT NOW();");
 
@@ -118,5 +137,7 @@ return new class extends Migration
     {
         Schema::dropIfExists('thing_hooks');
         DB::statement("DROP TYPE type_of_thing_hook_mode;");
+        DB::statement("DROP TYPE type_of_thing_hook_blocking;");
+        DB::statement("DROP TYPE type_of_thing_hook_scope;");
     }
 };

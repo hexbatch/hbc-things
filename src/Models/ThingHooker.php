@@ -72,14 +72,7 @@ class ThingHooker extends Model
         //todo get the data from the thing action, but the thing tree needs some env too for context
     }
 
-    public function resolveHooker(int $status) {
-        $this->hooked_thing_status = $status;
-        $this->save();
-        if ($status < 300 && $status >= 200) {
-            if ($this->hooker_parent->is_blocking) {
-                $this->hooker_thing->resumeBlockedThing();
-            }
-        }
-    }
+
+
 
 }

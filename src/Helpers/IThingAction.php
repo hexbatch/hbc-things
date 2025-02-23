@@ -15,7 +15,7 @@ interface IThingAction
     public static function getActionType() : string;
     public function getChildrenTree(?string $key = null) : Tree;
 
-    public function runAction(): void;
+    public function runAction(array $data = []): void;
     public function getDataByteRowsUsed(): int;
     public function setLimitDataByteRows(int $limit): int;
 

@@ -82,12 +82,6 @@ return new class extends Migration
                 ->comment('if set, then this thing started processing at this time');
 
 
-
-            $table->integer('debugging_breakpoint')
-                ->nullable(false)->default(0)
-                ->comment("when breakpoint set for the debugger in the row. Do not need a hook to pause here");
-
-
             $table->tinyInteger('is_async')
                 ->nullable(false)->default(0)
                 ->comment("if true, then will not complete immediately");
@@ -105,11 +99,10 @@ return new class extends Migration
         });
 
 
-//short cuc
+
         DB::statement("CREATE TYPE type_of_thing_status AS ENUM (
             'thing_building',
             'thing_pending',
-            'thing_waiting',
             'thing_paused',
             'thing_short_circuited',
             'thing_resources',

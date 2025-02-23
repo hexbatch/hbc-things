@@ -21,6 +21,14 @@ return new class extends Migration
                 ->index()
                 ->constrained('thing_hookers')
                 ->cascadeOnUpdate()
+                ->cascadeOnDelete();
+
+            $table->foreignId('callback_callplate_id')
+                ->nullable()->default(null)
+                ->comment("if generated from a callback tempalte")
+                ->index()
+                ->constrained('thing_callplates')
+                ->cascadeOnUpdate()
                 ->nullOnDelete();
 
             $table->foreignId('callback_error_id')
@@ -37,48 +45,43 @@ return new class extends Migration
 
             $table->timestamps();
 
+            $table->timestamp('callback_run_at')
+                ->nullable()->default(null)
+                ->comment("Updated when the callback is run, used for seeing if ttl in the hook is valid");
+
             $table->uuid('ref_uuid')
                 ->unique()
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
 
+            $table->jsonb('callback_incoming_data')
+                ->nullable()->default(null)
+                ->comment("The body and the headers combined to be one json object,".
+                    " if body only returns primitive, it will be marked with key body. Body xml converted to json");
+
             $table->jsonb('callback_outgoing_data')
                 ->nullable()->default(null)
-                ->comment("What is going to be sent in the body or query string or function parameters. headers that have placeholders same key will be fill from here");
+                ->comment("What is going to be sent in the body or query string or function parameters.".
+                    " headers that have placeholders same key will be fill from here");
 
-            $table->jsonb('outgoing_hook_header')
+            $table->text('callback_outgoing_header')
                 ->nullable()->default(null)
-                ->comment("headers made from key value pairs, if placeholder in value will  get that from the data");
+                ->comment('This is what will be in the header for http calls, dilimited by newlines'.
+                    ' placeholders of ${keyname} can be used in the values, which are filled in by the key in the callback_outgoing_data, and the data enetry is removed'.
+                    ' or that header removed if not there. This column is encrypted at the php level');
 
         });
 
 
         DB::statement("CREATE TYPE type_of_thing_callback_status AS ENUM (
-            'no_followup',
-            'direct_followup',
-            'polled_followup',
-            'followup_callback_successful',
-            'followup_callback_error',
-            'followup_internal_error'
+            'building',
+            'waiting',
+            'callback_successful',
+            'callback_error'
             );");
 
-        DB::statement("ALTER TABLE thing_callbacks Add COLUMN thing_callback_status type_of_thing_callback_status NOT NULL default 'no_followup';");
+        DB::statement("ALTER TABLE thing_callbacks Add COLUMN thing_callback_status type_of_thing_callback_status NOT NULL default 'building';");
 
-
-        DB::statement("CREATE TYPE type_of_thing_callback AS ENUM (
-            'disabled',
-            'manual',
-            'http_get',
-            'http_post',
-            'http_post_form',
-            'http_put',
-            'http_put_form',
-            'http_patch',
-            'http_patch_form',
-            'http_delete'
-            'code',
-            'event_call'
-            );");
 
         DB::statement("ALTER TABLE thing_callbacks Add COLUMN thing_callback_type type_of_thing_callback NOT NULL default 'disabled';");
 
@@ -114,7 +117,7 @@ return new class extends Migration
             $table->string('callback_class')->nullable()->default(null)
                 ->comment('If set, this is the namespaced class to call');
 
-            $table->string('callback_method')->nullable()->default(null)
+            $table->string('callback_function')->nullable()->default(null)
                 ->comment('If set, this is the function to call, if no class above, then called as regular function. Params in either case are from the callback_outgoing_data');
 
             $table->string('callback_event')->nullable()->default(null)
@@ -132,6 +135,5 @@ return new class extends Migration
     {
         Schema::dropIfExists('thing_callbacks');
         DB::statement("DROP TYPE type_of_thing_callback_status;");
-        DB::statement("DROP TYPE type_of_thing_callback;");
     }
 };

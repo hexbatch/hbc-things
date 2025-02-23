@@ -5,7 +5,7 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Hexbatch\Things\Helpers\IThingCallback;
-use Hexbatch\Things\Jobs\SendResult;
+use Hexbatch\Things\Jobs\SendCallback;
 use Hexbatch\Things\Models\Enums\TypeOfThingCallback;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
@@ -74,7 +74,7 @@ class ThingResult extends Model
     public function dispatchResult() : void {
         foreach ($this->result_callbacks as $callback) {
             if ($callback->thing_callback_type === TypeOfThingCallback::HTTP || !$callback->result_callback_url) {
-                SendResult::dispatch($callback);
+                SendCallback::dispatch($callback);
             }
         }
     }

@@ -5,8 +5,8 @@ namespace Hexbatch\Things\Models\Enums;
  */
 enum TypeOfThingCallbackStatus : string {
 
-    case WAITING_TO_SEND = 'waiting_to_send';
-    case WAITING_DIRECT_FOLLOWUP = 'waiting_direct_followup';
+    case BUILDING = 'building';
+    case WAITING = 'waiting';
     case CALLBACK_SUCCESSFUL = 'callback_successful';
     case CALLBACK_ERROR = 'callback_error';
 

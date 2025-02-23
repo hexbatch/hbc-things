@@ -6,12 +6,7 @@ namespace Hexbatch\Things\Models\Enums;
 enum TypeHookedThingStatus : string {
     case NONE = 'none';
     case WAITING_FOR_THING = 'waiting_for_thing';
-    case WAITING_FOR_HOOK = 'waiting_for_hook';
-    case WAITING_FOR_MANUAL = 'waiting_for_manual';
-    case CALLBACK_ERROR = 'callback_error';
-    case HOOK_SUCCESS = 'hook_success';
-    case HOOK_FAIL = 'hook_fail';
-    case HOOK_COMPLETE_WITH_ERROR = 'hook_complete_with_error';
+    case WAITING_FOR_HOOK = 'waiting_for_callbacks';
     case HOOK_COMPLETE = 'hook_complete';
 
 
