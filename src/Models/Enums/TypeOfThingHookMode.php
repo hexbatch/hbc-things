@@ -12,14 +12,15 @@ enum TypeOfThingHookMode : string {
     case NODE_AFTER_RUNNING_HOOK = 'node_after_running_hook';
 
 
-    case TREE_PAUSED_NOTICE = 'tree_paused_notice';
-    case TREE_UNPAUSED_NOTICE = 'tree_unpaused_notice';
+    case TREE_RESOURCES_NOTICE = 'tree_resources_notice';
+    case NODE_RESOURCES_NOTICE = 'node_resources_notice';
 
     case NODE_WAITING_NOTICE = 'node_waiting_notice';
     case NODE_RESUME_NOTICE = 'node_resume_notice';
 
 
     case TREE_FINISHED_NOTICE = 'tree_finished_notice';
+    case SYSTEM_TREE_RECORD = 'system_tree_record';
     case TREE_SUCCESS_NOTICE = 'tree_success_notice';
     case TREE_FAILURE_NOTICE = 'tree_failure_notice';
 

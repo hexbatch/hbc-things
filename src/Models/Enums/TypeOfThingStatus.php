@@ -6,7 +6,7 @@ namespace Hexbatch\Things\Models\Enums;
 enum TypeOfThingStatus : string {
 
   case THING_BUILDING = 'thing_building';
-  case THING_PENDING = 'thing_pending';
+  case THING_PENDING = 'thing_pending'; //waiting to run
   case THING_HOOKED = 'thing_hooked'; //when waiting for remote hook to complete
   case THING_PAUSED = 'thing_paused'; //paused by hook, must be put back into the work queue to run
   case THING_SHORT_CIRCUITED = 'thing_short_circuited'; //-- these will not run, and if queued, will be finished without processing

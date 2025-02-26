@@ -4,15 +4,18 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
+use Hexbatch\Things\Helpers\IThingCallback;
 use Hexbatch\Things\Models\Enums\TypeOfThingHookBlocking;
 use Hexbatch\Things\Models\Enums\TypeOfThingHookMode;
+use Hexbatch\Things\Models\Enums\TypeOfThingHookPosition;
 use Hexbatch\Things\Models\Enums\TypeOfThingHookScope;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 
 /**
@@ -33,6 +36,9 @@ use Illuminate\Support\Facades\Log;
  * @property TypeOfThingHookMode hook_mode
  * @property TypeOfThingHookBlocking blocking_mode
  * @property TypeOfThingHookScope hook_scope
+ * @property TypeOfThingHookPosition hook_position
+ *
+ * @property ThingCallplate[] hook_callplates
  *
  */
 class ThingHook extends Model
@@ -65,19 +71,65 @@ class ThingHook extends Model
         'callback_constant_data' => AsArrayObject::class,
         'hook_mode' => TypeOfThingHookMode::class,
         'hook_scope' => TypeOfThingHookScope::class,
+        'hook_position' => TypeOfThingHookPosition::class,
         'blocking_mode' => TypeOfThingHookBlocking::class,
     ];
 
 
+    public function hook_callplates() : HasMany {
+        return $this->hasMany(ThingCallplate::class,'callplate_for_hook_id','id')
+            /** @uses ThingCallplate::callplate_owning_hook() */
+            ->with('callplate_owning_hook');
+    }
+
 
     /**
-     * @param Thing $thing
+     * @param  array<string,IThingCallback[]> $callbacks
      * @return ThingHooker[]
+     * @throws \Exception
      */
-    public static function makeHooksForThing(Thing $thing) : array {
-        Log::info('hooked');
-        //todo see if tree matches any hooks, if so add the hookers
-        return [];
+    public static function makeHooksForThing(Thing $thing,?TypeOfThingHookMode $mode = null, array $callbacks = []) : array {
+
+        try {
+            $ret = [];
+            DB::beginTransaction();
+            //figure out node position
+            if (!$thing->parent_thing_id) {
+                $position = TypeOfThingHookPosition::ROOT;
+            } elseif (count($thing->thing_children()->get()) > 0) {
+                $position = TypeOfThingHookPosition::SUB_ROOT;
+            } else {
+                $position = TypeOfThingHookPosition::LEAF;
+            }
+            /** @var ThingHook[] $hooks */
+            $hooks = ThingHook::buildHook(mode: $mode, action_type: $thing->action_type, action_type_id: $thing->action_type_id,
+                owner_type: $thing->owner_type, owner_type_id: $thing->owner_type_id,position: $position)->get();
+
+            foreach ($hooks as $hook) {
+                $hooker = new ThingHooker();
+                $hooker->hooked_thing_id = $thing->id;
+                $hooker->owning_hook_id = $hook->id;
+                $hooker->save();
+                foreach ($hook->hook_callplates as $plate) {
+                    $plate->makeCallback(hooker: $hooker);
+                }
+                foreach ($callbacks as $hook_name => $callback_array) {
+                    if ($hook->hook_name === $hook_name) {
+                        foreach ($callback_array as $callback) {
+                            $hooker->makeCallback(call_me: $callback);
+                        }
+
+                    }
+
+                }
+                $ret[] = ThingHooker::buildHooker(id: $hooker->id);
+            }
+            DB::commit();
+            return $ret;
+        } catch(\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
     public function isBlocking() : bool {
@@ -90,6 +142,76 @@ class ThingHook extends Model
         }
 
         return false;
+    }
+
+
+    public static function buildHook(
+        ?int    $id = null,
+        ?TypeOfThingHookMode $mode = null,
+        ?string $action_type = null, ?int  $action_type_id = null,
+        ?string $owner_type = null, ?int  $owner_type_id = null,
+        ?TypeOfThingHookPosition $position = null
+    )
+    : Builder
+    {
+
+        /**
+         * @var Builder $build
+         */
+        $build =  ThingHook::select('thing_hooks.*')
+            ->selectRaw(" extract(epoch from  thing_hooks.created_at) as created_at_ts,  extract(epoch from  thing_hooks.updated_at) as updated_at_ts")
+        ;
+
+        if ($id) {
+            $build->where('thing_hooks.id',$id);
+        }
+
+        if ($action_type && $action_type_id) {
+            $build->where(function (Builder $q) use($action_type,$action_type_id) {
+                $q->where(function (Builder $q) use($action_type,$action_type_id) {
+                    $q->where('thing_hooks.action_type',$action_type);
+                    $q->where('thing_hooks.action_type_id',$action_type_id);
+                })
+                ->orWhere(function (Builder $q) {
+                    $q->whereNull('thing_hooks.action_type')->orWhereNull('thing_hooks.action_type_id');
+                });
+            });
+        }
+
+
+
+        if ($owner_type && $owner_type_id) {
+            $build->where(function (Builder $q) use($owner_type,$owner_type_id) {
+                $q->where(function (Builder $q) use($owner_type,$owner_type_id) {
+                    $q->where('thing_hooks.owner_type',$owner_type);
+                    $q->where('thing_hooks.owner_type_id',$owner_type_id);
+                })
+                    ->orWhere(function (Builder $q) {
+                        $q->whereNull('thing_hooks.owner_type')->orWhereNull('thing_hooks.owner_type_id');
+                    });
+            });
+        }
+
+
+        if ($mode) {
+            $build->where('thing_hooks.hook_mode',$mode);
+        }
+
+        if ($position) {
+            $build->where(function (Builder $q) use($position) {
+                $q->where('thing_hooks.hook_position',$position);
+                $q->orWhere('thing_hooks.owner_type_id',TypeOfThingHookPosition::ANY_POSITION);
+            });
+        }
+
+
+        /**
+         * @uses ThingHook::hook_callplates()
+         */
+        $build->with('hook_callplates');
+
+
+        return $build;
     }
 
 }

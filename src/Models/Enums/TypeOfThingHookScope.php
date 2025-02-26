@@ -1,11 +1,11 @@
 <?php
 namespace Hexbatch\Things\Models\Enums;
 /**
- * postgres enum type_hooked_thing_status
+ * postgres enum type_of_thing_hook_scope
  */
 enum TypeOfThingHookScope : string {
     case CURRENT = 'current';
-    case ALL_DESCENDANTS = 'all_descendants';
+    case ANCESTOR_CHAIN = 'ancestor_chain';
     case ALL_TREE = 'all_tree';
     case GLOBAL = 'global';
 

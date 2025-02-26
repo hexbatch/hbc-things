@@ -76,9 +76,11 @@ return new class extends Migration
             'node_before_running_hook',
             'node_after_running_hook',
 
-            'node_resources',
+            'tree_resources_notice',
+            'node_resources_notice',
             'tree_unpaused_notice',
             'tree_finished_notice',
+            'system_tree_record',
             'tree_success_notice',
             'tree_failure_notice',
             'node_waiting_notice',
@@ -105,18 +107,30 @@ return new class extends Migration
 
         DB::statement("CREATE TYPE type_of_thing_hook_scope AS ENUM (
             'current',
-            'all_descendants',
+            'ancestor_chain',
             'all_tree',
             'global'
             );");
 
         DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_scope type_of_thing_hook_scope NOT NULL default 'current';");
 
+        DB::statement("CREATE TYPE type_of_thing_hook_position AS ENUM (
+            'any_position',
+            'root',
+            'any_child',
+            'sub_root',
+            'leaf'
+            );");
+
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_position type_of_thing_hook_position NOT NULL default 'any_position';");
+
 
         Schema::table('thing_hooks', function (Blueprint $table) {
 
-            $table->string('hook_name')->nullable()->default(null)
-                ->comment('optional name');
+            $table->string('hook_name')
+                ->nullable()->default(null)
+                ->unique()
+                ->comment('optional name that must be unique if given');
         });
 
 
@@ -139,5 +153,6 @@ return new class extends Migration
         DB::statement("DROP TYPE type_of_thing_hook_mode;");
         DB::statement("DROP TYPE type_of_thing_hook_blocking;");
         DB::statement("DROP TYPE type_of_thing_hook_scope;");
+        DB::statement("DROP TYPE type_of_thing_hook_position;");
     }
 };

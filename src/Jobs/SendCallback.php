@@ -3,7 +3,7 @@ namespace Hexbatch\Things\Jobs;
 
 
 
-use Hexbatch\Things\Models\ThingResultCallback;
+use Hexbatch\Things\Models\ThingCallback;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,12 +19,12 @@ class SendCallback implements ShouldQueue
      * Create a new job instance.
      */
     public function __construct(
-        public ThingResultCallback $callback
+        public ThingCallback $callback
     ) {}
 
 
     public function handle(): void
     {
-        $this->callback->callbackUrl();
+        $this->callback->runCallback();
     }
 }

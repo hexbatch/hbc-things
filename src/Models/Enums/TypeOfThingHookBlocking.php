@@ -1,7 +1,7 @@
 <?php
 namespace Hexbatch\Things\Models\Enums;
 /**
- * postgres enum type_hooked_thing_status
+ * postgres enum type_of_thing_hook_blocking
  */
 enum TypeOfThingHookBlocking : string {
     case NONE = 'none';

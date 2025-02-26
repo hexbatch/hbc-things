@@ -22,8 +22,8 @@ use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use LogicException;
 
 /**
@@ -63,7 +63,6 @@ use LogicException;
  * @property string updated_at
  *
  * @property ThingStat thing_stat
- * @property ThingResult thing_result
  * @property ThingError thing_error
  * @property Thing thing_parent
  * @property Thing thing_root
@@ -113,11 +112,6 @@ class Thing extends Model
         return $this->belongsTo(Thing::class,'root_thing_id','id');
     }
 
-    public function thing_result() : HasOne {
-        return $this->hasOne(ThingResult::class,'owner_thing_id','id')
-            /** @uses ThingResult::result_callbacks() */
-            ->with('result_callbacks');
-    }
 
     public function thing_error() : BelongsTo {
         return $this->belongsTo(ThingError::class,'thing_error_id','id');
@@ -128,11 +122,10 @@ class Thing extends Model
         return $this->belongsTo(ThingStat::class,'stat_thing_id','id');
     }
 
-    public function da_hooks() : HasMany {
+    public function applied_hooks() : HasMany {
         return $this->hasMany(ThingHooker::class,'hooked_thing_id','id')
-            /** @uses ThingHooker::hooker_parent(),ThingHooker::hooker_thing() */
-            ->with('hooker_parent','hooker_thing');
-
+            /** @uses ThingHooker::parent_hook(),ThingHooker::hooker_thing(),ThingHooker::hooker_callbacks() */
+            ->with('parent_hook','hooker_thing','hooker_callbacks');
     }
 
     /**
@@ -142,7 +135,7 @@ class Thing extends Model
     public function dispatchHooksOfMode(TypeOfThingHookMode $mode) : array {
         $blocking = [];
         foreach ($this->hasHooksOfMode(mode:$mode) as $hooker) {
-            if ($hooker->hooker_parent->isBlocking()) {
+            if ($hooker->parent_hook->isBlocking()) {
                 $blocking[] = $hooker;
             }
             $hooker->dispatchHooker();
@@ -151,8 +144,9 @@ class Thing extends Model
     }
 
     public function resumeBlockedThing() {
-        if (! $this->isIntrupted()) { return;}
-        $this->pushLeavesToJobs();
+        if ($this->thing_status === TypeOfThingStatus::THING_HOOKED) {
+            $this->pushLeavesToJobs();
+        }
     }
 
     /**
@@ -162,12 +156,13 @@ class Thing extends Model
     public function hasHooksOfMode(TypeOfThingHookMode $mode) : array {
         $ret = [];
         foreach ($this->da_hooks as $hooker) {
-            if ($hooker->hooker_parent->hook_mode === $mode) {
+            if ($hooker->parent_hook->hook_mode === $mode) {
                 $ret[] = $hooker;
             }
         }
         return $ret;
     }
+
 
 
     public function isComplete() : bool {
@@ -287,7 +282,9 @@ class Thing extends Model
                 return;
             }
 
-            if (in_array($action->getActionStatus(),[TypeOfThingStatus::THING_SUCCESS,TypeOfThingStatus::THING_ERROR]) ) {
+            if (in_array($action->getActionStatus(),[
+                TypeOfThingStatus::THING_SUCCESS,TypeOfThingStatus::THING_ERROR,TypeOfThingStatus::THING_SHORT_CIRCUITED]))
+            {
                 //it is done, for better or worse
 
                 if ($this->parent_thing_id) {
@@ -306,10 +303,8 @@ class Thing extends Model
                         }
                     }
                 } else {
-                    $this->thing_result->result_response = $action->getActionResult();
-                    $this->thing_result->result_http_status = $action->getActionHttpCode();
-                    $this->thing_result->save();
-                    $this->thing_result->dispatchResult();
+                    //todo do I put code here if it is not done
+                    Log::notice('placeholder');
                 }
             }
 
@@ -365,57 +360,61 @@ class Thing extends Model
     }
 
     /**
-     * @param IThingAction $action
-     * @param IThingCallback[] $callbacks
-     * @return ThingResult
+     * @param array<string,IThingCallback[]> $callbacks
+     * @throws Exception
      */
-    public static function runAction(IThingAction $action,array $callbacks = []) : ThingResult {
-
-        $root = static::makeThingTree(action: $action);
-        $root->thing_result->setCallbacks($callbacks);
+    public static function buildAction(IThingAction $action, array $callbacks = [], bool $b_run_now = true) : ?ThingHooker {
+        $root = static::makeThingTree(action: $action, callbacks: $callbacks);
         $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_CREATION_HOOK);
-        if (empty($blocking)) {
+        if (empty($blocking) && $b_run_now) {
             $root->pushLeavesToJobs();
         }
-
-        return $root->thing_result; //if not async, this will be completed, else pending
+        return ThingHooker::buildHooker(thing_id: $root->id,mode: TypeOfThingHookMode::SYSTEM_TREE_RECORD)->first();
 
     }
 
 
-
+    /**
+     * @param  array<string,IThingCallback[]> $callbacks
+     * @throws Exception
+     */
     protected static function makeThingTree(
-        IThingAction $action
+        IThingAction $action,
+        array $callbacks = []
     )
     : Thing {
 
-        if ($limit = ThingSetting::checkForTreeOverflow(action_type: $action::getActionType(),action_type_id: $action->getActionId(),
-            owner_type: $action->getActionOwner()::getOwnerType(),owner_type_id: $action->getActionOwner()->getOwnerId())
-        ) {
-            throw new HbcThingTreeLimitException(sprintf("New trees for action %s %s owned by %s %s are limited to %s",
-                $action::getActionType(),$action->getActionId(),$action->getActionOwner()::getOwnerType(), $action->getActionOwner()->getOwnerId(),$limit
-            ) );
+        try {
+            DB::beginTransaction();
+            if ($limit = ThingSetting::checkForTreeOverflow(action_type: $action::getActionType(), action_type_id: $action->getActionId(),
+                owner_type: $action->getActionOwner()::getOwnerType(), owner_type_id: $action->getActionOwner()->getOwnerId())
+            ) {
+                throw new HbcThingTreeLimitException(sprintf("New trees for action %s %s owned by %s %s are limited to %s",
+                    $action::getActionType(), $action->getActionId(), $action->getActionOwner()::getOwnerType(), $action->getActionOwner()->getOwnerId(), $limit
+                ));
+            }
+
+            $root = static::makeThingFromAction(parent_thing: null, action: $action);
+
+            $tree = $action->getChildrenTree();
+            $roots = $tree->getRootNodes();
+            foreach ($roots as $a_node) {
+                static::makeTreeNodes(parent_thing: $root, node: $a_node,  callbacks: $callbacks);
+            }
+
+            ThingHook::makeHooksForThing(thing: $root,  callbacks: $callbacks);
+            DB::commit();
+            return static::getThing(id: $root->id);
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
-
-        $root = static::makeThingFromAction(parent_thing: null,action: $action);
-
-        //make result
-        $result = new ThingResult();
-        $result->owner_thing_id = $root->id;
-        $result->save();
-
-
-
-        $tree = $action->getChildrenTree();
-        $roots = $tree->getRootNodes();
-        foreach ( $roots as $a_node) {
-            static::makeTreeNodes(parent_thing:$root,node: $a_node);
-        }
-
-        return  static::getThing(id:$root->id);
     }
 
-    /** @return Thing[] */
+    /**
+     * @return Thing[]
+     * @throws Exception
+     */
     protected function buildMore(IThingAction $action) :array {
         $ret = [];
         if ($key = $action->isMoreBuilding()) {
@@ -429,35 +428,52 @@ class Thing extends Model
         return $ret;
     }
 
+    /**
+     * @throws Exception
+     */
     protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action) : Thing {
-        $tree_node = new Thing();
-        if ($start_at = $action->getStartAt()) {
-            $tree_node->thing_start_at  = Carbon::parse($start_at)->timezone('UTC')->toIso8601String();
-        } else {
-            $tree_node->thing_start_at = $parent_thing?->thing_start_at??null;
-        }
-        if ($invalid_at = $action->getInvalidAt()) {
-            $tree_node->thing_invalid_at  = Carbon::parse($invalid_at)->timezone('UTC')->toIso8601String();
-        } else {
-            $tree_node->thing_invalid_at = $parent_thing?->thing_invalid_at??null;
-        }
+        try {
+            DB::beginTransaction();
+            $tree_node = new Thing();
+            if ($start_at = $action->getStartAt()) {
+                $tree_node->thing_start_at = Carbon::parse($start_at)->timezone('UTC')->toIso8601String();
+            } else {
+                $tree_node->thing_start_at = $parent_thing?->thing_start_at ?? null;
+            }
+            if ($invalid_at = $action->getInvalidAt()) {
+                $tree_node->thing_invalid_at = Carbon::parse($invalid_at)->timezone('UTC')->toIso8601String();
+            } else {
+                $tree_node->thing_invalid_at = $parent_thing?->thing_invalid_at ?? null;
+            }
 
 
-        $tree_node->parent_thing_id = $parent_thing?->id??null;
-        $tree_node->action_type = $action::getActionType();
-        $tree_node->action_type_id = $action->getActionId();
-        $tree_node->owner_type = $action->getActionOwner()::getOwnerType();
-        $tree_node->owner_type_id = $action->getActionOwner()->getOwnerId();
-        $tree_node->thing_priority = $action->getActionPriority();
-        $tree_node->is_async = $action->isAsync();
-        $tree_node->save();
-        ThingSetting::makeStatFromSettings(thing: $tree_node);
-        ThingHook::makeHooksForThing(thing: $tree_node);
-        return  static::getThing(id:$tree_node->id);
+            $tree_node->parent_thing_id = $parent_thing?->id ?? null;
+            $tree_node->root_thing_id = $parent_thing?->root_thing_id ?? null;
+            if (!$tree_node->root_thing_id && $tree_node->parent_thing_id) {
+                $tree_node->root_thing_id = $tree_node->parent_thing_id;
+            }
+            $tree_node->action_type = $action::getActionType();
+            $tree_node->action_type_id = $action->getActionId();
+            $tree_node->owner_type = $action->getActionOwner()::getOwnerType();
+            $tree_node->owner_type_id = $action->getActionOwner()->getOwnerId();
+            $tree_node->thing_priority = $action->getActionPriority();
+            $tree_node->is_async = $action->isAsync();
+            $tree_node->save();
+            ThingSetting::makeStatFromSettings(thing: $tree_node);
+            DB::commit();
+            return static::getThing(id: $tree_node->id);
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
 
-    protected static function makeTreeNodes(Thing $parent_thing, \BlueM\Tree\Node $node) : Thing {
+    /**
+     * @param  array<string,IThingCallback[]> $callbacks
+     * @throws Exception
+     */
+    protected static function makeTreeNodes(Thing $parent_thing, \BlueM\Tree\Node $node,array $callbacks = []) : Thing {
         if ($over_by_n = $parent_thing->thing_stat->checkForDescendantOverflow(n_extra: 1)) {
             throw new HbcThingStackException("Exceeds building by $over_by_n");
         }
@@ -470,7 +486,7 @@ class Thing extends Model
         foreach ( $children as $child) {
             static::makeTreeNodes(parent_thing: $tree_node,node: $child);
         }
-
+        ThingHook::makeHooksForThing(thing: $tree_node,  callbacks: $callbacks);
         return $tree_node;
     }
 
@@ -534,9 +550,11 @@ class Thing extends Model
         $build->with('thing_collection');
 
         /**
-         * @uses Thing::thing_result(),Thing::thing_parent(),Thing::thing_children(),Thing::thing_error(),Thing::thing_root(),Thing::thing_stat(),Thing::da_hooks()
+         * @uses Thing::thing_parent(),Thing::thing_children(),Thing::thing_error(),
+         * @uses Thing::thing_root(),Thing::thing_stat(),Thing::applied_hooks()
          */
-        $build->with('thing_result','thing_parent','thing_children','thing_error','thing_root','thing_stat','da_hooks');
+        $build->with('thing_parent','thing_children','thing_error',
+            'thing_root','thing_stat','applied_hooks');
 
         return $build;
     }

@@ -23,7 +23,7 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->foreignId('owning_thing_hook_id')
+            $table->foreignId('owning_hook_id')
                 ->nullable()->default(null)
                 ->comment("the hook that added the entry")
                 ->index()
@@ -47,14 +47,14 @@ return new class extends Migration
 
         });
 
-        DB::statement("CREATE TYPE type_hooked_thing_status AS ENUM (
+        DB::statement("CREATE TYPE type_of_hooker_status AS ENUM (
             'none',
             'waiting_for_thing',
             'waiting_for_callbacks',
             'hook_complete'
             );");
 
-        DB::statement("ALTER TABLE thing_hookers Add COLUMN hooked_thing_status type_hooked_thing_status NOT NULL default 'none';");
+        DB::statement("ALTER TABLE thing_hookers Add COLUMN hooker_status type_of_hooker_status NOT NULL default 'none';");
 
         DB::statement("ALTER TABLE thing_hookers ALTER COLUMN created_at SET DEFAULT NOW();");
 
@@ -73,6 +73,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('thing_hookers');
-        DB::statement("DROP TYPE type_hooked_thing_status;");
+        DB::statement("DROP TYPE type_of_hooker_status;");
     }
 };
