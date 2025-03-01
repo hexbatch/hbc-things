@@ -64,9 +64,9 @@ return new class extends Migration
                 ->comment("What is going to be sent in the body or query string or function parameters.".
                     " headers that have placeholders same key will be fill from here");
 
-            $table->text('callback_outgoing_header')
+            $table->jsonb('callback_outgoing_header')
                 ->nullable()->default(null)
-                ->comment('This is what will be in the header for http calls, dilimited by newlines'.
+                ->comment('This is what will be in the header for http calls'.
                     ' placeholders of ${keyname} can be used in the values, which are filled in by the key in the callback_outgoing_data, and the data enetry is removed'.
                     ' or that header removed if not there. This column is encrypted at the php level');
 
@@ -123,6 +123,8 @@ return new class extends Migration
             $table->string('callback_event')->nullable()->default(null)
                 ->comment('If set, this is the event action name to call.  Params in either case are from the values of the top callback_outgoing_data');
 
+            $table->string('callback_xml_root')->nullable()->default(null)
+                ->comment('If set, this applies if the data type is xml, else ignored, and names the root element for the data going out');
         });
 
 

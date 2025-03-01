@@ -37,7 +37,7 @@ return new class extends Migration
             $table->boolean('is_on')->default(true)->nullable(false)
                 ->comment('if false then this hook is not used');
 
-            $table->boolean('ttl_callbacks')->default(true)->nullable(false)
+            $table->integer('ttl_callbacks')->default(true)->nullable(false)
                 ->comment('if data in callback older then this, reset callback and do again before returning data');
 
 
@@ -50,11 +50,13 @@ return new class extends Migration
 
 
 
-            $table->jsonb('callback_constant_data')
+            $table->jsonb('hook_constant_data')
                 ->nullable()->default(null)
                 ->comment("This is merged with the callback outgoing data, if duplicate keys, the callback wins");
 
-
+            $table->jsonb('hook_tags')
+                ->nullable()->default(null)
+                ->comment("array of string tags to match up with the thing tags");
 
             $table->text('hook_notes')->nullable()->default(null)
                 ->comment('optional notes');
@@ -69,7 +71,6 @@ return new class extends Migration
          */
         DB::statement("CREATE TYPE type_of_thing_hook_mode AS ENUM (
             'none',
-            'debug_breakpoint',
 
             'tree_creation_hook',
             'tree_starting_hook',
@@ -80,11 +81,9 @@ return new class extends Migration
             'node_resources_notice',
             'tree_unpaused_notice',
             'tree_finished_notice',
-            'system_tree_record',
+            'system_tree_results',
             'tree_success_notice',
             'tree_failure_notice',
-            'node_waiting_notice',
-            'node_resume_notice',
 
             'node_failure_notice',
             'node_success_notice'

@@ -1,11 +1,10 @@
 <?php
-namespace Hexbatch\Things\Models\Enums;
+namespace Hexbatch\Things\Enums;
 /**
  * postgres enum type_of_thing_hook_mode
  */
 enum TypeOfThingHookMode : string {
     case NONE = 'none';
-    case DEBUG_BREAKPOINT = 'debug_breakpoint';
     case TREE_CREATION_HOOK = 'tree_creation_hook';
     case TREE_STARTING_HOOK = 'tree_starting_hook';
     case NODE_BEFORE_RUNNING_HOOK = 'node_before_running_hook';
@@ -15,12 +14,10 @@ enum TypeOfThingHookMode : string {
     case TREE_RESOURCES_NOTICE = 'tree_resources_notice';
     case NODE_RESOURCES_NOTICE = 'node_resources_notice';
 
-    case NODE_WAITING_NOTICE = 'node_waiting_notice';
-    case NODE_RESUME_NOTICE = 'node_resume_notice';
 
 
     case TREE_FINISHED_NOTICE = 'tree_finished_notice';
-    case SYSTEM_TREE_RECORD = 'system_tree_record';
+    case SYSTEM_TREE_RESULTS = 'system_tree_results';
     case TREE_SUCCESS_NOTICE = 'tree_success_notice';
     case TREE_FAILURE_NOTICE = 'tree_failure_notice';
 

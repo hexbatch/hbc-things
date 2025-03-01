@@ -52,6 +52,11 @@ return new class extends Migration
 
             $table->timestamps();
 
+            $table->jsonb('stat_constant_data')
+                ->nullable()->default(null)
+                ->comment("This is this thing constant data merged with the parent of the thing constant data with these keys winning in conflict");
+
+
 
         });
 

@@ -2,7 +2,7 @@
 namespace Hexbatch\Things\Models\Traits;
 
 use Hexbatch\Things\Exceptions\HbcThingException;
-use Hexbatch\Things\Helpers\IThingAction;
+use Hexbatch\Things\Interfaces\IThingAction;
 
 trait ThingActionHandler
 {
@@ -22,7 +22,7 @@ trait ThingActionHandler
 
     public static function registerActionType(IThingAction|string $action_class) :void {
         $interfaces = class_implements($action_class);
-        if (!isset($interfaces['Hexbatch\Things\Helpers\IThingAction'])) {
+        if (!isset($interfaces['Hexbatch\Things\Interfaces\IThingAction'])) {
             throw new HbcThingException("$action_class is not an IThingAction");
         }
         $action_type = $action_class::getActionType();

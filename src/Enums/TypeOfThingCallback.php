@@ -1,5 +1,5 @@
 <?php
-namespace Hexbatch\Things\Models\Enums;
+namespace Hexbatch\Things\Enums;
 /**
  * postgres enum type_of_thing_callback
  */
@@ -11,11 +11,20 @@ enum TypeOfThingCallback : string {
     case HTTP_POST = 'http_post';
 
     case HTTP_POST_FORM = 'http_post_form';
+    case HTTP_POST_XML = 'http_post_xml';
+    case HTTP_POST_JSON = 'http_post_json';
     case HTTP_PUT = 'http_put';
     case HTTP_PUT_FORM = 'http_put_form';
+    case HTTP_PUT_XML = 'http_put_xml';
+    case HTTP_PUT_JSON = 'http_put_json';
     case HTTP_PATCH = 'http_patch';
     case HTTP_PATCH_FORM = 'http_patch_form';
+    case HTTP_PATCH_JSON = 'http_patch_json';
+    case HTTP_PATCH_XML = 'http_patch_xml';
     case HTTP_DELETE = 'http_delete';
+    case HTTP_DELETE_FORM = 'http_delete_form';
+    case HTTP_DELETE_JSON = 'http_delete_json';
+    case HTTP_DELETE_XML = 'http_delete_xml';
     case CODE = 'code';
     case EVENT_CALL = 'event_call';
 

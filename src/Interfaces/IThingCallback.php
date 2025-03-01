@@ -1,15 +1,15 @@
 <?php
 
-namespace Hexbatch\Things\Helpers;
+namespace Hexbatch\Things\Interfaces;
 
-use Hexbatch\Things\Models\Enums\TypeOfThingCallback;
+use Hexbatch\Things\Enums\TypeOfThingCallback;
 
 interface IThingCallback
 {
     public function getCallbackOwner() : IThingOwner;
     public function getCallbackType():  TypeOfThingCallback;
     public function getConstantData():  array;
-    public function getHeader():  string;
+    public function getHeader():  array;
 
     public function  getCallbackUrl() :?string;
     public function  getCallbackClass() :?string;

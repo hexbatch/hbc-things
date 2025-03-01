@@ -1,5 +1,5 @@
 <?php
-namespace Hexbatch\Things\Models\Enums;
+namespace Hexbatch\Things\Enums;
 /**
  * postgres enum type_of_thing_hook_blocking
  */

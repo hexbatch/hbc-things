@@ -4,15 +4,14 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
-use Hexbatch\Things\Models\Enums\TypeOfThingCallback;
-use Hexbatch\Things\Models\Enums\TypeOfThingCallbackStatus;
-use Hexbatch\Things\Models\Enums\TypeOfThingHookScope;
+use Hexbatch\Things\Enums\TypeOfThingCallback;
+use Hexbatch\Things\Enums\TypeOfThingCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfThingHookScope;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-
 
 
 /**
@@ -24,12 +23,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int owner_type_id
  *
  * @property string ref_uuid
- * @property string  callplate_outgoing_header
  * @property string  callplate_url
  * @property string  callplate_class
  * @property string  callplate_function
  * @property string  callplate_event
+ * @property string  callplate_xml_root
  * @property ArrayObject callplate_constant_data
+ * @property ArrayObject callplate_outgoing_header
  * @property TypeOfThingCallback callplate_callback_type
  *
  *
@@ -64,6 +64,7 @@ class ThingCallplate extends Model
      */
     protected $casts = [
         'outgoing_constant_data' => AsArrayObject::class,
+        'callplate_outgoing_header' => AsArrayObject::class,
         'callplate_callback_type' => TypeOfThingCallback::class,
     ];
 
@@ -116,7 +117,7 @@ class ThingCallplate extends Model
         $c->thing_callback_status = TypeOfThingCallbackStatus::WAITING;
         $c->thing_callback_type = $this->callplate_callback_type;
         $c->callback_outgoing_data = array_merge($this->callplate_constant_data?->getArrayCopy()??[],
-                                                        $hooker->parent_hook->callback_constant_data?->getArrayCopy()??[]);
+                                                        $hooker->parent_hook->hook_constant_data?->getArrayCopy()??[]);
         $c->callback_outgoing_header = $this->callplate_outgoing_header;
         $c->owner_type_id = $this->owner_type_id;
         $c->owner_type = $this->owner_type;
@@ -124,6 +125,7 @@ class ThingCallplate extends Model
         $c->callback_class = $this->callplate_class;
         $c->callback_function = $this->callplate_function;
         $c->callback_event = $this->callplate_event;
+        $c->callback_xml_root = $this->callplate_xml_root;
         $c->save();
         return $c;
     }

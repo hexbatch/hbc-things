@@ -3,7 +3,6 @@ namespace Hexbatch\Things\Jobs;
 
 
 
-use Hexbatch\Things\Models\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Models\Thing;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;

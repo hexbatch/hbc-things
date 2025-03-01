@@ -2,7 +2,7 @@
 namespace Hexbatch\Things\Models\Traits;
 
 use Hexbatch\Things\Exceptions\HbcThingException;
-use Hexbatch\Things\Helpers\IThingOwner;
+use Hexbatch\Things\Interfaces\IThingOwner;
 
 trait ThingOwnerHandler
 {
@@ -22,7 +22,7 @@ trait ThingOwnerHandler
 
     public static function registerOwnerType(IThingOwner|string $owner_class) :void {
         $interfaces = class_implements($owner_class);
-        if (!isset($interfaces['Hexbatch\Things\Helpers\IThingOwner'])) {
+        if (!isset($interfaces['Hexbatch\Things\Interfaces\IThingOwner'])) {
             throw new HbcThingException("$owner_class is not an IThingOwner");
         }
         $owner_type = $owner_class::getOwnerType();

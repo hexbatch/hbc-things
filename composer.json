@@ -21,6 +21,7 @@
         "ext-pdo": "*",
         "ext-pdo_pgsql": "*",
         "ext-pgsql": "*",
+        "ext-dom": "*",
         "php": "^8.2",
         "bluem/tree": "^3.2",
         "spatie/laravel-package-tools": "^1.19",

@@ -5,12 +5,13 @@ namespace Hexbatch\Things\Models;
 
 
 
+use ArrayObject;
 use Carbon\Carbon;
-use Hexbatch\Things\Helpers\IThingAction;
+use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
-
+use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 
 /*
@@ -27,7 +28,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property int stat_limit_descendants
  * @property int stat_backoff_data_policy
  * @property int stat_back_offs_done
-
+ * @property ArrayObject stat_constant_data
+ *
  * @property string created_at
  * @property string updated_at
  *
@@ -56,7 +58,7 @@ class ThingStat extends Model
      * @var array<string, string>
      */
     protected $casts = [
-
+        'stat_constant_data' => AsArrayObject::class,
     ];
 
     /**

@@ -35,9 +35,9 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->comment("This is merged with the outgoing data in the callback, if duplicate keys, the callback wins");
 
-            $table->text('callplate_outgoing_header')
+            $table->jsonb('callplate_outgoing_header')
                 ->nullable()->default(null)
-                ->comment('This is what will be in the header for http calls, dilimited by newlines'.
+                ->comment('This is what will be in the header for http calls'.
                     ' placeholders of ${keyname} can be used in the values, which are filled in by the key in the action result, if present,'.
                     ' or that header removed if not there. This column is encrypted at the php level');
 
@@ -51,11 +51,20 @@ return new class extends Migration
             'http_get',
             'http_post',
             'http_post_form',
+            'http_post_xml',
+            'http_post_json',
             'http_put',
             'http_put_form',
+            'http_put_xml',
+            'http_put_json',
             'http_patch',
             'http_patch_form',
+            'http_patch_xml',
+            'http_patch_json',
             'http_delete'
+            'http_delete_form'
+            'http_delete_xml'
+            'http_delete_json'
             'code',
             'event_call'
             );");
@@ -99,6 +108,9 @@ return new class extends Migration
 
             $table->string('callplate_event')->nullable()->default(null)
                 ->comment('If set, this is the event action name to call.  Params in either case are from the values of the top callback_outgoing_data');
+
+            $table->string('callplate_xml_root')->nullable()->default(null)
+                ->comment('If set, this applies if the data type is xml, else ignored, and names the root element for the data going out');
 
         });
 

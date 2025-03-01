@@ -1,9 +1,6 @@
 <?php
 
-namespace Hexbatch\Things\Helpers;
-
-use BlueM\Tree;
-use Hexbatch\Things\Models\Enums\TypeOfThingStatus;
+namespace Hexbatch\Things\Interfaces;
 
 interface IThingOwner
 {

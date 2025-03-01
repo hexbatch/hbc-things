@@ -4,11 +4,12 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
-use Hexbatch\Things\Helpers\IThingCallback;
-use Hexbatch\Things\Models\Enums\TypeOfThingHookBlocking;
-use Hexbatch\Things\Models\Enums\TypeOfThingHookMode;
-use Hexbatch\Things\Models\Enums\TypeOfThingHookPosition;
-use Hexbatch\Things\Models\Enums\TypeOfThingHookScope;
+use Hexbatch\Things\Enums\TypeOfThingHookBlocking;
+use Hexbatch\Things\Enums\TypeOfThingHookMode;
+use Hexbatch\Things\Enums\TypeOfThingHookPosition;
+use Hexbatch\Things\Enums\TypeOfThingHookScope;
+use Hexbatch\Things\Interfaces\IThingCallback;
+use Hexbatch\Things\Interfaces\IThingHook;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,7 +33,8 @@ use Illuminate\Support\Facades\DB;
  * @property string ref_uuid
  * @property string hook_name
  * @property string hook_notes
- * @property ArrayObject callback_constant_data
+ * @property ArrayObject hook_constant_data
+ * @property ArrayObject hook_tags
  * @property TypeOfThingHookMode hook_mode
  * @property TypeOfThingHookBlocking blocking_mode
  * @property TypeOfThingHookScope hook_scope
@@ -68,7 +70,8 @@ class ThingHook extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'callback_constant_data' => AsArrayObject::class,
+        'hook_constant_data' => AsArrayObject::class,
+        'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfThingHookMode::class,
         'hook_scope' => TypeOfThingHookScope::class,
         'hook_position' => TypeOfThingHookPosition::class,
@@ -150,7 +153,8 @@ class ThingHook extends Model
         ?TypeOfThingHookMode $mode = null,
         ?string $action_type = null, ?int  $action_type_id = null,
         ?string $owner_type = null, ?int  $owner_type_id = null,
-        ?TypeOfThingHookPosition $position = null
+        ?TypeOfThingHookPosition $position = null,
+        ?array $tags = null
     )
     : Builder
     {
@@ -204,6 +208,11 @@ class ThingHook extends Model
             });
         }
 
+        if ($tags && count($tags)) {
+            $build->whereRaw('1');
+            //todo write raw sql to intersect the json array with this one
+        }
+
 
         /**
          * @uses ThingHook::hook_callplates()
@@ -212,6 +221,36 @@ class ThingHook extends Model
 
 
         return $build;
+    }
+
+    public static function createHook(IThingHook $it)
+    : ThingHook
+    {
+        $hook = new ThingHook();
+        $owner = $it->getHookOwner();
+        if ($owner) {
+            $hook->owner_type_id = $owner->getOwnerId() ;
+            $hook->owner_type = $owner::getOwnerType() ;
+        }
+
+        $action = $it->getHookAction();
+        if ($owner) {
+            $hook->action_type_id = $action->getActionId() ;
+            $hook->action_type = $action::getActionType() ;
+        }
+        $hook->is_on = $it->isHookOn() ;
+        $hook->ttl_callbacks = $it->getHookCallbackTimeToLive() ;
+        $hook->hook_constant_data = $it->getConstantData() ;
+        $hook->hook_tags = $it->getHookTags() ;
+        $hook->hook_notes = $it->getHookNotes() ;
+        $hook->hook_mode = $it->getHookMode() ;
+        $hook->blocking_mode = $it->getHookBlocking() ;
+        $hook->hook_scope = $it->getHookScope() ;
+        $hook->hook_position = $it->getHookPosition() ;
+        $hook->hook_name = $it->getHookName() ;
+
+        $hook->save();
+        return $hook;
     }
 
 }

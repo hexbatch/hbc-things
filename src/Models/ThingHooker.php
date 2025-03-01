@@ -4,12 +4,12 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
-use Hexbatch\Things\Helpers\IThingCallback;
+use Hexbatch\Things\Enums\TypeOfHookerStatus;
+use Hexbatch\Things\Enums\TypeOfThingCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfThingHookMode;
 use Hexbatch\Things\Helpers\Utilities;
+use Hexbatch\Things\Interfaces\IThingCallback;
 use Hexbatch\Things\Jobs\SendCallback;
-use Hexbatch\Things\Models\Enums\TypeOfHookerStatus;
-use Hexbatch\Things\Models\Enums\TypeOfThingCallbackStatus;
-use Hexbatch\Things\Models\Enums\TypeOfThingHookMode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -177,7 +177,7 @@ class ThingHooker extends Model
         $c->thing_callback_status = TypeOfThingCallbackStatus::WAITING;
         $c->thing_callback_type = $call_me->getCallbackType();
         $c->callback_outgoing_data = array_merge($call_me->getConstantData(),
-            $this->parent_hook->callback_constant_data?->getArrayCopy()??[]);
+            $this->parent_hook->hook_constant_data?->getArrayCopy()??[]);
         $c->callback_outgoing_header = $call_me->getHeader();
         if ($owner = $call_me->getCallbackOwner()) {
             $c->owner_type_id = $owner->getOwnerId();

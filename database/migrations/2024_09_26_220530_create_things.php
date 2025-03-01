@@ -96,6 +96,10 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->comment("This is merged with the data going into each action before it runs, if duplicate keys, the data elsewhere wins");
 
+            $table->jsonb('thing_tags')
+                ->nullable()->default(null)
+                ->comment("array of string tags to match up with the hook tags");
+
         });
 
 
@@ -103,7 +107,8 @@ return new class extends Migration
         DB::statement("CREATE TYPE type_of_thing_status AS ENUM (
             'thing_building',
             'thing_pending',
-            'thing_paused',
+            'thing_hooked_before_run',
+            'thing_hooked_after_run',
             'thing_short_circuited',
             'thing_resources',
             'thing_success',
