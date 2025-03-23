@@ -19,7 +19,6 @@ class ThingController  {
         ]
     )]
     public function thing_hook_list() {
-        //todo thing api calls (admin only), these never go through the thing queue, so there are no actions or api registered in the types, like the users
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -81,99 +80,19 @@ class ThingController  {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
-    #[OA\Post(
-        path: '/api/v1/{namespace}/things/debugging/breakpoint',
-        operationId: 'core.things.debugging.breakpoint',
-        description: "",
-        summary: 'Add a breakpoint',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_add_breakpoint() { //(to the exact thing)
-        /*
-         todo * manage single stepping children with parent hooked to debugging
-                the breakpoints on are the things, and do not change status
-                   the parent nodes set to debugging will get the notice
-                   if nothing set, then the thing will just stop and wait
-         */
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-
-    #[OA\Delete(
-        path: '/api/v1/{namespace}/things/debugging/clear',
-        operationId: 'core.things.debugging.clear_breakpoint',
-        description: "",
-        summary: 'Removes a breakpoint',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_clear_breakpoint() { //(clears on thing and all down-thing)
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Post(
-        path: '/api/v1/{namespace}/things/debugging/run',
-        operationId: 'core.things.debugging.run',
-        description: "",
-        summary: 'Runs from a stopped thing',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_run() { //(on breaking  thing)
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Post(
-        path: '/api/v1/{namespace}/things/debugging/single_step',
-        operationId: 'core.things.debugging.single_step',
-        description: "",
-        summary: 'Single steps from a stopped thing',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_single_step() { //(on breaking thing)
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
 
 
 
-    #[OA\Patch(
-        path: '/api/v1/{namespace}/things/debugging/pause',
-        operationId: 'core.things.debugging.pause',
-        description: "",
-        summary: 'Sets the thing to not run automatically',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_pause() { //todo thing_pause|unpause for making sure the thing will wait for the debugging, or when not needed anymore
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
 
 
-    #[OA\Patch(
-        path: '/api/v1/{namespace}/things/debugging/unpause',
-        operationId: 'core.things.debugging.unpause',
-        description: "No effect if not already paused",
-        summary: 'Sets a thing to be automatically run',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_unpause() {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
+
+
+
+
+
+
+
+
 
 
 
@@ -188,7 +107,7 @@ class ThingController  {
         ]
     )]
     public function thing_list() { //(top roots) also search
-        //todo list/search/view thing nodes and trees
+        // list/search/view thing nodes and trees
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -224,7 +143,7 @@ class ThingController  {
 
 
 
-    #[OA\Delete(
+    #[OA\Put(
         path: '/api/v1/{namespace}/things/trim',
         operationId: 'core.things.trim',
         description: "Parents of trimmed things will return false",
@@ -234,7 +153,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_trim_tree() {  //(if child will return false to parent when it runs, if root then its just gone)
+    public function thing_shortcut() {  //(if child will return false to parent when it runs, if root then its just gone)
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -249,12 +168,12 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_rate_apply() {
-        //todo Apply|Remove|List rates to set|type|action|namespace|thing
+    public function thing_setting_create() {
+
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
-    #[OA\Post(
+    #[OA\Delete(
         path: '/api/v1/{namespace}/things/rates/remove',
         operationId: 'core.things.rates.remove',
         description: "",
@@ -264,7 +183,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_rate_remove() {
+    public function thing_setting_remove() {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -279,7 +198,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_rate_list() { //also search
+    public function thing_setting_list() { //also search
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -293,7 +212,21 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_rate_show() { //also search
+    public function thing_setting_show() { //also search
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+    #[OA\Get(
+        path: '/api/v1/{namespace}/things/rates/edit',
+        operationId: 'core.things.rates.edit',
+        description: "",
+        summary: 'Edit a setting/rate',
+        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function thing_callback_show() { //also search
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -307,7 +240,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_rate_edit() { //also search
+    public function thing_callback_create() { //also search
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 

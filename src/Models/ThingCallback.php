@@ -4,6 +4,7 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
+use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfThingCallback;
 use Hexbatch\Things\Enums\TypeOfThingCallbackStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
@@ -138,18 +139,20 @@ class ThingCallback extends Model
             'thing' => $this->callback_owning_hooker->hooker_thing->ref_uuid,
             'action' => $this->callback_owning_hooker->hooker_thing->getAction()->getActionRef(),
         ];
+
+        $third_data = $this->callback_owning_hooker->hooker_thing->thing_stat->stat_constant_data?->getArrayCopy()??[];
+
+        $action_data = [];
         $action = $this->callback_owning_hooker->hooker_thing->getAction();
         if ($action->isActionComplete()) {
-            $third_data = $action->getActionResult()??[];
-        } else {
-            $third_data = $this->callback_owning_hooker->hooker_thing->thing_constant_data?->getArrayCopy()??[];
+            $action_data = $action->getActionResult()??[];
         }
 
         $second_data = $this->callback_owning_hooker->parent_hook->hook_constant_data?->getArrayCopy()??[];
 
         $first_data = $this->callback_outgoing_data?->getArrayCopy()??[];
 
-        return array_merge($first_data,$second_data,$third_data,$fourth_data);
+        return array_merge($first_data,$second_data,$action_data,$third_data,$fourth_data);
     }
 
     /**
@@ -444,11 +447,16 @@ class ThingCallback extends Model
             $this->thing_callback_status = TypeOfThingCallbackStatus::CALLBACK_ERROR;
             Log::error("Thing result callback had error: ". $e->getMessage());
         } finally {
+            $this->callback_run_at = Carbon::now()->timezone('UTC')->toDateTime();
             $this->save();
             $this->callback_owning_hooker->maybeCallbacksDone();
         }
 
 
+    }
+
+    public function isDone() {
+        return ($this->thing_callback_status === TypeOfThingCallbackStatus::CALLBACK_ERROR || $this->thing_callback_status === TypeOfThingCallbackStatus::CALLBACK_SUCCESSFUL);
     }
 
 }

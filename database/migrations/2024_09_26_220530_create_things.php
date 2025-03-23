@@ -108,10 +108,10 @@ return new class extends Migration
             'thing_building',
             'thing_pending',
             'thing_hooked_before_run',
-            'thing_hooked_after_run',
             'thing_short_circuited',
             'thing_resources',
             'thing_success',
+            'thing_fail',
             'thing_error'
             );");
 

@@ -146,7 +146,8 @@ class Thing extends Model
 
     public function resumeBlockedThing() {
         if ($this->isBlocked()) {
-            //todo handle here the pre and post run logic
+            $this->thing_status = TypeOfThingStatus::THING_PENDING;
+            $this->save();
             $this->pushLeavesToJobs();
         }
     }
@@ -170,7 +171,8 @@ class Thing extends Model
     public function isComplete() : bool {
         if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS ||
             $this->thing_status === TypeOfThingStatus::THING_ERROR   ||
-            $this->thing_status === TypeOfThingStatus::THING_SHORT_CIRCUITED
+            $this->thing_status === TypeOfThingStatus::THING_SHORT_CIRCUITED   ||
+            $this->thing_status === TypeOfThingStatus::THING_FAIL
 
         ) {
             return true;
@@ -181,8 +183,7 @@ class Thing extends Model
 
     public function isIntrupted() : bool {
         if ($this->thing_status === TypeOfThingStatus::THING_RESOURCES ||
-            $this->thing_status === TypeOfThingStatus::THING_HOOKED_BEFORE_RUN ||
-            $this->thing_status === TypeOfThingStatus::THING_HOOKED_AFTER_RUN
+            $this->thing_status === TypeOfThingStatus::THING_HOOKED_BEFORE_RUN
 
         ) {
             return true;
@@ -192,8 +193,7 @@ class Thing extends Model
 
     public function isBlocked() : bool {
         if (
-            $this->thing_status === TypeOfThingStatus::THING_HOOKED_BEFORE_RUN ||
-            $this->thing_status === TypeOfThingStatus::THING_HOOKED_AFTER_RUN
+            $this->thing_status === TypeOfThingStatus::THING_HOOKED_BEFORE_RUN
 
         ) {
             return true;
@@ -272,86 +272,102 @@ class Thing extends Model
                 $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_RESOURCES_NOTICE);
             } else {
                 $action->setLimitDataByteRows($this->thing_stat->getDataLimit());
-                $data_from_hook = [];
                 $blocking = $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_BEFORE_RUNNING_HOOK);
-                //todo resume should handle the below too
+
                 if (count($blocking)) {
                     $this->thing_status = TypeOfThingStatus::THING_HOOKED_BEFORE_RUN;
-                    $this->save();
+                    $this->save(); //after hooks finished and resume, the node goes through this function again
                 }
                 else
                 {
-                    $action->runAction($data_from_hook); //set page length
-                    $this->thing_stat->updateDataStats(action: $action);
-
-                    if ($action->isActionComplete()) {
-                        if ($action->isActionError()) {
-                            $this->thing_status = TypeOfThingStatus::THING_ERROR;
-                        } else if($action->isActionSuccess()) {
-                            $this->thing_status = TypeOfThingStatus::THING_SUCCESS;
-                        } else {
-                            $this->thing_status = TypeOfThingStatus::THING_SHORT_CIRCUITED;
+                    $send_back_to_pending = false;
+                    $not_done = false;
+                    $data_for_this = [];
+                    $data_for_parent = [];
+                    ThingHooker::getHookerData(
+                        thing_id: $this->id, mode: TypeOfThingHookMode::NODE_BEFORE_RUNNING_HOOK,b_out_of_time: $send_back_to_pending,
+                        b_still_pending: $not_done,data_for_this: $data_for_this,data_for_parent: $data_for_parent);
+                    if (!$send_back_to_pending && !$not_done) {
+                        $action->runAction($data_for_this); //set hook data
+                        if (!empty($data_for_parent)) {
+                            $this->thing_parent->getAction()->addDataBeforeRun($data_for_parent);
                         }
-                    } else {
-                        $this->thing_status = TypeOfThingStatus::THING_PENDING;
-                    }
+                        $this->thing_stat->updateDataStats(action: $action);
 
-                    $this->save();
+                        if ($action->isActionComplete()) {
+                            if($action->isActionSuccess()) {
+                                $this->thing_status = TypeOfThingStatus::THING_SUCCESS;
+                            }
+                            else if ($action->isActionFail()) {
+                                $this->thing_status = TypeOfThingStatus::THING_FAIL;
+                            }
+                            else  {
+                                $this->thing_status = TypeOfThingStatus::THING_ERROR;
+                            }
+                        } else {
+                            $this->thing_status = TypeOfThingStatus::THING_PENDING;
+                        }
 
-                    $blocking = $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_AFTER_RUNNING_HOOK);
-                    if (count($blocking)) {
-                        $this->thing_status = TypeOfThingStatus::THING_HOOKED_AFTER_RUN;
                         $this->save();
-                    }
-                    else
-                    {
-                        //todo resume should handle the below too
+
+
+
                         if ($this->thing_stat->checkForDataOverflow()) {
                             //do backoff of its parent, if no parent then no backoff
                             $this->thing_parent?->doBackoff();
-                            $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_RESOURCES_NOTICE);
-                        } else {
-                            if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
-                                $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_SUCCESS_NOTICE);
-                            } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR) {
-                                $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_FAILURE_NOTICE);
-                            }
-                            if ($action->isActionComplete())
-                            {
-                                //it is done, for better or worse
+                            $this->thing_parent?->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_RESOURCES_NOTICE);
+                        }
 
-                                if ($this->parent_thing_id) {
-                                    //notify parent action of result
-                                    $this->thing_parent->getAction()->setChildActionResult(child: $action);
-                                    if ($this->thing_parent->isComplete()) {
-                                        $this->markIncompleteDescendantsAs(TypeOfThingStatus::THING_SHORT_CIRCUITED);
+
+                        if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
+                            $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_SUCCESS_NOTICE);
+                        } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR || $this->thing_status === TypeOfThingStatus::THING_FAIL) {
+                            $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_FAILURE_NOTICE);
+                        }
+                        if ($action->isActionComplete())
+                        {
+
+                            //it is done, for better or worse
+
+                            $new_children = [];
+                            if ($this->parent_thing_id) {
+                                //notify parent action of result
+                                $this->thing_parent->getAction()->setChildActionResult(child: $action);
+                                if ($this->thing_parent->getAction()->isActionComplete()) {
+                                    if ($this->thing_parent->getAction()->isActionSuccess()) {
+                                        $this->thing_parent->thing_status = TypeOfThingStatus::THING_SUCCESS;
+                                    } else if($this->thing_parent->getAction()->isActionFail()) {
+                                        $this->thing_parent->thing_status = TypeOfThingStatus::THING_FAIL;
                                     } else {
-                                        //maybe the parent wants to add new children after getting the news
-                                        $new_children = $this->buildMore(action: $this->thing_parent->getAction());
-                                        if (count($new_children)) {
-                                            // place the leaves of these and then return
-                                            foreach ($new_children as $new_child) {
-                                                $new_child->pushLeavesToJobs();
-                                            }
+                                        $this->thing_parent->thing_status = TypeOfThingStatus::THING_ERROR;
+                                    }
+                                    $this->thing_parent->save();
+                                    $this->thing_parent->markIncompleteDescendantsAs(TypeOfThingStatus::THING_SHORT_CIRCUITED);
+                                } else {
+                                    //maybe the parent wants to add new children after getting the news
+                                    $new_children = $this->buildMore(action: $this->thing_parent->getAction());
+                                    if (count($new_children)) {
+                                        // place the leaves of these and then return
+                                        foreach ($new_children as $new_child) {
+                                            $new_child->pushLeavesToJobs();
                                         }
                                     }
+                                }
+                                if (count($new_children) === 0) {
                                     if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
                                         $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_SUCCESS_NOTICE);
-                                    } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR) {
+                                    } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR || $this->thing_status === TypeOfThingStatus::THING_FAIL) {
                                         $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_FAILURE_NOTICE);
                                     }
-                                    $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_FINISHED_NOTICE);
-                                } else {
-                                    $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::SYSTEM_TREE_RESULTS);
                                 }
-                            }
-                        }
-                    }
-
-
-                }
-
-            }
+                            } else {
+                                $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_FINISHED_NOTICE);
+                                $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::SYSTEM_TREE_RESULTS);
+                            } //else no parent
+                        } //if action is complete (it will run again next time this is called for the thing)
+                    } //if not sent back to pending (ttl)
+                } //else not blocked
+            } //else not overflowed
 
             DB::commit();
         } catch (HbcThingStackException) {
@@ -402,7 +418,7 @@ class Thing extends Model
 
     public function isTreeAsync() : bool {
         return $this->is_async;
-        //todo recurse through the three and see if any nodes are async, if they are, then entire tree is async
+        //todo recurse through the tree and see if any descendants are async, if they are, then entire tree is async
     }
 
     /**

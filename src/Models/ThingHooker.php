@@ -4,10 +4,11 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
+use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfHookerStatus;
 use Hexbatch\Things\Enums\TypeOfThingCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfThingHookBlocking;
 use Hexbatch\Things\Enums\TypeOfThingHookMode;
-use Hexbatch\Things\Helpers\Utilities;
 use Hexbatch\Things\Interfaces\IThingCallback;
 use Hexbatch\Things\Jobs\SendCallback;
 use Illuminate\Database\Eloquent\Builder;
@@ -89,11 +90,74 @@ class ThingHooker extends Model
     }
 
     /**
-     * @uses Thing::resumeBlockedThing()
      * @return void
      */
     public function maybeCallbacksDone() {
-        //todo check status for all callbacks, when they are done, if the hook is blocking, resume the thing
+
+        foreach ($this->hooker_callbacks as $cb) {
+            if ($cb->isDone() ) { return;}
+        }
+        $this->hooker_status = TypeOfHookerStatus::HOOK_COMPLETE;
+        $this->save();
+
+        if (!$this->parent_hook->isBlocking()) { return; }
+        $this->hooker_thing->resumeBlockedThing();
+
+    }
+
+    public static function getHookerData(int $thing_id,TypeOfThingHookMode $mode,bool &$b_out_of_time,bool &$b_still_pending,
+        array &$data_for_this, array &$data_for_parent
+    )
+    : void
+    {
+        // if the time to live is exceeded, for any of those callbacks, need to do them again so the thing must return in the caller function in the level above
+        $data_for_this = [];
+        $data_for_parent = [];
+        $b_out_of_time = false;
+        $b_still_pending = false;
+        $hookers = ThingHooker::buildHooker(belongs_to_tree_thing_id: $thing_id, mode: $mode)
+            ->orderBy('id')
+            ->get();
+
+
+        /** @var ThingCallback[] $redo_callbacks */
+        $redo_callbacks = [];
+        /** @var ThingHooker $hooker */
+        foreach ($hookers as $hooker) {
+            if (!$hooker->isDone()) {
+                $b_still_pending = true;
+                continue;
+            }
+            foreach ($hooker->hooker_callbacks as $callback) {
+                if (Carbon::parse($callback->callback_run_at,'UTC')->addSeconds($hooker->parent_hook->ttl_callbacks) >
+                    Carbon::now()->timezone('UTC'))
+                {
+                    $b_out_of_time = true;
+                    $redo_callbacks[] = $callback;
+                }
+                switch ($hooker->parent_hook->blocking_mode) {
+                    case TypeOfThingHookBlocking::BLOCK_ADD_DATA_TO_CURRENT: {
+                        $data_for_this = array_merge($callback->callback_incoming_data->getArrayCopy(),$data_for_this);
+                        break;
+                    }
+                    case TypeOfThingHookBlocking::BLOCK_ADD_DATA_TO_PARENT: {
+                        $data_for_parent = array_merge($callback->callback_incoming_data->getArrayCopy(),$data_for_parent);
+                        break;
+                    }
+                    case TypeOfThingHookBlocking::BLOCK:
+                    case TypeOfThingHookBlocking::NONE:
+                    {
+
+                        break;
+                    }
+                } //end switch
+            } //end foreach callback
+        } //end foreach hooker
+        if ($b_out_of_time) {
+            foreach ($redo_callbacks as $callback) {
+                SendCallback::dispatch($callback);
+            }
+        }
     }
 
     public static function buildHooker(
@@ -112,7 +176,8 @@ class ThingHooker extends Model
          * @var Builder $build
          */
         $build =  ThingHooker::select('thing_hookers.*')
-            ->selectRaw(" extract(epoch from  thing_hookers.created_at) as created_at_ts,  extract(epoch from  thing_hookers.updated_at) as updated_at_ts")
+            ->selectRaw(" extract(epoch from  thing_hookers.created_at) as created_at_ts, ".
+                " extract(epoch from  thing_hookers.updated_at) as updated_at_ts")
         ;
 
         if ($id) {
@@ -143,7 +208,7 @@ class ThingHooker extends Model
         }
 
         if ($belongs_to_ancestor_of_thing_id) {
-            Utilities::getComposerPath(false); //rm this its placeholder to prevent warnings
+            $build->whereRaw("1"); //rm this placeholder to prevent warnings
             //todo do sql for finding all ancestors of this thing id
         }
 
@@ -193,6 +258,10 @@ class ThingHooker extends Model
         $c->callback_event = $call_me->getCallbackEvent();
         $c->save();
         return $c;
+    }
+
+    public function isDone() : bool {
+        return $this->hooker_status === TypeOfHookerStatus::HOOK_COMPLETE;
     }
 
 
