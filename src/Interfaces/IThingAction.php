@@ -20,7 +20,7 @@ interface IThingAction
 
     public function runAction(array $data = []): void;
     public function getDataByteRowsUsed(): int;
-    public function setLimitDataByteRows(int $limit): int;
+    public function setLimitDataByteRows(int $limit): void;
 
     public function getActionOwner() : IThingOwner;
     public function getStartAt(): ?Carbon;
@@ -28,14 +28,16 @@ interface IThingAction
 
     public function isAsync() : bool;
     public function isMoreBuilding() : ?string;
-    public function getActionResult() : ?array ;
+    public function getActionResult() : array ;
     public function getActionTags() : ?array ;
+    public function getRenderHtml() : ?string ;
     public function getInitialConstantData() : ?array ;
     public function setChildActionResult(IThingAction $child) : void ;
     public function addDataBeforeRun(array $data) : void ;
 
-    public function getActionHttpCode() : int;
 
     public static function resolveAction(int $action_id) : IThingAction;
+
+    public static function registerAction() : void;
 
 }

@@ -112,6 +112,7 @@ return new class extends Migration
             'thing_resources',
             'thing_success',
             'thing_fail',
+            'thing_invalid',
             'thing_error'
             );");
 

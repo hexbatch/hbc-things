@@ -17,7 +17,7 @@ trait ThingOwnerHandler
     protected static function resolveOwner(string $owner_type, int $owner_id) : ?IThingOwner {
         $resolver = static::$owner_type_lookup[$owner_type]??null;
         if (!$resolver) {return null;}
-        return $resolver::resolveOwner(action_id: $owner_id);
+        return $resolver::resolveOwner(owner_id: $owner_id);
     }
 
     public static function registerOwnerType(IThingOwner|string $owner_class) :void {

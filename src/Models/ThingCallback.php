@@ -145,7 +145,7 @@ class ThingCallback extends Model
         $action_data = [];
         $action = $this->callback_owning_hooker->hooker_thing->getAction();
         if ($action->isActionComplete()) {
-            $action_data = $action->getActionResult()??[];
+            $action_data = $action->getActionResult();
         }
 
         $second_data = $this->callback_owning_hooker->parent_hook->hook_constant_data?->getArrayCopy()??[];

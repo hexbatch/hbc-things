@@ -57,6 +57,10 @@ return new class extends Migration
             $table->integer('backoff_data_policy')->nullable()->default(null)
                 ->comment('if set, then if over any limits here or in ancestors, then how long to backoff will be determined here');
 
+            $table->uuid('ref_uuid')
+                ->unique()
+                ->nullable(false)
+                ->comment("used for display and id outside the code");
 
             $table->timestamps();
 
@@ -74,6 +78,8 @@ return new class extends Migration
         DB::statement("
             CREATE TRIGGER update_modified_time BEFORE UPDATE ON thing_settings FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
         ");
+
+        DB::statement('ALTER TABLE thing_settings ALTER COLUMN ref_uuid SET DEFAULT uuid_generate_v4();');
     }
 
     /**
