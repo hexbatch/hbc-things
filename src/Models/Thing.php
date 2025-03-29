@@ -466,10 +466,13 @@ class Thing extends Model
         try {
             DB::beginTransaction();
             if ($limit = ThingSetting::checkForTreeOverflow(action_type: $action::getActionType(), action_type_id: $action->getActionId(),
-                owner_type: $action->getActionOwner()::getOwnerType(), owner_type_id: $action->getActionOwner()->getOwnerId())
+                owner_type: $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null,
+                owner_type_id: $action->getActionOwner()?->getOwnerId())
             ) {
                 throw new HbcThingTreeLimitException(sprintf("New trees for action %s %s owned by %s %s are limited to %s",
-                    $action::getActionType(), $action->getActionId(), $action->getActionOwner()::getOwnerType(), $action->getActionOwner()->getOwnerId(), $limit
+                    $action::getActionType(), $action->getActionId(),
+                    $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null,
+                    $action->getActionOwner()?->getOwnerId(), $limit
                 ));
             }
 
@@ -533,12 +536,12 @@ class Thing extends Model
             }
             $tree_node->action_type = $action::getActionType();
             $tree_node->action_type_id = $action->getActionId();
-            $tree_node->owner_type = $action->getActionOwner()::getOwnerType();
-            $tree_node->owner_type_id = $action->getActionOwner()->getOwnerId();
+            $tree_node->owner_type = $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null;
+            $tree_node->owner_type_id = $action->getActionOwner()?->getOwnerId();
             $tree_node->thing_priority = $action->getActionPriority();
             $tree_node->is_async = $action->isAsync();
             $tree_node->thing_tags = $action->getActionTags();
-            $tree_node->thing_constant_data = $action->getInitialConstantData();
+            $tree_node->thing_constant_data = $action->getInitialConstantData(); //mulched up by the stats
             $tree_node->save();
             ThingSetting::makeStatFromSettings(thing: $tree_node);
             DB::commit();
@@ -622,13 +625,6 @@ class Thing extends Model
         }
 
 
-
-
-
-        /**
-         * @uses Thing::thing_collection()
-         */
-        $build->with('thing_collection');
 
         /**
          * @uses Thing::thing_parent(),Thing::thing_children(),Thing::thing_error(),

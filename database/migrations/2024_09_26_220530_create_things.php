@@ -27,7 +27,8 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->foreignId('root_thing_id')
-                ->nullable(false)
+                ->nullable()
+                ->default(null)
                 ->comment("all things in the same tree, including the root, have this set to the root")
                 ->index()
                 ->constrained('things')

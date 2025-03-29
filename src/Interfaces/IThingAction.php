@@ -22,7 +22,7 @@ interface IThingAction
     public function getDataByteRowsUsed(): int;
     public function setLimitDataByteRows(int $limit): void;
 
-    public function getActionOwner() : IThingOwner;
+    public function getActionOwner() : ?IThingOwner;
     public function getStartAt(): ?Carbon;
     public function getInvalidAt(): ?Carbon;
 

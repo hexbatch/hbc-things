@@ -67,7 +67,7 @@ class ThingSetting extends Model
     /**
      * @return int  the limit for trees
      */
-    public static function checkForTreeOverflow(string $action_type,int $action_type_id,string $owner_type,int $owner_type_id)
+    public static function checkForTreeOverflow(string $action_type,int $action_type_id,?string $owner_type,?int $owner_type_id)
     : int
     {
         return 0;
