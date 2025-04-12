@@ -69,7 +69,7 @@ use LogicException;
  * @property Thing thing_parent
  * @property Thing thing_root
  * @property Thing[]|\Illuminate\Database\Eloquent\Collection thing_children
- * @property ThingHooker[]|\Illuminate\Database\Eloquent\Collection da_hooks
+ * @property ThingHooker[]|\Illuminate\Database\Eloquent\Collection applied_hooks
  */
 class Thing extends Model
 {
@@ -125,8 +125,8 @@ class Thing extends Model
     }
 
 
-    public function thing_stat() : BelongsTo {
-        return $this->belongsTo(ThingStat::class,'stat_thing_id','id');
+    public function thing_stat() : HasOne {
+        return $this->hasOne(ThingStat::class,'stat_thing_id','id');
     }
 
     public function applied_hooks() : HasMany {
@@ -164,7 +164,7 @@ class Thing extends Model
      */
     public function hasHooksOfMode(TypeOfThingHookMode $mode) : array {
         $ret = [];
-        foreach ($this->da_hooks as $hooker) {
+        foreach ($this->applied_hooks as $hooker) {
             if ($hooker->parent_hook->hook_mode === $mode) {
                 $ret[] = $hooker;
             }
@@ -437,17 +437,25 @@ class Thing extends Model
      * @param array<string,IThingCallback[]> $callbacks
      * @throws Exception
      */
-    public static function buildAction(IThingAction $action, array $callbacks = [], bool $b_run_now = true) : ?ThingHooker {
-        $root = static::makeThingTree(action: $action, callbacks: $callbacks);
-        $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_CREATION_HOOK);
-        if (empty($blocking) && $b_run_now) {
-            $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_STARTING_HOOK);
-            if (empty($blocking)) {
-                $root->pushLeavesToJobs();
-            }
+    public static function buildFromAction(IThingAction $action, array $callbacks = [], bool $b_run_now = true, array $extra_tags = []) : ?ThingHooker {
 
+        try {
+            DB::beginTransaction();
+            $root = static::makeThingTree(action: $action, callbacks: $callbacks,extra_tags: $extra_tags);
+            $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_CREATION_HOOK);
+            if (empty($blocking) && $b_run_now) {
+                $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_STARTING_HOOK);
+                if (empty($blocking)) {
+                    $root->pushLeavesToJobs();
+                }
+
+            }
+            DB::commit();
+            return ThingHooker::buildHooker(thing_id: $root->id, mode: TypeOfThingHookMode::SYSTEM_TREE_RESULTS)->first();
+        } catch (Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
-        return ThingHooker::buildHooker(thing_id: $root->id,mode: TypeOfThingHookMode::SYSTEM_TREE_RESULTS)->first();
 
     }
 
@@ -459,15 +467,17 @@ class Thing extends Model
     protected static function makeThingTree(
         IThingAction $action,
         array $callbacks = [],
-        ?string $hint = null
+        ?string $hint = null,
+        array $extra_tags = []
     )
     : Thing {
 
         try {
             DB::beginTransaction();
-            if ($limit = ThingSetting::checkForTreeOverflow(action_type: $action::getActionType(), action_type_id: $action->getActionId(),
+            $limit = 0;
+            if (ThingSetting::isTreeOverflow(action_type: $action::getActionType(), action_type_id: $action->getActionId(),
                 owner_type: $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null,
-                owner_type_id: $action->getActionOwner()?->getOwnerId())
+                owner_type_id: $action->getActionOwner()?->getOwnerId(),limit: $limit)
             ) {
                 throw new HbcThingTreeLimitException(sprintf("New trees for action %s %s owned by %s %s are limited to %s",
                     $action::getActionType(), $action->getActionId(),
@@ -476,7 +486,7 @@ class Thing extends Model
                 ));
             }
 
-            $root = static::makeThingFromAction(parent_thing: null, action: $action);
+            $root = static::makeThingFromAction(parent_thing: null, action: $action,extra_tags: $extra_tags);
 
             $tree = $action->getChildrenTree(key: $hint);
             $roots = $tree->getRootNodes();
@@ -513,7 +523,7 @@ class Thing extends Model
     /**
      * @throws Exception
      */
-    protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action) : Thing {
+    protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action,array $extra_tags = []) : Thing {
         try {
             DB::beginTransaction();
             $tree_node = new Thing();
@@ -540,7 +550,7 @@ class Thing extends Model
             $tree_node->owner_type_id = $action->getActionOwner()?->getOwnerId();
             $tree_node->thing_priority = $action->getActionPriority();
             $tree_node->is_async = $action->isAsync();
-            $tree_node->thing_tags = $action->getActionTags();
+            $tree_node->thing_tags = array_merge($action->getActionTags()??[],$extra_tags);
             $tree_node->thing_constant_data = $action->getInitialConstantData(); //mulched up by the stats
             $tree_node->save();
             ThingSetting::makeStatFromSettings(thing: $tree_node);

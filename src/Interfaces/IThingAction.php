@@ -16,7 +16,7 @@ interface IThingAction
     public function getActionRef() : string;
     public function getActionPriority() : int;
     public static function getActionType() : string;
-    public function getChildrenTree(?string $key = null) : Tree;
+    public function getChildrenTree(?string $key = null) : ?Tree;
 
     public function runAction(array $data = []): void;
     public function getDataByteRowsUsed(): int;

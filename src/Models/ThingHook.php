@@ -204,7 +204,7 @@ class ThingHook extends Model
         if ($position) {
             $build->where(function (Builder $q) use($position) {
                 $q->where('thing_hooks.hook_position',$position);
-                $q->orWhere('thing_hooks.owner_type_id',TypeOfThingHookPosition::ANY_POSITION);
+                $q->orWhere('thing_hooks.hook_position',TypeOfThingHookPosition::ANY_POSITION);
             });
         }
 

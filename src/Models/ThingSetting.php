@@ -64,20 +64,20 @@ class ThingSetting extends Model
     const DEFAULT_TREE_LIMIT = 100;
 
 
-    /**
-     * @return int  the limit for trees
-     */
-    public static function checkForTreeOverflow(string $action_type,int $action_type_id,?string $owner_type,?int $owner_type_id)
-    : int
+
+    public static function isTreeOverflow(string $action_type, int $action_type_id, ?string $owner_type, ?int $owner_type_id,int &$limit = 0)
+    : bool
     {
-        return 0;
+        $limit = 0;
+        return false;
         //todo find rule to count trees, count them that way, and see if tree count limit reached
     }
 
     public static function makeStatFromSettings(Thing $thing) : ThingStat {
         $node = new ThingStat();
-        $node->stat_thing_id = $thing;
+        $node->stat_thing_id = $thing->id;
         //todo fill in rest of stats rows based on settings or defaults
+        $node->save();
         return $node;
     }
 
