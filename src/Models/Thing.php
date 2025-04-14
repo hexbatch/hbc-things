@@ -493,6 +493,7 @@ class Thing extends Model
             foreach ($roots as $a_node) {
                 static::makeTreeNodes(parent_thing: $root, node: $a_node,  callbacks: $callbacks);
             }
+            ThingStat::updateStatsAfterBuilding(thing:$root);
 
             ThingHook::makeHooksForThing(thing: $root,  callbacks: $callbacks);
             DB::commit();
@@ -645,5 +646,26 @@ class Thing extends Model
 
         return $build;
     }
+
+    /**
+     * gets ancestor chain with the root in element 0
+     * @return array<Thing>
+     */
+    public function getAncestorChain() : array {
+        $ret = [];
+        $it = $this;
+        $ret[] = $it;
+        while($it->thing_parent) {
+            $it = $it->thing_parent;
+            $ret[] = $it;
+        }
+        return array_reverse($ret);
+    }
+
+    public function countDescendants() : int {
+        //todo use sql to count the descendants this has
+        return 0;
+    }
+
 
 }

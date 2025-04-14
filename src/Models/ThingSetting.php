@@ -74,9 +74,13 @@ class ThingSetting extends Model
     }
 
     public static function makeStatFromSettings(Thing $thing) : ThingStat {
-        $node = new ThingStat();
-        $node->stat_thing_id = $thing->id;
+        $node = ThingStat::makeStatsWhileBuilding($thing);
+
         //todo fill in rest of stats rows based on settings or defaults
+        /*
+         * stat_limit_data_byte_rows: the minimum of this data_byte_row_limit, or default, among this and all ancestors
+         * stat_descendants: the minimum of this tree_limit, or default, among this and ancestors
+         */
         $node->save();
         return $node;
     }
