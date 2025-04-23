@@ -10,11 +10,13 @@ trait ThingOwnerHandler
     protected static array $owner_type_lookup = [];
 
 
-    public function getOwner() : IThingOwner {
+    public function getOwner() : ?IThingOwner {
         return static::resolveOwner(owner_type: $this->owner_type, owner_id: $this->owner_type_id);
     }
 
-    protected static function resolveOwner(string $owner_type, int $owner_id) : ?IThingOwner {
+    protected static function resolveOwner(?string $owner_type, ?int $owner_id) : ?IThingOwner {
+        if (!$owner_type) {return null;}
+        if (is_null($owner_id)) {return null;}
         $resolver = static::$owner_type_lookup[$owner_type]??null;
         if (!$resolver) {return null;}
         return $resolver::resolveOwner(owner_id: $owner_id);

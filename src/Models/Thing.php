@@ -14,6 +14,7 @@ use Hexbatch\Things\Exceptions\HbcThingStackException;
 use Hexbatch\Things\Exceptions\HbcThingTreeLimitException;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingCallback;
+use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Jobs\RunThing;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
@@ -437,11 +438,15 @@ class Thing extends Model
      * @param array<string,IThingCallback[]> $callbacks
      * @throws Exception
      */
-    public static function buildFromAction(IThingAction $action, array $callbacks = [], bool $b_run_now = true, array $extra_tags = []) : ?ThingHooker {
+    public static function buildFromAction(IThingAction $action, IThingOwner $owner,
+                                           array $callbacks = [], bool $b_run_now = true,
+                                           array $extra_tags = []
+    ): ?ThingHooker
+    {
 
         try {
             DB::beginTransaction();
-            $root = static::makeThingTree(action: $action, callbacks: $callbacks,extra_tags: $extra_tags);
+            $root = static::makeThingTree(action: $action, callbacks: $callbacks,extra_tags: $extra_tags,owner: $owner);
             $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_CREATION_HOOK);
             if (empty($blocking) && $b_run_now) {
                 $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_STARTING_HOOK);
@@ -468,25 +473,24 @@ class Thing extends Model
         IThingAction $action,
         array $callbacks = [],
         ?string $hint = null,
-        array $extra_tags = []
+        array $extra_tags = [],
+        IThingOwner $owner = null
     )
     : Thing {
-
+        $owner = $owner? : $action->getActionOwner();
         try {
             DB::beginTransaction();
             $limit = 0;
-            if (ThingSetting::isTreeOverflow(action_type: $action::getActionType(), action_type_id: $action->getActionId(),
-                owner_type: $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null,
-                owner_type_id: $action->getActionOwner()?->getOwnerId(),limit: $limit)
+            if (ThingSetting::isTreeOverflow(action: $action, owner: $owner,limit: $limit)
             ) {
-                throw new HbcThingTreeLimitException(sprintf("New trees for action %s %s owned by %s %s are limited to %s",
+                throw new HbcThingTreeLimitException(sprintf("New trees for action %s %s, owned by %s %s, are limited to %s",
                     $action::getActionType(), $action->getActionId(),
                     $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null,
                     $action->getActionOwner()?->getOwnerId(), $limit
                 ));
             }
 
-            $root = static::makeThingFromAction(parent_thing: null, action: $action,extra_tags: $extra_tags);
+            $root = static::makeThingFromAction(parent_thing: null, action: $action,extra_tags: $extra_tags,owner: $owner);
 
             $tree = $action->getChildrenTree(key: $hint);
             $roots = $tree->getRootNodes();
@@ -524,7 +528,13 @@ class Thing extends Model
     /**
      * @throws Exception
      */
-    protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action,array $extra_tags = []) : Thing {
+    protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action,array $extra_tags = [],IThingOwner $owner = null) : Thing {
+        if (!$owner) {
+            $owner = $parent_thing?->getOwner();
+            if (!$owner) {
+                $owner = $action->getActionOwner();
+            }
+        }
         try {
             DB::beginTransaction();
             $tree_node = new Thing();
@@ -547,8 +557,8 @@ class Thing extends Model
             }
             $tree_node->action_type = $action::getActionType();
             $tree_node->action_type_id = $action->getActionId();
-            $tree_node->owner_type = $action->getActionOwner()?$action->getActionOwner()::getOwnerType():null;
-            $tree_node->owner_type_id = $action->getActionOwner()?->getOwnerId();
+            $tree_node->owner_type = $owner?$owner::getOwnerType():null;
+            $tree_node->owner_type_id = $owner?->getOwnerId();
             $tree_node->thing_priority = $action->getActionPriority();
             $tree_node->is_async = $action->isAsync();
             $tree_node->thing_tags = array_merge($action->getActionTags()??[],$extra_tags);

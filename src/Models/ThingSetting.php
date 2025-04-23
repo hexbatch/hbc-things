@@ -5,6 +5,8 @@ namespace Hexbatch\Things\Models;
 
 
 
+use Hexbatch\Things\Interfaces\IThingAction;
+use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
@@ -65,7 +67,7 @@ class ThingSetting extends Model
 
 
 
-    public static function isTreeOverflow(string $action_type, int $action_type_id, ?string $owner_type, ?int $owner_type_id,int &$limit = 0)
+    public static function isTreeOverflow(IThingAction $action, ?IThingOwner $owner,int &$limit = 0)
     : bool
     {
         $limit = 0;

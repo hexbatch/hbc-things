@@ -2,10 +2,14 @@
 
 namespace Hexbatch\Things\Controllers;
 
+use Hexbatch\Things\Interfaces\IThingAction;
+use Hexbatch\Things\Interfaces\IThingOwner;
+use Hexbatch\Things\Interfaces\ThingOwnerGroup;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingHook;
 use Hexbatch\Things\Models\ThingSetting;
+use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response as CodeOf;
 use OpenApi\Attributes as OA;
 
@@ -13,74 +17,116 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/hooks/list',
+        path: '/hbc-things/v1/hooks/list',
         operationId: 'hbc-things.hooks.list',
         description: "",
         summary: 'List all the hooks registered to this owner',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_hook_list(string $owner_type,int $owner_id) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Post(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/hooks/create',
-        operationId: 'hbc-things.hooks.create',
-        description: "",
-        summary: 'Create a new hook',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_hook_create(string $owner_type,int $owner_id) {
+    public function hook_list(IThingOwner $owner,ThingOwnerGroup $group) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/hooks/{hook_uuid}/show',
-        operationId: 'hbc-things.hooks.show',
+        path: '/hbc-things/v1/hooks/admin/list',
+        operationId: 'hbc-things.hooks.admin.list',
         description: "",
-        summary: 'Shows information about a hook',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+        summary: 'List all the hooks',
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_hook_show(string $owner_type,int $owner_id,ThingHook $hook) {
+    public function admin_hook_list(Request $request) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+    #[OA\Delete(
+        path: '/hbc-things/v1/hooks/admin/{thing_hook}/destroy',
+        operationId: 'hbc-things.hooks.admin.destroy',
+        description: "",
+        summary: 'Removes a hook',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function admin_hook_destroy(ThingHook $hook) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+    #[OA\Get(
+        path: '/hbc-things/v1/hooks/admin/{thing_hook}/show',
+        operationId: 'hbc-things.hooks.admin.show',
+        description: "",
+        summary: 'Shows information about a hook',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function admin_hook_show(ThingHook $hook) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+
+    #[OA\Post(
+        path: '/hbc-things/v1/hooks/create',
+        operationId: 'hbc-things.hooks.create',
+        description: "",
+        summary: 'Create a new hook',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function thing_hook_create(IThingOwner $owner) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+
+    #[OA\Get(
+        path: '/hbc-things/v1/hooks/{thing_hook}/show',
+        operationId: 'hbc-things.hooks.show',
+        description: "",
+        summary: 'Shows information about a hook',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function thing_hook_show(ThingHook $hook,IThingOwner $owner) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
     #[OA\Patch(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/hooks/{hook_uuid}/edit',
+        path: '/hbc-things/v1/hooks/{thing_hook}/edit',
         operationId: 'hbc-things.hooks.edit',
         description: "Affects future hooks",
         summary: 'Edits a hook',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_hook_edit(string $owner_type,int $owner_id,ThingHook $hook) {
+    public function thing_hook_edit(ThingHook $hook,IThingOwner $owner) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
 
     #[OA\Delete(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/hooks/{hook_uuid}/destroy',
+        path: '/hbc-things/v1/hooks/{thing_hook}/destroy',
         operationId: 'hbc-things.hooks.destroy',
         description: "",
         summary: 'Edits a hook',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_hook_destroy(string $owner_type,int $owner_id,ThingHook $hook) {
+    public function thing_hook_destroy(ThingHook $hook,IThingOwner $owner) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -101,192 +147,256 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/things/list',
+        path: '/hbc-things/v1/things/list',
         operationId: 'hbc-things.things.list',
         description: "Shows tree status, times, progress",
         summary: 'Lists top things that are owned by user',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_list(string $owner_type,int $owner_id) {
+    public function thing_list(IThingOwner $owner, ThingOwnerGroup $group) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+
+    #[OA\Get(
+        path: '/hbc-things/v1/things/admin/list',
+        operationId: 'hbc-things.things.admin.list',
+        description: "Shows tree status, times, progress",
+        summary: 'Lists top things that are owned by user',
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function thing_admin_list(Request $request) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/things/{thing_uuid}/show',
+        path: '/hbc-things/v1/things/{thing}/show',
         operationId: 'hbc-things.things.show',
         description: "Lesser detail in decendants",
         summary: 'Shows a thing and its descendants',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_show(string $owner_type,int $owner_id,Thing $thing) { //  (a tree)
+    public function thing_show(Thing $thing,IThingOwner $owner) { //  (a tree)
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
+
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/things/{thing_uuid}/inspect',
-        operationId: 'hbc-things.things.inspect',
-        description: "",
-        summary: 'Inspects a single thing',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+        path: '/hbc-things/v1/things/admin/{thing}/show',
+        operationId: 'hbc-things.things.admin.show',
+        description: "Lesser detail in decendants",
+        summary: 'Shows a thing and its descendants',
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_inspect(string $owner_type,int $owner_id,Thing $thing) { //  (a single thing)
+    public function admin_thing_show(Thing $thing,Request $request) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
+
+
+
 
 
 
 
     #[OA\Put(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/things/{thing_uuid}/shortcut',
+        path: '/hbc-things/v1/things/{thing}/shortcut',
         operationId: 'hbc-things.things.shortcut',
         description: "If children not run they are shortcut too",
         summary: 'Shortcuts a thing',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_shortcut(string $owner_type,int $owner_id,Thing $thing) {  //(if child will return false to parent when it runs, if root then its just gone)
+    public function thing_shortcut(Thing $thing,IThingOwner $owner) {  //(if child will return false to parent when it runs, if root then its just gone)
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
 
     #[OA\Post(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/settings/create',
+        path: '/hbc-things/v1/settings/create',
         operationId: 'hbc-things.settings.create',
         description: "Will apply it to current and new",
         summary: 'Creates a setting',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_create(string $owner_type,int $owner_id) {
+    public function thing_setting_create(Request $request) {
+        //get all setting values from body
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+    #[OA\Post(
+        path: '/hbc-things/v1/settings/admin/create',
+        operationId: 'hbc-things.settings.admin.create',
+        description: "Will apply it to current and new",
+        summary: 'Creates a setting',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function admin_setting_create(Request $request) {
         //get all setting values from body
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
     #[OA\Delete(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/things/rates/remove',
-        operationId: 'hbc-things.things.rates.remove',
+        path: '/hbc-things/v1/things/settings/admin/{thing_setting}/remove',
+        operationId: 'hbc-things.settings.admin.remove',
         description: "",
         summary: 'Removes a rate(s) to a thing and its descendants',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_remove(string $owner_type,int $owner_id) {
+    public function admin_setting_remove(ThingSetting $setting) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
     #[OA\Put(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/things/rates/remove',
-        operationId: 'hbc-things.things.rates.remove',
+        path: '/hbc-things/v1/things/settings/admin/{thing_setting}/edit',
+        operationId: 'hbc-things.settings.admin.edit',
         description: "",
         summary: 'Removes a rate(s) to a thing and its descendants',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_edit(string $owner_type,int $owner_id) {
+    public function admin_setting_edit(ThingSetting $setting) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
-
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/settings/list',
-        operationId: 'hbc-things.settings.list.mine',
+        path: '/hbc-things/v1/things/settings/admin/{thing_setting}/show',
+        operationId: 'hbc-things.settings.admin.show',
         description: "",
-        summary: 'Lists the settings for me',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+        summary: 'Removes a rate(s) to a thing and its descendants',
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_list_mine(string $owner_type, int $owner_id) { //also search
+    public function admin_setting_show(ThingSetting $setting) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
+
+
+
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/settings/list/other/{other_type}/{other_id}',
-        operationId: 'hbc-things.settings.list.other',
+        path: '/hbc-things/v1/settings/admin/list',
+        operationId: 'hbc-things.settings.admin.list',
         description: "",
         summary: 'Lists settings applied to another user',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_list_other(string $owner_type,int $owner_id,string $other_type,int $other_id) { //also search
+    public function admin_setting_list(Request $request) { //also search
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
+
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/settings/list/other/{action_type}/{action_id}',
-        operationId: 'hbc-things.settings.list.action',
+        path: '/hbc-things/v1/settings/list',
+        operationId: 'hbc-things.settings.list',
         description: "",
-        summary: 'Lists settings about this action',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+        summary: 'Lists the settings for me',
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_list_action(string $owner_type,int $owner_id,string $action_type,int $action_id) { //also search
+    public function list_settings(IThingOwner $owner, ThingOwnerGroup $group) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/settings/{setting_uuid}/rates/show',
+        path: '/hbc-things/v1/settings/{thing_setting}/settings/show',
         operationId: 'hbc-things.settings.show',
         description: "",
         summary: 'Shows information about a setting',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_setting_show(string $owner_type,int $owner_id,ThingSetting $setting) {
+    public function setting_show(ThingSetting $setting,IThingOwner $owner) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
     #[OA\Get(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/callbacks/{callback_uuid}/show',
+        path: '/hbc-things/v1/callbacks/{thing_callback}/show',
         operationId: 'hbc-things.callbacks.show',
         description: "",
         summary: 'Show a callback',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_callback_show(string $owner_type, int $owner_id,ThingCallback $callback) {
+    public function callback_show(ThingCallback $callback, IThingOwner $owner) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+    #[OA\Get(
+        path: '/hbc-things/v1/callbacks/list',
+        operationId: 'hbc-things.callbacks.list',
+        description: "",
+        summary: 'Show a callback',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function list_callbacks( IThingOwner $owner,ThingOwnerGroup $group) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
+
+    #[OA\Get(
+        path: '/hbc-things/v1/callbacks/admin/{thing_callback}/show',
+        operationId: 'hbc-things.callbacks.admin.show',
+        description: "",
+        summary: 'Show a callback',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function admin_callback_show(ThingCallback $callback) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
     #[OA\Post(
-        path: '/hbc-things/v1/{owner_type}/{owner_id}/callbacks/{callback_uuid}/answer',
+        path: '/hbc-things/v1/callbacks/{thing_callback}/complete',
         operationId: 'hbc-things.callbacks.answer',
         description: "",
         summary: 'Complete a callback',
-        parameters: [new OA\PathParameter(  ref: '#/components/parameters/namespace' )],
+
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_callback_answer(string $owner_type, int $owner_id,ThingCallback $callback) {
+    public function callback_complete(ThingCallback $callback, IThingOwner $owner) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 

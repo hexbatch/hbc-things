@@ -7,76 +7,229 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('hbc-things')->group(function () {
 
 
+    /*
+     'middleware' => [
+        'auth_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_AUTH'),
+        'admin_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_ADMIN'),
+        'owner_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_OWNER'),
+        'thing_viewable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_THING_VIEWABLE'),
+        'thing_editable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_THING_EDITABLE'),
+        'setting_viewable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_SETTING_VIEWABLE'),
+        'hook_viewable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_HOOK_VIEWABLE'),
+        'hook_editable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_HOOK_EDITABLE'),
+    ],
+     */
 
     $hbc_middleware = [];
-    $my_auth = config('hbc-things.auth_middleware_alias'); //this decides if the owner type/id is valid
+    $my_auth = config('hbc-things.middleware.auth_alias'); //this decides if the owner type/id is valid
     if ($my_auth) {
         $hbc_middleware[] =  $my_auth;
     }
 
+    $my_user = config('hbc-things.middleware.owner_alias'); //this sets the IThingOwner
+    if ($my_user) {
+        $hbc_middleware[] =  $my_user;
+    }
+
     $hbc_admin = [];
-    $my_admin = config('hbc-things.admin_middleware_alias'); //this decides if the owner type/id can do sensitive ops
+    $my_admin = config('hbc-things.middleware.owner_alias'); //this decides if the logged-in user can do sensitive ops
     if ($my_admin) {
         $hbc_admin[] =  $my_admin;
     }
 
-    Route::prefix('v1')->group(function () use($hbc_middleware,$hbc_admin) {
-        Route::middleware($hbc_middleware)->prefix('{owner_type}/{owner_id}')->group(function () use($hbc_admin){
+
+    $hbc_thing_viewable = [];
+    $my_thing_viewable = config('hbc-things.middleware.thing_viewable_alias'); //view thing
+    if ($my_thing_viewable) {
+        $hbc_thing_viewable[] =  $my_thing_viewable;
+    }
+
+    $hbc_thing_editable = [];
+    $my_thing_editable = config('hbc-things.middleware.thing_editable_alias'); //edit thing
+    if ($my_thing_editable) {
+        $hbc_thing_editable[] =  $my_thing_editable;
+    }
+
+    $hbc_thing_listing = [];
+    $my_thing_listing = config('hbc-things.middleware.thing_listing_alias'); //edit thing
+    if ($my_thing_listing) {
+        $hbc_thing_listing[] =  $my_thing_listing;
+    }
+
+    $hbc_setting_viewable = [];
+    $my_setting_viewable = config('hbc-things.middleware.setting_viewable_alias'); //view setting?
+    if ($my_setting_viewable) {
+        $hbc_setting_viewable[] =  $my_setting_viewable;
+    }
+
+    $hbc_setting_listing = [];
+    $my_setting_listing = config('hbc-things.middleware.setting_listing_alias'); //view setting?
+    if ($my_setting_listing) {
+        $hbc_setting_listing[] =  $my_setting_listing;
+    }
 
 
-            Route::prefix('things')->group(function () {
-                Route::get('list', [ThingController::class, 'thing_list'])->name('hbc-things.things.list');
 
-                Route::prefix('{thing}')->group(function () {
-                    Route::get('show', [ThingController::class, 'thing_show'])->name('hbc-things.things.show');
-                    Route::get('inspect', [ThingController::class, 'thing_inspect'])->name('hbc-things.things.inspect');
-                    Route::put('shortcut', [ThingController::class, 'thing_shortcut'])->name('hbc-things.things.shortcut');
+    $hbc_hook_viewable = [];
+    $my_hook_viewable = config('hbc-things.middleware.hook_viewable_alias'); //see hook?
+    if ($my_hook_viewable) {
+        $hbc_hook_viewable[] =  $my_hook_viewable;
+    }
+
+    $hbc_hook_list = [];
+    $my_hook_listing = config('hbc-things.middleware.hook_listing_alias'); //see hook?
+    if ($my_hook_listing) {
+        $hbc_hook_list[] =  $my_hook_listing;
+    }
+
+    $hbc_hook_editable = [];
+    $my_hook_editable = config('hbc-things.middleware.hook_editable_alias'); //edit hook?
+    if ($my_hook_editable) {
+        $hbc_hook_editable[] =  $my_hook_editable;
+    }
+
+
+    Route::prefix('v1')->group(function ()
+        use($hbc_middleware,$hbc_admin,
+            $hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable,
+            $hbc_setting_viewable,$hbc_setting_listing,
+            $hbc_hook_viewable,$hbc_hook_list,$hbc_hook_editable)
+    {
+        Route::middleware($hbc_middleware)->group(function ()
+            use($hbc_middleware,$hbc_admin,
+                $hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable,
+                $hbc_setting_viewable,$hbc_setting_listing,
+                $hbc_hook_viewable,$hbc_hook_list,$hbc_hook_editable)
+        {
+
+
+            Route::prefix('things')->group(function ()
+                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable)
+            {
+
+
+                Route::middleware($hbc_admin)->prefix('admin')->group(function()
+                {
+                    Route::get('list', [ThingController::class, 'thing_admin_list'])->name('hbc-things.things.admin.list');
+
+                    Route::prefix('{thing}')->group(function () {
+                        Route::get('show', [ThingController::class, 'admin_thing_show'])->name('hbc-things.things.admin.show');
+                    });
+                });
+
+                Route::middleware($hbc_thing_listing)->group(function() {
+                    Route::get('list', [ThingController::class, 'thing_list'])->name('hbc-things.things.list');
+                });
+
+
+                Route::prefix('{thing}')->group(function ()
+                    use($hbc_thing_viewable,$hbc_thing_editable)
+                {
+
+                    Route::middleware($hbc_thing_viewable)->group(function()
+                        use($hbc_thing_editable)
+                    {
+                        Route::get('show', [ThingController::class, 'thing_show'])->name('hbc-things.things.show');
+                        Route::middleware($hbc_thing_editable)->group(function() {
+                            Route::put('shortcut', [ThingController::class, 'thing_shortcut'])->name('hbc-things.things.shortcut');
+                        });
+                    });
                 });
             }); //things
 
-            Route::prefix('settings')->group(function () use($hbc_admin){
+
+
+            Route::prefix('settings')->group(function ()
+                use($hbc_admin,$hbc_setting_viewable,$hbc_setting_listing)
+            {
 
                 Route::middleware($hbc_admin)->prefix('admin')->group(function() {
-                    Route::post('create', [ThingController::class, 'thing_setting_create'])->name('hbc-things.settings.create');
+                    Route::post('create', [ThingController::class, 'admin_setting_create'])->name('hbc-things.settings.admin.create');
 
-                    Route::prefix('list')->group(function () {
-                        Route::get('other/{other_type}/{other_id}', [ThingController::class, 'thing_setting_list_other'])->name('hbc-things.settings.list.other');
-                    });
+                    Route::get('list', [ThingController::class, 'admin_setting_list'])->name('hbc-things.settings.admin.list');
 
                     Route::prefix('{thing_setting}')->group(function () {
-                        Route::delete('remove', [ThingController::class, 'thing_setting_remove'])->name('hbc-things.settings.remove');
-                        Route::delete('edit', [ThingController::class, 'thing_setting_edit'])->name('hbc-things.settings.edit');
+                        Route::delete('remove', [ThingController::class, 'admin_setting_remove'])->name('hbc-things.settings.admin.remove');
+                        Route::put('edit', [ThingController::class, 'admin_setting_edit'])->name('hbc-things.settings.admin.edit');
+                        Route::put('show', [ThingController::class, 'admin_setting_show'])->name('hbc-things.settings.admin.show');
                     });
                 });
 
 
-                Route::prefix('list')->group(function () {
-                    Route::get('action/{action_name}/{action_id}', [ThingController::class, 'thing_setting_list_action'])->name('hbc-things.settings.list.action');
-                    Route::get('mine', [ThingController::class, 'thing_setting_list_mine'])->name('hbc-things.settings.list.mine');
+                Route::middleware($hbc_setting_listing)->group(function () {
+                    Route::get('list', [ThingController::class, 'list_settings'])->name('hbc-things.settings.list');
                 });
 
 
-                Route::prefix('{thing_setting}')->group(function () {
-                    Route::get('show', [ThingController::class, 'thing_setting_show'])->name('hbc-things.settings.show');
-                });
-            });
-
-            Route::prefix('callbacks')->group(function () {
-                Route::prefix('{thing_callback}')->group(function () {
-                    Route::post('answer', [ThingController::class, 'thing_callback_answer'])->name('hbc-things.callbacks.answer');
-                    Route::get('show', [ThingController::class, 'thing_callback_show'])->name('hbc-things.callbacks.show');
+                Route::middleware($hbc_setting_viewable)->prefix('{thing_setting}')->group(function () {
+                    Route::get('show', [ThingController::class, 'setting_show'])->name('hbc-things.settings.show');
                 });
             });
 
 
-            Route::prefix('hooks')->group(function () use($hbc_admin) {
-                Route::get('list', [ThingController::class, 'thing_hook_list'])->name('hbc-things.hooks.list');
+
+            Route::prefix('callbacks')->group(function ()
+                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_editable,$hbc_thing_listing)
+            {
+                Route::middleware($hbc_thing_listing)->group(function () {
+                    Route::get('list', [ThingController::class, 'list_callbacks'])->name('hbc-things.callbacks.list');
+                });
+
+                Route::prefix('{thing_callback}')->group(function ()
+                    use($hbc_thing_viewable,$hbc_thing_editable)
+                {
+                    Route::middleware($hbc_thing_viewable)->group(function()
+                        use($hbc_thing_editable) {
+
+                        Route::get('show', [ThingController::class, 'callback_show'])->name('hbc-things.callbacks.show');
+
+                        Route::middleware($hbc_thing_editable)->group(function() {
+                            Route::post('complete', [ThingController::class, 'callback_complete'])->name('hbc-things.callbacks.complete');
+                        });
+                    });
+                });
+
+                Route::middleware($hbc_admin)->prefix('admin')->group(function() {
+                    Route::prefix('{thing_callback}')->group(function () {
+                        Route::get('show', [ThingController::class, 'admin_callback_show'])->name('hbc-things.callbacks.admin.show');
+                    });
+                });
+            });
+
+
+
+            Route::prefix('hooks')->group(function ()
+                use($hbc_admin,$hbc_hook_viewable,$hbc_hook_editable,$hbc_hook_list)
+            {
+                Route::middleware($hbc_hook_list)->group(function () {
+                    Route::get('list', [ThingController::class, 'hook_list'])->name('hbc-things.hooks.list');
+                });
                 Route::post('create', [ThingController::class, 'thing_hook_create'])->name('hbc-things.hooks.create');
 
-                Route::prefix('{thing_hook}')->group(function () {
-                    Route::get('show', [ThingController::class, 'thing_hook_show'])->name('hbc-things.hooks.show');
-                    Route::patch('edit', [ThingController::class, 'thing_hook_edit'])->name('hbc-things.hooks.edit');
-                    Route::delete('destroy', [ThingController::class, 'thing_hook_destroy'])->name('hbc-things.hooks.destroy');
+                Route::prefix('{thing_hook}')->group(function ()
+                    use($hbc_hook_viewable,$hbc_hook_editable)
+                {
+
+                    Route::middleware($hbc_hook_viewable)->group(function()
+                        use($hbc_hook_editable)
+                    {
+                        Route::get('show', [ThingController::class, 'thing_hook_show'])->name('hbc-things.hooks.show');
+                        Route::middleware($hbc_hook_editable)->group(function()
+                        {
+                            Route::patch('edit', [ThingController::class, 'thing_hook_edit'])->name('hbc-things.hooks.edit');
+                            Route::delete('destroy', [ThingController::class, 'thing_hook_destroy'])->name('hbc-things.hooks.destroy');
+                        });
+                    });
+
+
+                });
+
+                Route::middleware($hbc_admin)->prefix('admin')->group(function() {
+                    Route::get('list', [ThingController::class, 'admin_hook_list'])->name('hbc-things.hooks.admin.list');
+                    Route::prefix('{thing_hook}')->group(function () {
+                        Route::get('show', [ThingController::class, 'admin_hook_show'])->name('hbc-things.hooks.admin.show');
+                        Route::delete('destroy', [ThingController::class, 'admin_hook_destroy'])->name('hbc-things.hooks.admin.destroy');
+                    });
                 });
             });
 

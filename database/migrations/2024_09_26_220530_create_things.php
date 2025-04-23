@@ -53,20 +53,13 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->comment("The id of the owner, see type to lookup");
 
-            $table->char('action_type',6)
-                ->nullable()->default(null)
-                ->comment("The type of action");
 
-            $table->char('owner_type',6)
-                ->nullable()->default(null)
-                ->comment("The type of owner");
 
             $table->integer('thing_priority')
                 ->nullable(false)->default(0)
                 ->comment("the higher priority will run first, equal will run at the same time");
 
-            $table->index(['action_type','action_type_id'],'idx_thing_action_type_id');
-            $table->index(['owner_type','owner_type_id'],'idx_thing_owner_type_id');
+
 
 
 
@@ -122,6 +115,17 @@ return new class extends Migration
 
         Schema::table('things', function (Blueprint $table) {
             $table->index(['thing_status','thing_start_at']);
+
+            $table->string('action_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of action");
+
+            $table->string('owner_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of owner");
+
+            $table->index(['action_type','action_type_id'],'idx_thing_action');
+            $table->index(['owner_type','owner_type_id'],'idx_thing_owner');
         });
 
 
