@@ -197,12 +197,12 @@ class ThingHooker extends Model
         }
 
         if ($belongs_to_tree_thing_id) {
-            $build->join('thing_hooks as tree_hook',
+            $build->join('things as fam',
                 /** @param JoinClause $join */
                 function ($join) use($belongs_to_tree_thing_id) {
                     $join
-                        ->on('tree_hook.id','=','thing_hookers.hooked_thing_id')
-                        ->where('tree_hook.root_thing_id',$belongs_to_tree_thing_id);
+                        ->on('fam.id','=','thing_hookers.hooked_thing_id')
+                        ->where('fam.root_thing_id',$belongs_to_tree_thing_id);
                 }
             );
         }

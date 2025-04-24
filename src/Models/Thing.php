@@ -291,8 +291,7 @@ class Thing extends Model
             if ($this->isComplete() || $this->isIntrupted()) {
                 return;
             }
-            //requeue, something happened in the pauses between steps
-            RunThing::dispatch($this);
+            // something happened in the pauses between steps, so just stop running this
             return;
         }
         /** @var IThingAction|null $action */
@@ -432,18 +431,37 @@ class Thing extends Model
             throw $e;
         }
         //see if all children ran, if so, put the parent on the processing
-        $this->maybeQueueParent();
+        $this->maybeQueueMore();
 
     }
 
-    protected function maybeQueueParent() : bool {
-        foreach ($this->thing_children as $thang) {
-            if (!$thang->isComplete()) {return false;}
-        }
-        if ($this->thing_parent) {
+    /**
+     * If have children, if any non-pending have not finished, return
+     * if only remaining children are pending, then push leaves
+     * else push leaves of grandparent (starts )
+     */
+    protected function maybeQueueMore() : bool {
 
-            RunThing::dispatch($this->thing_parent);
+        $count_waiting_children = 0;
+        foreach ($this->thing_children as $thang) {
+            if ($thang->thing_status === TypeOfThingStatus::THING_PENDING) { $count_waiting_children++; }
         }
+
+        foreach ($this->thing_children as $thang) {
+            if (!$thang->isComplete()) {
+                if (!$count_waiting_children) {  return false; }
+            }
+        }
+        if ($count_waiting_children) { $this->pushLeavesToJobs();}
+
+        //the parent is ready to run, but perhaps its priority is low and there are others to run first, so ask the grandparent to push leaves
+        if ($this->thing_parent?->thing_parent) {
+            $this->thing_parent?->thing_parent?->pushLeavesToJobs();
+        } else {
+            //if not grandparent, this means the parent is root, so run that
+            $this->thing_parent->dispatchThing();
+        }
+
         return true;
     }
 
@@ -452,18 +470,19 @@ class Thing extends Model
      * a leaf must run async if any of its ancestors are async, found in stats for it
      */
     protected function pushLeavesToJobs() :void {
-        if ($this->thing_status !== TypeOfThingStatus::THING_BUILDING) {
-            throw new LogicException("Cannot push what is already built");
-        }
         foreach ($this->getLeaves() as $leaf) {
-            $leaf->thing_status = TypeOfThingStatus::THING_PENDING;
-            if ($leaf->thing_root->thing_stat->stat_is_async) {
-                //todo make queues
-                RunThing::dispatch($leaf);
-            } else {
-                RunThing::dispatchSync($leaf);
-            }
+            $leaf->dispatchThing();
+        }
+    }
 
+    protected function dispatchThing() {
+        $this->thing_status = TypeOfThingStatus::THING_PENDING;
+        $this->save();
+        if ($this->is_async) {
+            //todo make queues
+            RunThing::dispatch($this);
+        } else {
+            RunThing::dispatchSync($this);
         }
     }
 
@@ -572,6 +591,11 @@ class Thing extends Model
 
         $calculated_priority = max($parent_thing?->thing_priority??0, $action->getActionPriority());
 
+        if ($parent_thing?->is_async) {
+            $async = true;
+        } else {
+            $async = $action->isAsync();
+        }
         try {
             DB::beginTransaction();
             $tree_node = new Thing();
@@ -597,7 +621,7 @@ class Thing extends Model
             $tree_node->owner_type = $owner?$owner::getOwnerType():null;
             $tree_node->owner_type_id = $owner?->getOwnerId();
             $tree_node->thing_priority = $calculated_priority;
-            $tree_node->is_async = $action->isAsync();
+            $tree_node->is_async = $async;
             $tree_node->thing_tags = array_merge($action->getActionTags()??[],$extra_tags);
             $tree_node->thing_constant_data = $action->getInitialConstantData(); //mulched up by the stats
             $tree_node->save();

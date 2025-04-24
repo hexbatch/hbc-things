@@ -30,7 +30,8 @@ class RunThing implements ShouldQueue
         try {
             $this->thing->runThing();
         } catch (\Exception $e) {
-            Log::error(message: $e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
+            Log::error(message: "while running thing: ".$e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
+            throw $e;
         }
     }
 }

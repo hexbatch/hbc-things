@@ -23,11 +23,6 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-
-            $table->boolean('stat_is_async')
-                ->nullable(false)->default(0)
-                ->comment("if true, then will not complete immediately. If any of the thing ancestors are async, this must be async");
-
             $table->integer('stat_data_byte_rows')->default(0)->nullable(false)
                 ->comment('The current count of the sum of the bytes * rows in db of the data, for this thing');
 

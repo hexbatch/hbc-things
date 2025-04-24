@@ -23,7 +23,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int stat_thing_id
- * @property bool stat_is_async
  * @property int stat_data_byte_rows
  * @property int stat_descendants
  * @property int stat_limit_data_byte_rows
@@ -121,7 +120,6 @@ class ThingStat extends Model
         /**
          * stat_data_byte_rows: enter current value
          * stat_constant_data the merging of this and the parent data, with the last overwriting the first
-         * stat_is_async : if any parent is true this is true
          */
         $chain = $thing->getAncestorChain();
         $constants = $chain[0]->thing_constant_data?->getArrayCopy()??[];

@@ -3,20 +3,20 @@
 namespace Hexbatch\Things\Helpers;
 
 
-class Utilities {
+class ThingUtilities {
 
 
 
     public static function getComposerPath(bool $for_lib) : string {
         if ($for_lib) {
-            $root = realpath('../../'.__DIR__);
+            $root = dirname(__DIR__,2);
         } else {
             $root = base_path();
         }
         if (!$root) {
             throw new \LogicException("Cannot get root path for  ".$for_lib?'self':'parent');
         }
-        $composerFile = base_path() . DIRECTORY_SEPARATOR . 'composer.json';
+        $composerFile = $root . DIRECTORY_SEPARATOR . 'composer.json';
         $what =  realpath($composerFile);
         if (!$what) {
             throw new \LogicException("Composer path $composerFile does not exist");

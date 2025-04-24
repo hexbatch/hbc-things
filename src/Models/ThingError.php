@@ -61,8 +61,8 @@ class ThingError extends Model
         $node->thing_error_code = $e->getCode();
         $node->thing_error_line = $e->getLine();
         $node->thing_error_file = $e->getLine();
-        $node->thing_code_version = \Hexbatch\Things\Helpers\Utilities::getVersionAsString(for_lib: true);
-        $node->hbc_version = \Hexbatch\Things\Helpers\Utilities::getVersionAsString(for_lib: false);
+        $node->thing_code_version = \Hexbatch\Things\Helpers\ThingUtilities::getVersionAsString(for_lib: true);
+        $node->hbc_version = \Hexbatch\Things\Helpers\ThingUtilities::getVersionAsString(for_lib: false);
         $node->thing_error_message = $e->getMessage();
         $node->thing_error_trace = $e->getTrace();
 
