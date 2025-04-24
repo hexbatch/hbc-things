@@ -60,10 +60,10 @@ class ThingSetting extends Model
 
     ];
 
-    const DEFAULT_DATA_BYTE_ROWS_LIMIT = 100;
-    const DEFAULT_ANCESTOR_LIMIT = 100;
-    const DEFAULT_BACKOFF_DATA_POLICY = 100;
-    const DEFAULT_TREE_LIMIT = 100;
+    const int DEFAULT_DATA_BYTE_ROWS_LIMIT = 100;
+    const int DEFAULT_ANCESTOR_LIMIT = 100;
+    const int DEFAULT_BACKOFF_DATA_POLICY = 100;
+    const int DEFAULT_TREE_LIMIT = 100;
 
 
 

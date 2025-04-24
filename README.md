@@ -10,7 +10,7 @@ it appears that the things are THE central logic point for this huge code. And I
 
 As it is, too embedded to do anything with unless the rest of the code is brought up alongside it. This is too complex for me
 
-So, it needs to be a data type by itself, outside of the project.
+So, it needs to be a data type by itself, outside** the project.
 
 Description of this
 * it has three types: api, actions, rules!!

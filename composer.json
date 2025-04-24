@@ -22,9 +22,10 @@
         "ext-pdo_pgsql": "*",
         "ext-pgsql": "*",
         "ext-dom": "*",
-        "php": "^8.2",
+        "php": "^8.3",
         "bluem/tree": "^3.2",
         "spatie/laravel-package-tools": "^1.19",
+        "staudenmeir/laravel-cte": "^1.0",
         "zircote/swagger-php": "^4.0"
     },
 

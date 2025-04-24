@@ -76,7 +76,7 @@ return new class extends Migration
                 ->comment('if set, then this thing started processing at this time');
 
 
-            $table->tinyInteger('is_async')
+            $table->boolean('is_async')
                 ->nullable(false)->default(0)
                 ->comment("if true, then will not complete immediately");
 

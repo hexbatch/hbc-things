@@ -2,7 +2,6 @@
 
 namespace Hexbatch\Things\Controllers;
 
-use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Interfaces\ThingOwnerGroup;
 use Hexbatch\Things\Models\Thing;

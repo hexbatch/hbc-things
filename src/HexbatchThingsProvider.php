@@ -1,7 +1,6 @@
 <?php
 namespace Hexbatch\Things;
 
-use App\Models\User;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingCallplate;

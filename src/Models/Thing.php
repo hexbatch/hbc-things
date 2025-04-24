@@ -24,21 +24,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use LogicException;
+use Staudenmeir\LaravelCte\Query\Traits\BuildsExpressionQueries;
 
 /**
  *
- * thing_start_at
- * thing_invalid_at
- * thing_started_at
- * is_async
- * ref_uuid
- *
- * thing_status
- *
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
+ * @mixin BuildsExpressionQueries
  * @property int id
  * @property int parent_thing_id
  * @property int root_thing_id
@@ -210,17 +205,58 @@ class Thing extends Model
     }
 
 
+    /** @return \Illuminate\Database\Eloquent\Collection|Thing[] */
+
+    public function getLeaves() {
+
+        $lar =  Thing::select('things.*')
+            ->selectRaw("extract(epoch from  things.created_at) as created_at_ts")
+            ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_start_at) as thing_start_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_invalid_at) as thing_invalid_at_ts")
+
+            ->withExpression('thing_nodes',
+                /** @param \Illuminate\Database\Query\Builder $query */
+                function ($query)
+                {
+                    $query->from('things as t')
+                        ->selectRaw("t.id, max(t.thing_priority) OVER () as max_priority")
+                        ->withRecursiveExpression('thing_descendants',
+                            /** @param \Illuminate\Database\Query\Builder $query */
+                            function ($query)
+                            {
+                                $query->from('things as s')->select('s.id')->where('s.id',$this->id)
+                                    ->unionAll(
+                                        DB::table('things as c')->select('c.id')
+                                            ->join('thing_descendants', 'thing_descendants.id', '=', 'c.parent_thing_id')
+                                    );
+                            }
+                        )
+                        ->join('thing_descendants', 'thing_descendants.id', '=', 't.id')
+                        ->leftJoin('things as p',
+                            /**
+                             * @param JoinClause $join
+                             */
+                            function ($join)
+                            {
+                                $join->on('p.parent_thing_id','=','t.id');
+                            }
+                        )
 
 
-    /**
-     * @return Thing[]
-     */
-    protected function getLeaves() {
-        return [];
-        //todo get the leaves via sql, get only the highest priority (all the same priority) and return them
-        // this is recursive (in sql), so the highest priority here, gets the highest priority of the children, which get their children's highest, and so on
-        // when there are no more leaves of that highest at this tree level, go to next highest priority
-        // also only get the leaves that can start now, and must not be pending, but building only
+                    ->whereNull('p.id')
+                    ->where('t.thing_status',TypeOfThingStatus::THING_BUILDING)
+                    ->whereRaw("(t.thing_start_at IS NULL OR t.thing_start_at >= NOW() )")
+                    ->whereRaw("(t.thing_invalid_at IS NULL OR t.thing_invalid_at < NOW())")
+                    ;
+                })
+            ->join('thing_nodes', 'thing_nodes.id', '=', 'things.id')
+            ->whereRaw('things.thing_priority = thing_nodes.max_priority')
+            ;
+
+        /** @var \Illuminate\Database\Eloquent\Collection|Thing[] */
+        return $lar->get();
+
     }
 
     protected function markIncompleteDescendantsAs(TypeOfThingStatus $status) {
@@ -412,14 +448,16 @@ class Thing extends Model
     }
 
 
-
-    protected function pushLeavesToJobs() {
+    /**
+     * a leaf must run async if any of its ancestors are async, found in stats for it
+     */
+    protected function pushLeavesToJobs() :void {
         if ($this->thing_status !== TypeOfThingStatus::THING_BUILDING) {
             throw new LogicException("Cannot push what is already built");
         }
         foreach ($this->getLeaves() as $leaf) {
             $leaf->thing_status = TypeOfThingStatus::THING_PENDING;
-            if ($leaf->thing_root->isTreeAsync()) {
+            if ($leaf->thing_root->thing_stat->stat_is_async) {
                 //todo make queues
                 RunThing::dispatch($leaf);
             } else {
@@ -429,10 +467,6 @@ class Thing extends Model
         }
     }
 
-    public function isTreeAsync() : bool {
-        return $this->is_async;
-        //todo recurse through the tree and see if any descendants are async, if they are, then entire tree is async
-    }
 
     /**
      * @param array<string,IThingCallback[]> $callbacks
@@ -535,6 +569,9 @@ class Thing extends Model
                 $owner = $action->getActionOwner();
             }
         }
+
+        $calculated_priority = max($parent_thing?->thing_priority??0, $action->getActionPriority());
+
         try {
             DB::beginTransaction();
             $tree_node = new Thing();
@@ -559,7 +596,7 @@ class Thing extends Model
             $tree_node->action_type_id = $action->getActionId();
             $tree_node->owner_type = $owner?$owner::getOwnerType():null;
             $tree_node->owner_type_id = $owner?->getOwnerId();
-            $tree_node->thing_priority = $action->getActionPriority();
+            $tree_node->thing_priority = $calculated_priority;
             $tree_node->is_async = $action->isAsync();
             $tree_node->thing_tags = array_merge($action->getActionTags()??[],$extra_tags);
             $tree_node->thing_constant_data = $action->getInitialConstantData(); //mulched up by the stats
@@ -630,7 +667,10 @@ class Thing extends Model
          * @var Builder $build
          */
         $build =  Thing::select('things.*')
-            ->selectRaw(" extract(epoch from  things.created_at) as created_at_ts,  extract(epoch from  things.updated_at) as updated_at_ts")
+            ->selectRaw(" extract(epoch from  things.created_at) as created_at_ts")
+            ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_start_at) as thing_start_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_invalid_at) as thing_invalid_at_ts")
         ;
 
         if ($id) {
