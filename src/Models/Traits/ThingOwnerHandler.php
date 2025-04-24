@@ -27,7 +27,7 @@ trait ThingOwnerHandler
         if (!isset($interfaces['Hexbatch\Things\Interfaces\IThingOwner'])) {
             throw new HbcThingException("$owner_class is not an IThingOwner");
         }
-        $owner_type = $owner_class::getOwnerType();
+        $owner_type = $owner_class::getOwnerTypeStatic();
         static::$owner_type_lookup[$owner_type] = $owner_class;
     }
 }

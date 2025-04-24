@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\DB;
 
 
 /**
@@ -208,8 +209,19 @@ class ThingHooker extends Model
         }
 
         if ($belongs_to_ancestor_of_thing_id) {
-            $build->whereRaw("1"); //rm this placeholder to prevent warnings
-            //todo do sql for finding all ancestors of this thing id
+            $build->withRecursiveExpression('thing_ancestors',
+                /** @param \Illuminate\Database\Query\Builder $query */
+                function ($query) use($belongs_to_ancestor_of_thing_id)
+                {
+                    $query->from('things as s')->select('s.id,s.parent_thing_id')->where('s.id',$belongs_to_ancestor_of_thing_id)
+                        ->unionAll(
+                            DB::table('things as c')->select('c.id,c.parent_thing_id')
+                                ->join('thing_ancestors', 'thing_ancestors.parent_thing_id', '=', 'c.id')
+                        );
+                }
+            )
+            ->join('thing_ancestors', 'thing_ancestors.id', '=', 'thing_hookers.hooked_thing_id')
+            ->where('thing_ancestors.id','<>',$belongs_to_ancestor_of_thing_id);
         }
 
         if ($mode) {
@@ -246,7 +258,7 @@ class ThingHooker extends Model
         $c->callback_outgoing_header = $call_me->getHeader();
         if ($owner = $call_me->getCallbackOwner()) {
             $c->owner_type_id = $owner->getOwnerId();
-            $c->owner_type = $owner::getOwnerType();
+            $c->owner_type = $owner::getOwnerTypeStatic();
         } else {
             $c->owner_type_id = $this->parent_hook->owner_type_id;
             $c->owner_type = $this->parent_hook->owner_type;

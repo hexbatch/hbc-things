@@ -24,6 +24,19 @@ enum TypeOfThingStatus : string {
         return $maybe;
     }
 
+    const array STATUSES_OF_COMPLETION = [
+        self::THING_SUCCESS,
+        self::THING_ERROR,
+        self::THING_SHORT_CIRCUITED,
+        self::THING_INVALID,
+        self::THING_FAIL,
+    ];
+
+    const array STATUSES_OF_INTERRUPTION = [
+        self::THING_RESOURCES,
+        self::THING_HOOKED_BEFORE_RUN
+    ];
+
 }
 
 

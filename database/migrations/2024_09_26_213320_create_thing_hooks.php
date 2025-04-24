@@ -25,13 +25,7 @@ return new class extends Migration
                 ->comment("The id of the action, see type to lookup");
 
 
-            $table->char('action_type',6)
-                ->nullable()->default(null)
-                ->comment("The type of action");
 
-            $table->char('owner_type',6)
-                ->nullable()->default(null)
-                ->comment("The type of owner");
 
 
             $table->boolean('is_on')->default(true)->nullable(false)
@@ -60,6 +54,14 @@ return new class extends Migration
 
             $table->text('hook_notes')->nullable()->default(null)
                 ->comment('optional notes');
+
+            $table->string('action_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of action");
+
+            $table->string('owner_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of owner");
 
             $table->index(['action_type','action_type_id'],'idx_hook_action_type_id');
             $table->index(['owner_type','owner_type_id'],'idx_hook_owner_type_id');

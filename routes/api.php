@@ -6,20 +6,6 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('hbc-things')->group(function () {
 
-
-    /*
-     'middleware' => [
-        'auth_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_AUTH'),
-        'admin_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_ADMIN'),
-        'owner_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_OWNER'),
-        'thing_viewable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_THING_VIEWABLE'),
-        'thing_editable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_THING_EDITABLE'),
-        'setting_viewable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_SETTING_VIEWABLE'),
-        'hook_viewable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_HOOK_VIEWABLE'),
-        'hook_editable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_HOOK_EDITABLE'),
-    ],
-     */
-
     $hbc_middleware = [];
     $my_auth = config('hbc-things.middleware.auth_alias'); //this decides if the owner type/id is valid
     if ($my_auth) {

@@ -105,7 +105,7 @@ return new class extends Migration
                 ->comment("The id of the owner, see type to lookup");
 
 
-            $table->char('owner_type',6)
+            $table->string('owner_type',30)
                 ->nullable()->default(null)
                 ->comment("The type of owner");
 

@@ -7,7 +7,6 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Carbon\Carbon;
-use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,7 +23,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int id
  * @property int stat_thing_id
  * @property int stat_data_byte_rows
- * @property int stat_descendants
  * @property int stat_limit_data_byte_rows
  * @property int stat_limit_descendants
  * @property int stat_backoff_data_policy
@@ -64,23 +62,13 @@ class ThingStat extends Model
     ];
 
 
+    /**
+     * @uses static::stat_thing() nowhere now
+     */
     public function stat_thing() : BelongsTo {
         return $this->belongsTo(Thing::class,'stat_thing_id','id');
     }
 
-    /**
-     * @param int $n_extra how many extra things to add
-     * @return int  the limit that is over
-     */
-    public function checkForDescendantOverflow(int $n_extra) : int {
-        if ($this->stat_descendants === 0) { return 0;}
-
-        $count = $this->stat_thing->countDescendants();
-        if ($this->stat_descendants >= $count + $n_extra) {
-            return 0;
-        }
-        return $count + $n_extra - $this->stat_descendants;
-    }
 
 
     /**
@@ -93,20 +81,10 @@ class ThingStat extends Model
         return ($this->stat_data_byte_rows + $extra_byte_rows) - $this->stat_limit_data_byte_rows;
     }
 
-    public function getDataLimit() : int {
-        return $this->stat_limit_data_byte_rows;
-    }
-
-    public function updateDataStats(IThingAction $action) {
-        $this->stat_data_byte_rows = $action->getDataByteRowsUsed();
-        //todo update the parents
-        $this->save();
-    }
 
     public function getBackoffFutureTime() : Carbon {
-        return Carbon::now();
-        //todo count the back-offs in the tree, check the policy, calculate the next time to start again
-        // sibling backoff counts not used
+        return Carbon::now()->addSeconds(
+            ThingSetting::getBackoffSeconds($this->stat_backoff_data_policy,$this->stat_back_offs_done));
     }
 
     public static function makeStatsWhileBuilding(Thing $thing) : ThingStat {
@@ -136,17 +114,6 @@ class ThingStat extends Model
         return $node;
     }
 
-
-    public static function updateStatsAfterBuilding(Thing $thing) : ThingStat {
-        $node = $thing->thing_stat;
-        /**
-         * todo update stats with ideally one sql starting at the leaves and updating each parent above, iterating to root
-         * stat_data_byte_rows:  add in all descendant values (start with leaves)
-         *
-         */
-        $node->save();
-        return $node;
-    }
 
 
 }

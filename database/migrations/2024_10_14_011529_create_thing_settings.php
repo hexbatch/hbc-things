@@ -23,13 +23,7 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->char('action_type',4)
-                ->nullable()->default(null)
-                ->comment("The type of action");
 
-            $table->char('owner_type',4)
-                ->nullable()->default(null)
-                ->comment("The type of owner");
 
             $table->bigInteger('owner_type_id')
                 ->nullable()->default(null)
@@ -63,6 +57,14 @@ return new class extends Migration
                 ->comment("used for display and id outside the code");
 
             $table->timestamps();
+
+            $table->string('action_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of action");
+
+            $table->string('owner_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of owner");
 
             $table->index(['action_type','action_type_id'],'idx_setting_action_type_id');
             $table->index(['owner_type','owner_type_id'],'idx_setting_owner_type_id');

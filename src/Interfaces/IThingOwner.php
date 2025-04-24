@@ -11,7 +11,8 @@ interface IThingOwner
     /** @return string[] */
     public function getTags() : array;
 
-    public static function getOwnerType() : string;
+    public function getOwnerType() : string;
+    public static function getOwnerTypeStatic() : string;
     public static function resolveOwner(int $owner_id) : IThingOwner;
     public static function registerOwner() : void;
 

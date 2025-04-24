@@ -208,9 +208,13 @@ class ThingHook extends Model
             });
         }
 
-        if ($tags && count($tags)) {
-            $build->whereRaw('1');
-            //todo write raw sql to intersect the json array with this one
+        if ($tags !== null ) {
+            if (count($tags) ) {
+                $tags_json = json_encode($tags);
+                $build->whereRaw("array(select jsonb_array_elements(thing_hooks.hook_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
+            } else {
+                $build->whereRaw("jsonb_array_length(thing_hooks.hook_tags) is null OR jsonb_array_length(thing_hooks.hook_tags) = 0");
+            }
         }
 
 
@@ -228,16 +232,12 @@ class ThingHook extends Model
     {
         $hook = new ThingHook();
         $owner = $it->getHookOwner();
-        if ($owner) {
-            $hook->owner_type_id = $owner->getOwnerId() ;
-            $hook->owner_type = $owner::getOwnerType() ;
-        }
+        $hook->owner_type_id = $owner?->getOwnerId() ;
+        $hook->owner_type = $owner?->getOwnerType() ;
 
         $action = $it->getHookAction();
-        if ($owner) {
-            $hook->action_type_id = $action->getActionId() ;
-            $hook->action_type = $action::getActionType() ;
-        }
+        $hook->action_type_id = $action?->getActionId() ;
+        $hook->action_type = $action?->getActionType() ;
         $hook->is_on = $it->isHookOn() ;
         $hook->ttl_callbacks = $it->getHookCallbackTimeToLive() ;
         $hook->hook_constant_data = $it->getConstantData() ;

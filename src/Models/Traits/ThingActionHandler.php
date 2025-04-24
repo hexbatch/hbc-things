@@ -25,7 +25,7 @@ trait ThingActionHandler
         if (!isset($interfaces['Hexbatch\Things\Interfaces\IThingAction'])) {
             throw new HbcThingException("$action_class is not an IThingAction");
         }
-        $action_type = $action_class::getActionType();
+        $action_type = $action_class::getActionTypeStatic();
         static::$action_type_lookup[$action_type] = $action_class;
     }
 }

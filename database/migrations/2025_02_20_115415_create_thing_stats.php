@@ -27,9 +27,6 @@ return new class extends Migration
                 ->comment('The current count of the sum of the bytes * rows in db of the data, for this thing');
 
 
-            $table->integer('stat_descendants')->default(0)->nullable(false)
-                ->comment('The current sum of all the descendants for this thing');
-
 
             $table->integer('stat_back_offs_done')->nullable(false)->default(0)
                 ->comment('how many backoffs have been done for this thing');
