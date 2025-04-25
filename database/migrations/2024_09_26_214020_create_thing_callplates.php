@@ -31,15 +31,22 @@ return new class extends Migration
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
 
-            $table->jsonb('callplate_constant_data')
+            $table->jsonb('callplate_data_template')
                 ->nullable()->default(null)
-                ->comment("This is merged with the outgoing data in the callback, if duplicate keys, the callback wins");
+                ->comment("The data and structure that makes up the query|body|form|event|xml".
+                    " If missing , the data sent is the constant data from the action, thing, hook if run before, or the result of the action if after.".
+                    " Params are nulled keys, are filled in by the above.".
+                    " Keys with null values will be removed, including params that are not filled in");
 
             $table->jsonb('callplate_outgoing_header')
                 ->nullable()->default(null)
                 ->comment('This is what will be in the header for http calls'.
-                    ' placeholders of ${keyname} can be used in the values, which are filled in by the key in the action result, if present,'.
-                    ' or that header removed if not there. This column is encrypted at the php level');
+                    ' Keys with null values will use the values from the action,'.
+                    ' or that header removed if not there');
+
+            $table->jsonb('callplate_tags')
+                ->nullable()->default(null)
+                ->comment("array of string tags, need to match at least one thing tag to be used for that thing. If empty then always used");
 
         });
 
@@ -48,6 +55,7 @@ return new class extends Migration
         DB::statement("CREATE TYPE type_of_thing_callback AS ENUM (
             'disabled',
             'manual',
+            'dump',
             'http_get',
             'http_post',
             'http_post_form',
@@ -84,18 +92,6 @@ return new class extends Migration
 
         Schema::table('thing_callplates', function (Blueprint $table) {
 
-
-
-            $table->bigInteger('owner_type_id')
-                ->nullable()->default(null)
-                ->comment("The id of the owner, see type to lookup");
-
-
-            $table->string('owner_type',30)
-                ->nullable()->default(null)
-                ->comment("The type of owner");
-
-
             $table->string('callplate_url')->nullable()->default(null)
                 ->comment('If this is http call, this will be called with the response code set above.');
 
@@ -103,14 +99,8 @@ return new class extends Migration
             $table->string('callplate_class')->nullable()->default(null)
                 ->comment('If set, this is the namespaced class to call');
 
-            $table->string('callplate_function')->nullable()->default(null)
-                ->comment('If set, this is the function to call, if no class above, then called as regular function. Params in either case are from the callback_outgoing_data');
-
             $table->string('callplate_event')->nullable()->default(null)
                 ->comment('If set, this is the event action name to call.  Params in either case are from the values of the top callback_outgoing_data');
-
-            $table->string('callplate_xml_root')->nullable()->default(null)
-                ->comment('If set, this applies if the data type is xml, else ignored, and names the root element for the data going out');
 
         });
 

@@ -6,10 +6,9 @@ namespace Hexbatch\Things\Models;
 use ArrayObject;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfHookerStatus;
-use Hexbatch\Things\Enums\TypeOfThingCallbackStatus;
-use Hexbatch\Things\Enums\TypeOfThingHookBlocking;
-use Hexbatch\Things\Enums\TypeOfThingHookMode;
-use Hexbatch\Things\Interfaces\IThingCallback;
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfHookBlocking;
+use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Jobs\SendCallback;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
@@ -85,6 +84,10 @@ class ThingHooker extends Model
     }
 
     public function dispatchHooker() {
+        //todo use callplates to generate the callbacks here, and only dispatch if not manual or dump, or disabled
+        // if dump, then fill in the callback from the action
+        // if manual, create callback to be filled in manually
+
         foreach ($this->hooker_callbacks as $callback) {
             SendCallback::dispatch($callback);
         }
@@ -106,8 +109,8 @@ class ThingHooker extends Model
 
     }
 
-    public static function getHookerData(int $thing_id,TypeOfThingHookMode $mode,bool &$b_out_of_time,bool &$b_still_pending,
-        array &$data_for_this, array &$data_for_parent
+    public static function getHookerData(int   $thing_id, TypeOfHookMode $mode, bool &$b_out_of_time, bool &$b_still_pending,
+                                         array &$data_for_this, array &$data_for_parent
     )
     : void
     {
@@ -137,16 +140,16 @@ class ThingHooker extends Model
                     $redo_callbacks[] = $callback;
                 }
                 switch ($hooker->parent_hook->blocking_mode) {
-                    case TypeOfThingHookBlocking::BLOCK_ADD_DATA_TO_CURRENT: {
+                    case TypeOfHookBlocking::BLOCK_ADD_DATA_TO_CURRENT: {
                         $data_for_this = array_merge($callback->callback_incoming_data->getArrayCopy(),$data_for_this);
                         break;
                     }
-                    case TypeOfThingHookBlocking::BLOCK_ADD_DATA_TO_PARENT: {
+                    case TypeOfHookBlocking::BLOCK_ADD_DATA_TO_PARENT: {
                         $data_for_parent = array_merge($callback->callback_incoming_data->getArrayCopy(),$data_for_parent);
                         break;
                     }
-                    case TypeOfThingHookBlocking::BLOCK:
-                    case TypeOfThingHookBlocking::NONE:
+                    case TypeOfHookBlocking::BLOCK:
+                    case TypeOfHookBlocking::NONE:
                     {
 
                         break;
@@ -162,13 +165,13 @@ class ThingHooker extends Model
     }
 
     public static function buildHooker(
-        ?int                  $id = null,
-        ?int                  $thing_id = null,
-        ?int                  $hook_id = null,
-        ?int                  $belongs_to_tree_thing_id = null,
-        ?int                  $belongs_to_ancestor_of_thing_id = null,
-        ?TypeOfHookerStatus   $status = null,
-        ?TypeOfThingHookMode $mode = null,
+        ?int                $id = null,
+        ?int                $thing_id = null,
+        ?int                $hook_id = null,
+        ?int                $belongs_to_tree_thing_id = null,
+        ?int                $belongs_to_ancestor_of_thing_id = null,
+        ?TypeOfHookerStatus $status = null,
+        ?TypeOfHookMode     $mode = null,
     )
     : Builder
     {
@@ -246,28 +249,16 @@ class ThingHooker extends Model
     }
 
 
-    public function makeCallback(IThingCallback $call_me) : ThingCallback {
+    public function makeCallback(IThingCallplateParams $call_me) : ThingCallback {
 
-
+        //todo cb not made until run
         $c = new ThingCallback();
-        $c->callback_callplate_id = $this->id;
-        $c->thing_callback_status = TypeOfThingCallbackStatus::WAITING;
-        $c->thing_callback_type = $call_me->getCallbackType();
+        $c->owning_hooker_id = $this->id;
+        $c->thing_callback_status = TypeOfCallbackStatus::WAITING;
         $c->callback_outgoing_data = array_merge($call_me->getConstantData(),
             $this->parent_hook->hook_constant_data?->getArrayCopy()??[]);
         $c->callback_outgoing_header = $call_me->getHeader();
-        if ($owner = $call_me->getCallbackOwner()) {
-            $c->owner_type_id = $owner->getOwnerId();
-            $c->owner_type = $owner::getOwnerTypeStatic();
-        } else {
-            $c->owner_type_id = $this->parent_hook->owner_type_id;
-            $c->owner_type = $this->parent_hook->owner_type;
-        }
 
-        $c->callback_url = $call_me->getCallbackUrl();
-        $c->callback_class = $call_me->getCallbackClass();
-        $c->callback_function = $call_me->getCallbackFunction();
-        $c->callback_event = $call_me->getCallbackEvent();
         $c->save();
         return $c;
     }

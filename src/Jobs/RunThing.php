@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 
 
@@ -26,7 +27,6 @@ class RunThing implements ShouldQueue
 
     public function handle(): void
     {
-
         try {
             $this->thing->runThing();
         } catch (\Exception $e) {

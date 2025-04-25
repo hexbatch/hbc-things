@@ -5,8 +5,8 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Carbon\Carbon;
-use Hexbatch\Things\Enums\TypeOfThingCallback;
-use Hexbatch\Things\Enums\TypeOfThingCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfCallback;
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Helpers\CallResponse;
 use Hexbatch\Things\Interfaces\ICallResponse;
@@ -32,22 +32,14 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property int callback_error_id
  *
  * @property int callback_http_code
- * @property string owner_type
- * @property int owner_type_id
  *
  * @property string ref_uuid
  *
  *
- * @property string  callback_url
- * @property string  callback_class
- * @property string  callback_function
- * @property string  callback_event
- * @property string  callback_xml_root
  * @property ArrayObject callback_outgoing_data
  * @property ArrayObject callback_incoming_data
  * @property ArrayObject  callback_outgoing_header
- * @property TypeOfThingCallback thing_callback_type
- * @property TypeOfThingCallbackStatus thing_callback_status
+ * @property TypeOfCallbackStatus thing_callback_status
  *
  * @property string callback_run_at
  * @property string created_at
@@ -58,7 +50,7 @@ use TorMorten\Eventy\Facades\Eventy;
  */
 class ThingCallback extends Model
 {
-    use ThingOwnerHandler;
+
 
     protected $table = 'thing_callplates';
     public $timestamps = false;
@@ -86,8 +78,7 @@ class ThingCallback extends Model
         'callback_outgoing_data' => AsArrayObject::class,
         'callback_incoming_data' => AsArrayObject::class,
         'callback_outgoing_header' => AsArrayObject::class,
-        'thing_callback_type' => TypeOfThingCallback::class,
-        'thing_callback_status' => TypeOfThingCallbackStatus::class,
+        'thing_callback_status' => TypeOfCallbackStatus::class,
     ];
 
     public function callback_owning_hooker() : BelongsTo {
@@ -209,30 +200,30 @@ class ThingCallback extends Model
     {
         $params = $this->getOutoingDataAsArray();
         switch ($this->thing_callback_type) {
-            case TypeOfThingCallback::DISABLED:
-            case TypeOfThingCallback::MANUAL:
-            case TypeOfThingCallback::CODE:
-            case TypeOfThingCallback::EVENT_CALL:
-            case TypeOfThingCallback::HTTP_GET:
-            case TypeOfThingCallback::HTTP_POST:
-            case TypeOfThingCallback::HTTP_PUT:
-            case TypeOfThingCallback::HTTP_PATCH:
-            case TypeOfThingCallback::HTTP_DELETE:
-            case TypeOfThingCallback::HTTP_POST_JSON:
-            case TypeOfThingCallback::HTTP_PUT_JSON:
-            case TypeOfThingCallback::HTTP_PATCH_JSON:
-            case TypeOfThingCallback::HTTP_DELETE_JSON:
-            case TypeOfThingCallback::HTTP_POST_FORM:
-            case TypeOfThingCallback::HTTP_PUT_FORM:
-            case TypeOfThingCallback::HTTP_PATCH_FORM:
-            case TypeOfThingCallback::HTTP_DELETE_FORM:
+            case TypeOfCallback::DISABLED:
+            case TypeOfCallback::MANUAL:
+            case TypeOfCallback::CODE:
+            case TypeOfCallback::EVENT_CALL:
+            case TypeOfCallback::HTTP_GET:
+            case TypeOfCallback::HTTP_POST:
+            case TypeOfCallback::HTTP_PUT:
+            case TypeOfCallback::HTTP_PATCH:
+            case TypeOfCallback::HTTP_DELETE:
+            case TypeOfCallback::HTTP_POST_JSON:
+            case TypeOfCallback::HTTP_PUT_JSON:
+            case TypeOfCallback::HTTP_PATCH_JSON:
+            case TypeOfCallback::HTTP_DELETE_JSON:
+            case TypeOfCallback::HTTP_POST_FORM:
+            case TypeOfCallback::HTTP_PUT_FORM:
+            case TypeOfCallback::HTTP_PATCH_FORM:
+            case TypeOfCallback::HTTP_DELETE_FORM:
             {
                 return $params;
             }
-            case TypeOfThingCallback::HTTP_POST_XML:
-            case TypeOfThingCallback::HTTP_PUT_XML:
-            case TypeOfThingCallback::HTTP_PATCH_XML:
-            case TypeOfThingCallback::HTTP_DELETE_XML:
+            case TypeOfCallback::HTTP_POST_XML:
+            case TypeOfCallback::HTTP_PUT_XML:
+            case TypeOfCallback::HTTP_PATCH_XML:
+            case TypeOfCallback::HTTP_DELETE_XML:
             {
                 return Array2XML::createXML($this->callback_xml_root??'root', $params)->saveXML();
             }
@@ -261,10 +252,10 @@ class ThingCallback extends Model
         }
 
         switch ($this->thing_callback_type) {
-            case TypeOfThingCallback::HTTP_POST_XML:
-            case TypeOfThingCallback::HTTP_PUT_XML:
-            case TypeOfThingCallback::HTTP_PATCH_XML:
-            case TypeOfThingCallback::HTTP_DELETE_XML:
+            case TypeOfCallback::HTTP_POST_XML:
+            case TypeOfCallback::HTTP_PUT_XML:
+            case TypeOfCallback::HTTP_PATCH_XML:
+            case TypeOfCallback::HTTP_DELETE_XML:
                 $ret["Content-Type"] = "text/xml";
                 break;
             default: {
@@ -284,80 +275,80 @@ class ThingCallback extends Model
         $response = null;
         switch ($this->thing_callback_type) {
 
-            case TypeOfThingCallback::DISABLED:
-            case TypeOfThingCallback::MANUAL:
-            case TypeOfThingCallback::CODE:
-            case TypeOfThingCallback::EVENT_CALL:
+            case TypeOfCallback::DISABLED:
+            case TypeOfCallback::MANUAL:
+            case TypeOfCallback::CODE:
+            case TypeOfCallback::EVENT_CALL:
             {
                 throw new HbcThingException("Callback type is not a remote call");
             }
 
-            case TypeOfThingCallback::HTTP_GET:
+            case TypeOfCallback::HTTP_GET:
                 $response = Http::withHeaders($headers)->get($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_POST:
+            case TypeOfCallback::HTTP_POST:
                 $response = Http::withHeaders($headers)->post($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_PUT:
+            case TypeOfCallback::HTTP_PUT:
                 $response = Http::withHeaders($headers)->put($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_PATCH:
+            case TypeOfCallback::HTTP_PATCH:
                 $response = Http::withHeaders($headers)->patch($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_DELETE:
+            case TypeOfCallback::HTTP_DELETE:
                 $response = Http::withHeaders($headers)->delete($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_POST_FORM:
+            case TypeOfCallback::HTTP_POST_FORM:
                 $response = Http::asForm()->withHeaders($headers)->post($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_PUT_FORM:
+            case TypeOfCallback::HTTP_PUT_FORM:
                 $response = Http::asForm()->withHeaders($headers)->put($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_PATCH_FORM:
+            case TypeOfCallback::HTTP_PATCH_FORM:
                 $response = Http::asForm()->withHeaders($headers)->patch($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_DELETE_FORM:
+            case TypeOfCallback::HTTP_DELETE_FORM:
                 $response = Http::asForm()->withHeaders($headers)->delete($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_POST_JSON:
+            case TypeOfCallback::HTTP_POST_JSON:
                 $response = Http::asJson()->withHeaders($headers)->post($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_PUT_JSON:
+            case TypeOfCallback::HTTP_PUT_JSON:
                 $response = Http::asJson()->withHeaders($headers)->put($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_PATCH_JSON:
+            case TypeOfCallback::HTTP_PATCH_JSON:
                 $response = Http::asJson()->withHeaders($headers)->patch($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_DELETE_JSON:
+            case TypeOfCallback::HTTP_DELETE_JSON:
                 $response = Http::asJson()->withHeaders($headers)->delete($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_POST_XML:
+            case TypeOfCallback::HTTP_POST_XML:
                 $response = Http::withBody($params,'text/xml')->withHeaders($headers)->post($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_PUT_XML:
+            case TypeOfCallback::HTTP_PUT_XML:
                 $response = Http::withBody($params,'text/xml')->withHeaders($headers)->put($this->callback_url, $params);
                 break;
-            case TypeOfThingCallback::HTTP_PATCH_XML:
+            case TypeOfCallback::HTTP_PATCH_XML:
                 $response = Http::withBody($params,'text/xml')->withHeaders($headers)->patch($this->callback_url,$params);
                 break;
-            case TypeOfThingCallback::HTTP_DELETE_XML:
+            case TypeOfCallback::HTTP_DELETE_XML:
                 $response = Http::withBody($params,'text/xml')->withHeaders($headers)->delete($this->callback_url,$params);
                 break;
         }
 
 
         switch ($this->thing_callback_type) {
-            case TypeOfThingCallback::HTTP_POST_XML:
-            case TypeOfThingCallback::HTTP_PUT_XML:
-            case TypeOfThingCallback::HTTP_PATCH_XML:
-            case TypeOfThingCallback::HTTP_DELETE_XML:
+            case TypeOfCallback::HTTP_POST_XML:
+            case TypeOfCallback::HTTP_PUT_XML:
+            case TypeOfCallback::HTTP_PATCH_XML:
+            case TypeOfCallback::HTTP_DELETE_XML:
                 $string_xml = $response->body();
                 $data = XML2Array::createArray($string_xml);
                 break;
-            case TypeOfThingCallback::HTTP_POST_JSON:
-            case TypeOfThingCallback::HTTP_PUT_JSON:
-            case TypeOfThingCallback::HTTP_PATCH_JSON:
-            case TypeOfThingCallback::HTTP_DELETE_JSON:
+            case TypeOfCallback::HTTP_POST_JSON:
+            case TypeOfCallback::HTTP_PUT_JSON:
+            case TypeOfCallback::HTTP_PATCH_JSON:
+            case TypeOfCallback::HTTP_DELETE_JSON:
                 $data = $response->json();
                 break;
             default: {
@@ -383,7 +374,7 @@ class ThingCallback extends Model
     }
 
     public function runCallback() :void  {
-        if ($this->thing_callback_type === TypeOfThingCallback::DISABLED) {
+        if ($this->thing_callback_type === TypeOfCallback::DISABLED) {
             return;
         }
 
@@ -394,40 +385,40 @@ class ThingCallback extends Model
             $response = null;
             switch ($this->thing_callback_type) {
 
-                case TypeOfThingCallback::DISABLED:
-                case TypeOfThingCallback::MANUAL:
+                case TypeOfCallback::DISABLED:
+                case TypeOfCallback::MANUAL:
                 {
                     return;
                 }
 
-                case TypeOfThingCallback::CODE:
+                case TypeOfCallback::CODE:
                 {
                     $response = $this->callCode();
                     break;
                 }
-                case TypeOfThingCallback::EVENT_CALL:
+                case TypeOfCallback::EVENT_CALL:
                 {
                     $response = $this->callEvent();
                     break;
                 }
 
-                case TypeOfThingCallback::HTTP_GET:
-                case TypeOfThingCallback::HTTP_POST:
-                case TypeOfThingCallback::HTTP_PUT:
-                case TypeOfThingCallback::HTTP_PATCH:
-                case TypeOfThingCallback::HTTP_DELETE:
-                case TypeOfThingCallback::HTTP_POST_FORM:
-                case TypeOfThingCallback::HTTP_PUT_FORM:
-                case TypeOfThingCallback::HTTP_PATCH_FORM:
-                case TypeOfThingCallback::HTTP_DELETE_FORM:
-                case TypeOfThingCallback::HTTP_POST_JSON:
-                case TypeOfThingCallback::HTTP_PUT_JSON:
-                case TypeOfThingCallback::HTTP_PATCH_JSON:
-                case TypeOfThingCallback::HTTP_DELETE_JSON:
-                case TypeOfThingCallback::HTTP_POST_XML:
-                case TypeOfThingCallback::HTTP_PUT_XML:
-                case TypeOfThingCallback::HTTP_PATCH_XML:
-                case TypeOfThingCallback::HTTP_DELETE_XML:
+                case TypeOfCallback::HTTP_GET:
+                case TypeOfCallback::HTTP_POST:
+                case TypeOfCallback::HTTP_PUT:
+                case TypeOfCallback::HTTP_PATCH:
+                case TypeOfCallback::HTTP_DELETE:
+                case TypeOfCallback::HTTP_POST_FORM:
+                case TypeOfCallback::HTTP_PUT_FORM:
+                case TypeOfCallback::HTTP_PATCH_FORM:
+                case TypeOfCallback::HTTP_DELETE_FORM:
+                case TypeOfCallback::HTTP_POST_JSON:
+                case TypeOfCallback::HTTP_PUT_JSON:
+                case TypeOfCallback::HTTP_PATCH_JSON:
+                case TypeOfCallback::HTTP_DELETE_JSON:
+                case TypeOfCallback::HTTP_POST_XML:
+                case TypeOfCallback::HTTP_PUT_XML:
+                case TypeOfCallback::HTTP_PATCH_XML:
+                case TypeOfCallback::HTTP_DELETE_XML:
                 {
                     $response =  $this->callRemote();
                 }
@@ -438,13 +429,13 @@ class ThingCallback extends Model
             }
             $this->callback_http_code = $response->getCode();
             if ($response->isSuccessful()) {
-                $this->thing_callback_status = TypeOfThingCallbackStatus::CALLBACK_SUCCESSFUL;
+                $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_SUCCESSFUL;
             } else {
-                $this->thing_callback_status = TypeOfThingCallbackStatus::CALLBACK_ERROR;
+                $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
             }
             $this->callback_incoming_data = $response->getData();
         } catch (\Exception $e) {
-            $this->thing_callback_status = TypeOfThingCallbackStatus::CALLBACK_ERROR;
+            $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
             Log::error("Thing result callback had error: ". $e->getMessage());
         } finally {
             $this->callback_run_at = Carbon::now()->timezone('UTC')->toDateTime();
@@ -456,7 +447,7 @@ class ThingCallback extends Model
     }
 
     public function isDone() {
-        return ($this->thing_callback_status === TypeOfThingCallbackStatus::CALLBACK_ERROR || $this->thing_callback_status === TypeOfThingCallbackStatus::CALLBACK_SUCCESSFUL);
+        return ($this->thing_callback_status === TypeOfCallbackStatus::CALLBACK_ERROR || $this->thing_callback_status === TypeOfCallbackStatus::CALLBACK_SUCCESSFUL);
     }
 
 }

@@ -8,13 +8,12 @@ namespace Hexbatch\Things\Models;
 use ArrayObject;
 use Carbon\Carbon;
 use Exception;
-use Hexbatch\Things\Enums\TypeOfThingHookMode;
+use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Exceptions\HbcThingStackException;
 use Hexbatch\Things\Exceptions\HbcThingTreeLimitException;
 use Hexbatch\Things\Helpers\CalculatedSettings;
 use Hexbatch\Things\Interfaces\IThingAction;
-use Hexbatch\Things\Interfaces\IThingCallback;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Jobs\RunThing;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
@@ -133,10 +132,10 @@ class Thing extends Model
     }
 
     /**
-     * @param TypeOfThingHookMode $mode
+     * @param TypeOfHookMode $mode
      * @return ThingHooker[]
      */
-    public function dispatchHooksOfMode(TypeOfThingHookMode $mode) : array {
+    public function dispatchHooksOfMode(TypeOfHookMode $mode) : array {
         $blocking = [];
         foreach ($this->hasHooksOfMode(mode:$mode) as $hooker) {
             if ($hooker->parent_hook->isBlocking()) {
@@ -156,10 +155,10 @@ class Thing extends Model
     }
 
     /**
-     * @param TypeOfThingHookMode $mode
+     * @param TypeOfHookMode $mode
      * @return ThingHooker[]
      */
-    public function hasHooksOfMode(TypeOfThingHookMode $mode) : array {
+    public function hasHooksOfMode(TypeOfHookMode $mode) : array {
         $ret = [];
         foreach ($this->applied_hooks as $hooker) {
             if ($hooker->parent_hook->hook_mode === $mode) {
@@ -305,10 +304,10 @@ class Thing extends Model
                 } else if ($this->thing_stat->checkForDataOverflow()) {
                     $this->doBackoff();
                     $this->save();
-                    $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_RESOURCES_NOTICE);
+                    $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_RESOURCES_NOTICE);
                 } else {
                     $action->setLimitDataByteRows($this->thing_stat->stat_limit_data_byte_rows);
-                    $blocking = $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_BEFORE_RUNNING_HOOK);
+                    $blocking = $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_BEFORE_RUNNING_HOOK);
 
                     if (count($blocking)) {
                         $this->thing_status = TypeOfThingStatus::THING_HOOKED_BEFORE_RUN;
@@ -320,7 +319,7 @@ class Thing extends Model
                         $constant_data = $this->thing_stat->stat_constant_data->getArrayCopy();
                         $data_for_parent = [];
                         ThingHooker::getHookerData(
-                            thing_id: $this->id, mode: TypeOfThingHookMode::NODE_BEFORE_RUNNING_HOOK, b_out_of_time: $send_back_to_pending,
+                            thing_id: $this->id, mode: TypeOfHookMode::NODE_BEFORE_RUNNING_HOOK, b_out_of_time: $send_back_to_pending,
                             b_still_pending: $not_done, data_for_this: $data_for_this, data_for_parent: $data_for_parent);
                         if (!$send_back_to_pending && !$not_done) {
                             $all_data_to_action = array_merge($data_for_this,$constant_data);
@@ -348,14 +347,14 @@ class Thing extends Model
                             if ($this->thing_stat->checkForDataOverflow()) {
                                 //do backoff of its parent, if no parent then no backoff
                                 $this->thing_parent?->doBackoff();
-                                $this->thing_parent?->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_RESOURCES_NOTICE);
+                                $this->thing_parent?->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_RESOURCES_NOTICE);
                             }
 
 
                             if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
-                                $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_SUCCESS_NOTICE);
+                                $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_SUCCESS_NOTICE);
                             } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR || $this->thing_status === TypeOfThingStatus::THING_FAIL) {
-                                $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::NODE_FAILURE_NOTICE);
+                                $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_FAILURE_NOTICE);
                             }
                             if ($action->isActionComplete()) {
 
@@ -386,14 +385,14 @@ class Thing extends Model
                                     }
                                     if (count($new_children) === 0) {
                                         if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
-                                            $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_SUCCESS_NOTICE);
+                                            $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_SUCCESS_NOTICE);
                                         } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR || $this->thing_status === TypeOfThingStatus::THING_FAIL) {
-                                            $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_FAILURE_NOTICE);
+                                            $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_FAILURE_NOTICE);
                                         }
                                     }
                                 } else {
-                                    $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_FINISHED_NOTICE);
-                                    $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::SYSTEM_TREE_RESULTS);
+                                    $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_FINISHED_NOTICE);
+                                    $this->dispatchHooksOfMode(mode: TypeOfHookMode::SYSTEM_TREE_RESULTS);
                                 } //else no parent
                             } //if action is complete (it will run again next time this is called for the thing)
                         } //if not sent back to pending (ttl)
@@ -404,7 +403,7 @@ class Thing extends Model
         } catch (HbcThingStackException) {
             DB::commit();
             $this->thing_status = TypeOfThingStatus::THING_RESOURCES;
-            $this->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_RESOURCES_NOTICE);
+            $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_RESOURCES_NOTICE);
             $this->save();
         }catch (Exception $e) {
             DB::rollBack();
@@ -462,7 +461,6 @@ class Thing extends Model
         $this->thing_status = TypeOfThingStatus::THING_PENDING;
         $this->save();
         if ($this->is_async) {
-            //todo make queues
             RunThing::dispatch($this);
         } else {
             RunThing::dispatchSync($this);
@@ -471,28 +469,27 @@ class Thing extends Model
 
 
     /**
-     * @param array<string,IThingCallback[]> $callbacks
      * @throws Exception
      */
     public static function buildFromAction(IThingAction $action, IThingOwner $owner,
-                                           array $callbacks = [], bool $b_run_now = true,
+                                           bool $b_run_now = true,
                                            array $extra_tags = []
     ): ?ThingHooker
     {
 
         try {
             DB::beginTransaction();
-            $root = static::makeThingTree(action: $action, callbacks: $callbacks,extra_tags: $extra_tags,owner: $owner);
-            $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_CREATION_HOOK);
+            $root = static::makeThingTree(action: $action, extra_tags: $extra_tags,owner: $owner);
+            $blocking = $root->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_CREATION_HOOK);
             if (empty($blocking) && $b_run_now) {
-                $blocking = $root->dispatchHooksOfMode(mode: TypeOfThingHookMode::TREE_STARTING_HOOK);
+                $blocking = $root->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_STARTING_HOOK);
                 if (empty($blocking)) {
                     $root->pushLeavesToJobs();
                 }
 
             }
             DB::commit();
-            return ThingHooker::buildHooker(thing_id: $root->id, mode: TypeOfThingHookMode::SYSTEM_TREE_RESULTS)->first();
+            return ThingHooker::buildHooker(thing_id: $root->id, mode: TypeOfHookMode::SYSTEM_TREE_RESULTS)->first();
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;
@@ -502,12 +499,10 @@ class Thing extends Model
 
 
     /**
-     * @param  array<string,IThingCallback[]> $callbacks
      * @throws Exception
      */
     protected static function makeThingTree(
         IThingAction $action,
-        array $callbacks = [],
         ?string $hint = null,
         array $extra_tags = [],
         IThingOwner $owner = null
@@ -535,10 +530,10 @@ class Thing extends Model
             $tree = $action->getChildrenTree(key: $hint);
             $roots = $tree->getRootNodes();
             foreach ($roots as $a_node) {
-                static::makeTreeNodes(parent_thing: $root, node: $a_node,  callbacks: $callbacks);
+                static::makeTreeNodes(parent_thing: $root, node: $a_node);
             }
 
-            ThingHook::makeHooksForThing(thing: $root,  callbacks: $callbacks);
+            ThingHook::makeHooksForThing(thing: $root);
             DB::commit();
             return static::getThing(id: $root->id);
         } catch (Exception $e) {
@@ -626,10 +621,9 @@ class Thing extends Model
 
 
     /**
-     * @param  array<string,IThingCallback[]> $callbacks
      * @throws Exception
      */
-    protected static function makeTreeNodes(Thing $parent_thing, \BlueM\Tree\Node $node,array $callbacks = []) : Thing {
+    protected static function makeTreeNodes(Thing $parent_thing, \BlueM\Tree\Node $node) : Thing {
 
         /** @var IThingAction $the_action */
         /** @noinspection PhpUndefinedFieldInspection accessed via magic method*/
@@ -656,7 +650,7 @@ class Thing extends Model
         foreach ( $children as $child) {
             static::makeTreeNodes(parent_thing: $tree_node,node: $child);
         }
-        ThingHook::makeHooksForThing(thing: $tree_node,  callbacks: $callbacks);
+        ThingHook::makeHooksForThing(thing: $tree_node);
         return $tree_node;
     }
 

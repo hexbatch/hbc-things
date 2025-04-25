@@ -4,12 +4,11 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
-use Hexbatch\Things\Enums\TypeOfThingHookBlocking;
-use Hexbatch\Things\Enums\TypeOfThingHookMode;
-use Hexbatch\Things\Enums\TypeOfThingHookPosition;
-use Hexbatch\Things\Enums\TypeOfThingHookScope;
-use Hexbatch\Things\Interfaces\IThingCallback;
-use Hexbatch\Things\Interfaces\IThingHook;
+use Hexbatch\Things\Enums\TypeOfHookBlocking;
+use Hexbatch\Things\Enums\TypeOfHookMode;
+use Hexbatch\Things\Enums\TypeOfHookPosition;
+use Hexbatch\Things\Enums\TypeOfHookScope;
+use Hexbatch\Things\Interfaces\IHookParams;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
@@ -35,10 +34,10 @@ use Illuminate\Support\Facades\DB;
  * @property string hook_notes
  * @property ArrayObject hook_constant_data
  * @property ArrayObject hook_tags
- * @property TypeOfThingHookMode hook_mode
- * @property TypeOfThingHookBlocking blocking_mode
- * @property TypeOfThingHookScope hook_scope
- * @property TypeOfThingHookPosition hook_position
+ * @property TypeOfHookMode hook_mode
+ * @property TypeOfHookBlocking blocking_mode
+ * @property TypeOfHookScope hook_scope
+ * @property TypeOfHookPosition hook_position
  *
  * @property ThingCallplate[] hook_callplates
  *
@@ -72,10 +71,10 @@ class ThingHook extends Model
     protected $casts = [
         'hook_constant_data' => AsArrayObject::class,
         'hook_tags' => AsArrayObject::class,
-        'hook_mode' => TypeOfThingHookMode::class,
-        'hook_scope' => TypeOfThingHookScope::class,
-        'hook_position' => TypeOfThingHookPosition::class,
-        'blocking_mode' => TypeOfThingHookBlocking::class,
+        'hook_mode' => TypeOfHookMode::class,
+        'hook_scope' => TypeOfHookScope::class,
+        'hook_position' => TypeOfHookPosition::class,
+        'blocking_mode' => TypeOfHookBlocking::class,
     ];
 
 
@@ -87,44 +86,33 @@ class ThingHook extends Model
 
 
     /**
-     * @param  array<string,IThingCallback[]> $callbacks
      * @return ThingHooker[]
      * @throws \Exception
      */
-    public static function makeHooksForThing(Thing $thing,?TypeOfThingHookMode $mode = null, array $callbacks = []) : array {
+    public static function makeHooksForThing(Thing $thing, ?TypeOfHookMode $mode = null) : array {
 
         try {
             $ret = [];
             DB::beginTransaction();
             //figure out node position
             if (!$thing->parent_thing_id) {
-                $position = TypeOfThingHookPosition::ROOT;
-            } elseif (count($thing->thing_children()->get()) > 0) {
-                $position = TypeOfThingHookPosition::SUB_ROOT;
+                $position = TypeOfHookPosition::ROOT;
+            } elseif (count($thing->thing_children) > 0) {
+                $position = TypeOfHookPosition::SUB_ROOT;
             } else {
-                $position = TypeOfThingHookPosition::LEAF;
+                $position = TypeOfHookPosition::LEAF;
             }
             /** @var ThingHook[] $hooks */
             $hooks = ThingHook::buildHook(mode: $mode, action_type: $thing->action_type, action_type_id: $thing->action_type_id,
-                owner_type: $thing->owner_type, owner_type_id: $thing->owner_type_id,position: $position)->get();
+                owner_type: $thing->owner_type, owner_type_id: $thing->owner_type_id,
+                position: $position,tags: $thing->thing_tags->getArrayCopy())->get();
 
             foreach ($hooks as $hook) {
                 $hooker = new ThingHooker();
                 $hooker->hooked_thing_id = $thing->id;
                 $hooker->owning_hook_id = $hook->id;
-                $hooker->save();
-                foreach ($hook->hook_callplates as $plate) {
-                    $plate->makeCallback(hooker: $hooker);
-                }
-                foreach ($callbacks as $hook_name => $callback_array) {
-                    if ($hook->hook_name === $hook_name) {
-                        foreach ($callback_array as $callback) {
-                            $hooker->makeCallback(call_me: $callback);
-                        }
+                $hooker->save(); //callbacks are made from the pool of callplates when the hooker is run
 
-                    }
-
-                }
                 $ret[] = ThingHooker::buildHooker(id: $hooker->id);
             }
             DB::commit();
@@ -137,9 +125,9 @@ class ThingHook extends Model
 
     public function isBlocking() : bool {
         if (in_array($this->blocking_mode,[
-            TypeOfThingHookBlocking::BLOCK,
-            TypeOfThingHookBlocking::BLOCK_ADD_DATA_TO_CURRENT,
-            TypeOfThingHookBlocking::BLOCK_ADD_DATA_TO_PARENT])
+            TypeOfHookBlocking::BLOCK,
+            TypeOfHookBlocking::BLOCK_ADD_DATA_TO_CURRENT,
+            TypeOfHookBlocking::BLOCK_ADD_DATA_TO_PARENT])
         ) {
             return true;
         }
@@ -149,12 +137,12 @@ class ThingHook extends Model
 
 
     public static function buildHook(
-        ?int    $id = null,
-        ?TypeOfThingHookMode $mode = null,
-        ?string $action_type = null, ?int  $action_type_id = null,
-        ?string $owner_type = null, ?int  $owner_type_id = null,
-        ?TypeOfThingHookPosition $position = null,
-        ?array $tags = null
+        ?int                $id = null,
+        ?TypeOfHookMode     $mode = null,
+        ?string             $action_type = null, ?int $action_type_id = null,
+        ?string             $owner_type = null, ?int $owner_type_id = null,
+        ?TypeOfHookPosition $position = null,
+        ?array              $tags = null
     )
     : Builder
     {
@@ -204,7 +192,7 @@ class ThingHook extends Model
         if ($position) {
             $build->where(function (Builder $q) use($position) {
                 $q->where('thing_hooks.hook_position',$position);
-                $q->orWhere('thing_hooks.hook_position',TypeOfThingHookPosition::ANY_POSITION);
+                $q->orWhere('thing_hooks.hook_position',TypeOfHookPosition::ANY_POSITION);
             });
         }
 
@@ -227,7 +215,7 @@ class ThingHook extends Model
         return $build;
     }
 
-    public static function createHook(IThingHook $it)
+    public static function createHook(IHookParams $it)
     : ThingHook
     {
         $hook = new ThingHook();
