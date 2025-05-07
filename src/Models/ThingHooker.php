@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 
-
+//todo remove Hookers, hooks assigned when thing fires, callplate makes callback then
 /**
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
@@ -79,8 +79,8 @@ class ThingHooker extends Model
 
     public function hooker_callbacks() : HasMany {
         return $this->hasMany(ThingCallback::class,'owning_hooker_id','id')
-            /** @uses ThingCallback::callback_owning_hooker() */
-            ->with('callback_owning_hooker');
+            /** @uses ThingCallback::owning_hooker() */
+            ->with('owning_hooker');
     }
 
     public function dispatchHooker() {
@@ -133,12 +133,7 @@ class ThingHooker extends Model
                 continue;
             }
             foreach ($hooker->hooker_callbacks as $callback) {
-                if (Carbon::parse($callback->callback_run_at,'UTC')->addSeconds($hooker->parent_hook->ttl_callbacks) >
-                    Carbon::now()->timezone('UTC'))
-                {
-                    $b_out_of_time = true;
-                    $redo_callbacks[] = $callback;
-                }
+               //todo removed time calc?
                 switch ($hooker->parent_hook->blocking_mode) {
                     case TypeOfHookBlocking::BLOCK_ADD_DATA_TO_CURRENT: {
                         $data_for_this = array_merge($callback->callback_incoming_data->getArrayCopy(),$data_for_this);
@@ -249,19 +244,6 @@ class ThingHooker extends Model
     }
 
 
-    public function makeCallback(IThingCallplateParams $call_me) : ThingCallback {
-
-        //todo cb not made until run
-        $c = new ThingCallback();
-        $c->owning_hooker_id = $this->id;
-        $c->thing_callback_status = TypeOfCallbackStatus::WAITING;
-        $c->callback_outgoing_data = array_merge($call_me->getConstantData(),
-            $this->parent_hook->hook_constant_data?->getArrayCopy()??[]);
-        $c->callback_outgoing_header = $call_me->getHeader();
-
-        $c->save();
-        return $c;
-    }
 
     public function isDone() : bool {
         return $this->hooker_status === TypeOfHookerStatus::HOOK_COMPLETE;

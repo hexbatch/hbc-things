@@ -23,7 +23,7 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->foreignId('callback_callplate_id')
+            $table->foreignId('owning_callplate_id')
                 ->nullable(false)
                 ->comment("if generated from a callback tempalte")
                 ->index()
@@ -47,7 +47,7 @@ return new class extends Migration
 
             $table->timestamp('callback_run_at')
                 ->nullable()->default(null)
-                ->comment("Updated when the callback is run, used for seeing if ttl in the hook is valid");
+                ->comment("Updated when the callback is run, used for seeing if new hook run for shared");
 
             $table->uuid('ref_uuid')
                 ->unique()

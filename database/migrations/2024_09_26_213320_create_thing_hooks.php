@@ -31,9 +31,6 @@ return new class extends Migration
             $table->boolean('is_on')->default(true)->nullable(false)
                 ->comment('if false then this hook is not used');
 
-            $table->integer('ttl_callbacks')->default(true)->nullable(false)
-                ->comment('if data in callback older then this, reset callback and do again before returning data');
-
 
             $table->timestamps();
 

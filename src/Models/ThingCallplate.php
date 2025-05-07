@@ -5,9 +5,9 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Hexbatch\Things\Enums\TypeOfCallback;
-use Hexbatch\Things\Enums\TypeOfCallbackStatus;
-use Hexbatch\Things\Enums\TypeOfHookScope;
-use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
+use Hexbatch\Things\Enums\TypeOfCallbackSharing;
+use Hexbatch\Things\Exceptions\HbcThingException;
+use Hexbatch\Things\Interfaces\ICallplateOptions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -19,15 +19,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int callplate_for_hook_id
+ * @property int ttl_shared
  *
  * @property string ref_uuid
- * @property string  callplate_url
- * @property string  callplate_class
- * @property string  callplate_event
+ * @property string  address
  * @property ArrayObject callplate_data_template
- * @property ArrayObject callplate_outgoing_header
+ * @property ArrayObject callplate_header_template
  * @property ArrayObject callplate_tags
  * @property TypeOfCallback callplate_callback_type
+ * @property TypeOfCallbackSharing callplate_sharing_type
  *
  *
  * @property ThingHook callplate_owning_hook
@@ -60,9 +60,10 @@ class ThingCallplate extends Model
      */
     protected $casts = [
         'outgoing_constant_data' => AsArrayObject::class,
-        'callplate_outgoing_header' => AsArrayObject::class,
+        'callplate_header_template' => AsArrayObject::class,
         'callplate_tags' => AsArrayObject::class,
         'callplate_callback_type' => TypeOfCallback::class,
+        'callplate_sharing_type' => TypeOfCallbackSharing::class,
     ];
 
 
@@ -70,54 +71,27 @@ class ThingCallplate extends Model
         return $this->belongsTo(Thing::class,'callplate_for_hook_id','id');
     }
 
-    public function makeCallback(ThingHooker $hooker) : ThingCallback {
-        if ($hooker->owning_hook_id !== $this->callplate_for_hook_id) {
-            throw new \LogicException("hooks are different");
-        }
+    public static function makeCallplate(ThingHook $hook,ICallplateOptions $setup) : ThingCallplate {
+        $node = new ThingCallplate();
+        $node->callplate_for_hook_id = $hook->id;
 
-        switch ($hooker->parent_hook->hook_scope) {
-            case TypeOfHookScope::GLOBAL: {
-                /** @var ThingHooker $global_hooker */
-                $global_hooker = ThingHooker::buildHooker(hook_id: $hooker->id)->first();
-                if ($global_hooker) {
-                    $callback = ThingCallback::buildCallback(hooker_id: $global_hooker->id)->first() ;
-                    if ($callback) {return $callback;}
-                }
-                break;
-            }
-            case TypeOfHookScope::ALL_TREE: {
-                /** @var ThingHooker $tree_hooker */
-                $tree_hooker = ThingHooker::buildHooker(hook_id: $hooker->id,belongs_to_tree_thing_id: $hooker->hooker_thing->root_thing_id)->first();
-                if ($tree_hooker) {
-                    $callback = ThingCallback::buildCallback(hooker_id: $tree_hooker->id)->first() ;
-                    if ($callback) {return $callback;}
-                }
-                break;
-            }
 
-            case TypeOfHookScope::ANCESTOR_CHAIN:
-            {
-                /** @var ThingHooker $ancestor_hooker */
-                $ancestor_hooker = ThingHooker::buildHooker(hook_id: $hooker->id,belongs_to_ancestor_of_thing_id: $hooker->hooker_thing->id)->first();
-                if ($ancestor_hooker) {
-                    $callback = ThingCallback::buildCallback(hooker_id: $ancestor_hooker->id)->first() ;
-                    if ($callback) {return $callback;}
-                }
-                break;
-            }
+        $node->ttl_shared = $setup->getSharedTtl();
+        $node->callplate_data_template = $setup->getDataTemplate();
+        $node->callplate_header_template = $setup->getHeaderTemplate();
+        $node->callplate_tags = $setup->getTags();
 
-            case TypeOfHookScope::CURRENT: {break;}
-        }
+        if (!$setup->getCallbackSharing()) { throw new HbcThingException("Need sharing mode");}
+        $node->callplate_sharing_type = $setup->getCallbackSharing();
 
-        $c = new ThingCallback();
-        $c->callback_callplate_id = $this->id;
-        $c->thing_callback_status = TypeOfCallbackStatus::WAITING;
-        $c->callback_outgoing_data = array_merge($this->callplate_data_template?->getArrayCopy()??[],
-                                                        $hooker->parent_hook->hook_constant_data?->getArrayCopy()??[]);
-        $c->callback_outgoing_header = $this->callplate_outgoing_header;
-        $c->save();
-        return $c;
+        if (!$setup->getCallbackType()) { throw new HbcThingException("Need callback type");}
+        $node->callplate_callback_type = $setup->getCallbackType();
+
+        if (!$setup->getAddress()) { throw new HbcThingException("Need address");}
+        $node->address = $setup->getAddress();
+
+        $node->save();
+        return $node;
     }
-
 
 }

@@ -26,6 +26,9 @@ return new class extends Migration
 
             $table->timestamps();
 
+            $table->integer('ttl_shared')->default(null)->nullable(false)
+                ->comment('if set then shared callbacks are discarded if this old in seconds');
+
             $table->uuid('ref_uuid')
                 ->unique()
                 ->nullable(false)
@@ -34,11 +37,11 @@ return new class extends Migration
             $table->jsonb('callplate_data_template')
                 ->nullable()->default(null)
                 ->comment("The data and structure that makes up the query|body|form|event|xml".
-                    " If missing , the data sent is the constant data from the action, thing, hook if run before, or the result of the action if after.".
+                    " If missing , the data sent is the constant data from the action, thing, hook if run before, and the result of the action if after.".
                     " Params are nulled keys, are filled in by the above.".
                     " Keys with null values will be removed, including params that are not filled in");
 
-            $table->jsonb('callplate_outgoing_header')
+            $table->jsonb('callplate_header_template')
                 ->nullable()->default(null)
                 ->comment('This is what will be in the header for http calls'.
                     ' Keys with null values will use the values from the action,'.
@@ -49,6 +52,16 @@ return new class extends Migration
                 ->comment("array of string tags, need to match at least one thing tag to be used for that thing. If empty then always used");
 
         });
+
+
+        DB::statement("CREATE TYPE type_of_thing_callback_sharing AS ENUM (
+            'no_sharing',
+            'per_parent',
+            'per_tree',
+            'global'
+            );");
+
+        DB::statement("ALTER TABLE thing_callplates Add COLUMN callplate_sharing_type type_of_thing_callback_sharing NOT NULL default 'no_sharing';");
 
 
 
@@ -92,15 +105,9 @@ return new class extends Migration
 
         Schema::table('thing_callplates', function (Blueprint $table) {
 
-            $table->string('callplate_url')->nullable()->default(null)
-                ->comment('If this is http call, this will be called with the response code set above.');
+            $table->string('address')->nullable(false)
+                ->comment('If this is http call, then url, if this is callable, then namespaced class, if event, then event name.');
 
-
-            $table->string('callplate_class')->nullable()->default(null)
-                ->comment('If set, this is the namespaced class to call');
-
-            $table->string('callplate_event')->nullable()->default(null)
-                ->comment('If set, this is the event action name to call.  Params in either case are from the values of the top callback_outgoing_data');
 
         });
 
@@ -114,5 +121,6 @@ return new class extends Migration
     {
         Schema::dropIfExists('thing_callplates');
         DB::statement("DROP TYPE type_of_thing_callback;");
+        DB::statement("DROP TYPE type_of_thing_callback_sharing;");
     }
 };

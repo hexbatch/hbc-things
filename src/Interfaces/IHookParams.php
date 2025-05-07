@@ -10,16 +10,16 @@ use Hexbatch\Things\Enums\TypeOfHookScope;
 interface IHookParams
 {
     public function getHookOwner() : ?IThingOwner;
+    public function setHookOwner(?IThingOwner $owner) :IHookParams  ;
     public function getHookAction() : ?IThingAction;
     public function getConstantData():  array;
     public function getHookTags():  array;
-    public function getHookCallbackTimeToLive():  ?int;
     public function isHookOn():  bool;
-    public function getHookMode():  TypeOfHookMode;
-    public function getHookBlocking():  TypeOfHookBlocking;
+    public function getHookMode():  ?TypeOfHookMode;
+    public function getHookBlocking():  ?TypeOfHookBlocking;
     public function getHookScope():  TypeOfHookScope;
-    public function getHookPosition():  TypeOfHookPosition;
-    public function  getHookName() :string;
+    public function getHookPosition():  ?TypeOfHookPosition;
+    public function  getHookName() :?string;
     public function  getHookNotes() :?string;
 
     /** @return ICallplateOptions[] */

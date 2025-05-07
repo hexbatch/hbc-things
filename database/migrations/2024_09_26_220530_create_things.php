@@ -57,7 +57,9 @@ return new class extends Migration
 
             $table->integer('thing_priority')
                 ->nullable(false)->default(0)
-                ->comment("the higher priority will run first, equal will run at the same time");
+                ->comment("the higher priority will run first, equal will run at the same time")
+                ->index()
+            ;
 
 
 

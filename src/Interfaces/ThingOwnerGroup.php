@@ -5,6 +5,8 @@ namespace Hexbatch\Things\Interfaces;
 use ArrayIterator;
 
 
-class ThingOwnerGroup extends ArrayIterator{
+abstract class ThingOwnerGroup extends ArrayIterator {
 
+    /** @return IThingOwner[] */
+    public abstract function getOwners() : array ;
 }

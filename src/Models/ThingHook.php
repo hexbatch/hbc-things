@@ -8,7 +8,10 @@ use Hexbatch\Things\Enums\TypeOfHookBlocking;
 use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Enums\TypeOfHookPosition;
 use Hexbatch\Things\Enums\TypeOfHookScope;
+use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Interfaces\IHookParams;
+use Hexbatch\Things\Interfaces\IThingAction;
+use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,7 +30,6 @@ use Illuminate\Support\Facades\DB;
  * @property string owner_type
  * @property int owner_type_id
  * @property bool is_on
- * @property int ttl_callbacks
  *
  * @property string ref_uuid
  * @property string hook_name
@@ -69,6 +71,7 @@ class ThingHook extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'is_on' => 'boolean',
         'hook_constant_data' => AsArrayObject::class,
         'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfHookMode::class,
@@ -103,8 +106,7 @@ class ThingHook extends Model
                 $position = TypeOfHookPosition::LEAF;
             }
             /** @var ThingHook[] $hooks */
-            $hooks = ThingHook::buildHook(mode: $mode, action_type: $thing->action_type, action_type_id: $thing->action_type_id,
-                owner_type: $thing->owner_type, owner_type_id: $thing->owner_type_id,
+            $hooks = ThingHook::buildHook(mode: $mode, action: $thing->getAction(), owner: $thing->getOwner(),
                 position: $position,tags: $thing->thing_tags->getArrayCopy())->get();
 
             foreach ($hooks as $hook) {
@@ -139,8 +141,14 @@ class ThingHook extends Model
     public static function buildHook(
         ?int                $id = null,
         ?TypeOfHookMode     $mode = null,
-        ?string             $action_type = null, ?int $action_type_id = null,
-        ?string             $owner_type = null, ?int $owner_type_id = null,
+        ?IThingAction       $action = null,
+        ?string             $action_type = null,
+        ?int                $action_id = null,
+        ?IThingOwner        $owner = null,
+        ?string             $owner_type = null,
+        ?int                $owner_id = null,
+        array               $owners = [],
+
         ?TypeOfHookPosition $position = null,
         ?array              $tags = null
     )
@@ -158,11 +166,16 @@ class ThingHook extends Model
             $build->where('thing_hooks.id',$id);
         }
 
-        if ($action_type && $action_type_id) {
-            $build->where(function (Builder $q) use($action_type,$action_type_id) {
-                $q->where(function (Builder $q) use($action_type,$action_type_id) {
-                    $q->where('thing_hooks.action_type',$action_type);
-                    $q->where('thing_hooks.action_type_id',$action_type_id);
+        if ($action_type) { $build->where('thing_hooks.action_type',$action_type); }
+        if ($action_id) { $build->where('thing_hooks.action_type_id',$action_id); }
+        if ($owner_type) { $build->where('thing_hooks.owner_type',$owner_type); }
+        if ($owner_id) { $build->where('thing_hooks.owner_type_id',$owner_id); }
+
+        if ($action) {
+            $build->where(function (Builder $q) use($action) {
+                $q->where(function (Builder $q) use($action) {
+                    $q->where('thing_hooks.action_type',$action->getActionType());
+                    $q->where('thing_hooks.action_type_id',$action->getActionId());
                 })
                 ->orWhere(function (Builder $q) {
                     $q->whereNull('thing_hooks.action_type')->orWhereNull('thing_hooks.action_type_id');
@@ -172,15 +185,26 @@ class ThingHook extends Model
 
 
 
-        if ($owner_type && $owner_type_id) {
-            $build->where(function (Builder $q) use($owner_type,$owner_type_id) {
-                $q->where(function (Builder $q) use($owner_type,$owner_type_id) {
-                    $q->where('thing_hooks.owner_type',$owner_type);
-                    $q->where('thing_hooks.owner_type_id',$owner_type_id);
+        if ($owner) {
+            $build->where(function (Builder $q) use($owner) {
+                $q->where(function (Builder $q) use($owner) {
+                    $q->where('thing_hooks.owner_type',$owner->getOwnerType());
+                    $q->where('thing_hooks.owner_type_id',$owner->getOwnerId());
                 })
-                    ->orWhere(function (Builder $q) {
-                        $q->whereNull('thing_hooks.owner_type')->orWhereNull('thing_hooks.owner_type_id');
+                ->orWhere(function (Builder $q) {
+                    $q->whereNull('thing_hooks.owner_type')->orWhereNull('thing_hooks.owner_type_id');
+                });
+            });
+        }
+
+        if (count($owners)) {
+            $build->where(function (Builder $q) use($owners) {
+                foreach ($owners as $some_owner) {
+                    $q->orWhere(function (Builder $q) use($some_owner) {
+                        $q->where('thing_hooks.owner_type',$some_owner->getOwnerType());
+                        $q->where('thing_hooks.owner_type_id',$some_owner->getOwnerId());
                     });
+                }
             });
         }
 
@@ -218,6 +242,7 @@ class ThingHook extends Model
     public static function createHook(IHookParams $it)
     : ThingHook
     {
+
         $hook = new ThingHook();
         $owner = $it->getHookOwner();
         $hook->owner_type_id = $owner?->getOwnerId() ;
@@ -227,17 +252,30 @@ class ThingHook extends Model
         $hook->action_type_id = $action?->getActionId() ;
         $hook->action_type = $action?->getActionType() ;
         $hook->is_on = $it->isHookOn() ;
-        $hook->ttl_callbacks = $it->getHookCallbackTimeToLive() ;
         $hook->hook_constant_data = $it->getConstantData() ;
         $hook->hook_tags = $it->getHookTags() ;
         $hook->hook_notes = $it->getHookNotes() ;
-        $hook->hook_mode = $it->getHookMode() ;
-        $hook->blocking_mode = $it->getHookBlocking() ;
-        $hook->hook_scope = $it->getHookScope() ;
-        $hook->hook_position = $it->getHookPosition() ;
         $hook->hook_name = $it->getHookName() ;
 
+        if (!$it->getHookMode()) { throw new HbcThingException("Need hook mode");}
+        $hook->hook_mode = $it->getHookMode() ;
+
+        if (!$it->getHookBlocking()) { throw new HbcThingException("Need hook blocking");}
+        $hook->blocking_mode = $it->getHookBlocking() ;
+
+        if (!$it->getHookScope()) { throw new HbcThingException("Need hook scope");}
+        $hook->hook_scope = $it->getHookScope() ;
+
+        if (!$it->getHookPosition()) { throw new HbcThingException("Need hook position");}
+        $hook->hook_position = $it->getHookPosition() ;
+
         $hook->save();
+
+        foreach ($it->getCallplates() as $callplate_setup) {
+            ThingCallplate::makeCallplate(hook: $hook,setup: $callplate_setup);
+        }
+
+        $hook->refresh();
         return $hook;
     }
 

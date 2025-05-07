@@ -24,7 +24,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 use Staudenmeir\LaravelCte\Query\Traits\BuildsExpressionQueries;
@@ -141,7 +140,7 @@ class Thing extends Model
             if ($hooker->parent_hook->isBlocking()) {
                 $blocking[] = $hooker;
             }
-            $hooker->dispatchHooker();
+            $hooker->dispatchHooker(); //todo when is hooker made? at tree creation or when node fires? many nodes may not fire. Should be at runtime
         }
         return $blocking;
     }
@@ -187,49 +186,50 @@ class Thing extends Model
 
     public function getLeaves() {
 
+        $query_descendants = DB::table("things as desc_a")
+            ->selectRaw('desc_a.id, 0 as level, desc_a.thing_priority as max_priority')->where('desc_a.id', $this->id)
+            ->unionAll(
+                DB::table('things as desc_b')
+                    ->selectRaw('desc_b.id, level + 1 as level, max(desc_b.thing_priority) OVER (PARTITION BY desc_b.parent_thing_id) as max_priority')
+                    ->join('thing_descendants', 'thing_descendants.id', '=', 'desc_b.parent_thing_id')
+            );
+
+        $query_nodes = DB::table("things as node_a")
+            ->selectRaw("node_a.id, thing_descendants.level, thing_descendants.max_priority")
+            ->where('node_a.id', $this->id)
+            ->where('node_a.thing_status', TypeOfThingStatus::THING_BUILDING)
+            ->whereRaw("(node_a.thing_start_at IS NULL OR node_a.thing_start_at <= NOW() )")
+            ->whereRaw("(node_a.thing_invalid_at IS NULL OR node_a.thing_invalid_at < NOW())")
+
+            ->join('thing_descendants', 'thing_descendants.id', '=', 'node_a.id')
+            ->unionAll(
+                DB::table('things as node_b')
+                    ->selectRaw('node_b.id,thing_descendants.level as level,thing_descendants.max_priority')
+
+                    ->join('thing_nodes', 'thing_nodes.id', '=', 'node_b.parent_thing_id')
+                    ->join('thing_descendants', 'thing_descendants.id', '=', 'node_b.id')
+                    ->whereRaw("node_b.thing_priority = thing_descendants.max_priority")
+                    ->where('node_b.thing_status', TypeOfThingStatus::THING_BUILDING)
+                    ->whereRaw("(node_b.thing_start_at IS NULL OR node_b.thing_start_at <= NOW() )")
+                    ->whereRaw("(node_b.thing_invalid_at IS NULL OR node_b.thing_invalid_at < NOW())")
+
+            )->withRecursiveExpression('thing_descendants',$query_descendants);
+
+        $query_term = DB::table("things as term")->selectRaw("term.id, term.thing_priority, max(term.thing_priority) OVER () as max_thinger")
+            ->join('thing_nodes', 'thing_nodes.id', '=', 'term.id')
+            ->leftJoin('things as y', 'y.parent_thing_id', '=', 'term.id')
+            ->whereNull('y.id')
+            ->withRecursiveExpression('thing_nodes',$query_nodes)
+            ;
+
         $lar =  Thing::select('things.*')
             ->selectRaw("extract(epoch from  things.created_at) as created_at_ts")
             ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
             ->selectRaw("extract(epoch from  things.thing_start_at) as thing_start_at_ts")
             ->selectRaw("extract(epoch from  things.thing_invalid_at) as thing_invalid_at_ts")
-
-            ->withExpression('thing_nodes',
-                /** @param \Illuminate\Database\Query\Builder $query */
-                function ($query)
-                {
-                    $query->from('things as t')
-                        ->selectRaw("t.id, max(t.thing_priority) OVER () as max_priority")
-                        ->withRecursiveExpression('thing_descendants',
-                            /** @param \Illuminate\Database\Query\Builder $query */
-                            function ($query)
-                            {
-                                $query->from('things as s')->select('s.id')->where('s.id',$this->id)
-                                    ->unionAll(
-                                        DB::table('things as c')->select('c.id')
-                                            ->join('thing_descendants', 'thing_descendants.id', '=', 'c.parent_thing_id')
-                                    );
-                            }
-                        )
-                        ->join('thing_descendants', 'thing_descendants.id', '=', 't.id')
-                        ->leftJoin('things as p',
-                            /**
-                             * @param JoinClause $join
-                             */
-                            function ($join)
-                            {
-                                $join->on('p.parent_thing_id','=','t.id');
-                            }
-                        )
-
-
-                    ->whereNull('p.id')
-                    ->where('t.thing_status',TypeOfThingStatus::THING_BUILDING)
-                    ->whereRaw("(t.thing_start_at IS NULL OR t.thing_start_at >= NOW() )")
-                    ->whereRaw("(t.thing_invalid_at IS NULL OR t.thing_invalid_at < NOW())")
-                    ;
-                })
-            ->join('thing_nodes', 'thing_nodes.id', '=', 'things.id')
-            ->whereRaw('things.thing_priority = thing_nodes.max_priority')
+            ->withExpression('terminal_list',$query_term)
+            ->join('terminal_list', 'terminal_list.id', '=', 'things.id')
+            ->whereRaw("things.thing_priority = terminal_list.max_thinger")
             ;
 
         /** @var \Illuminate\Database\Eloquent\Collection|Thing[] */
@@ -325,7 +325,7 @@ class Thing extends Model
                             $all_data_to_action = array_merge($data_for_this,$constant_data);
                             $action->runAction($all_data_to_action); //set hook data
                             if (!empty($data_for_parent)) {
-                                $this->thing_parent->getAction()->addDataBeforeRun($data_for_parent);
+                                $this->thing_parent->getAction()?->addDataBeforeRun($data_for_parent);
                             }
 
 
@@ -364,11 +364,11 @@ class Thing extends Model
                                 if ($this->parent_thing_id) {
                                     $new_children = [];
                                     //notify parent action of result
-                                    $this->thing_parent->getAction()->setChildActionResult(child: $action);
-                                    if ($this->thing_parent->getAction()->isActionComplete()) {
-                                        if ($this->thing_parent->getAction()->isActionSuccess()) {
+                                    $this->thing_parent->getAction()?->setChildActionResult(child: $action);
+                                    if ($this->thing_parent->getAction()?->isActionComplete()) {
+                                        if ($this->thing_parent->getAction()?->isActionSuccess()) {
                                             $this->thing_parent->thing_status = TypeOfThingStatus::THING_SUCCESS;
-                                        } else if ($this->thing_parent->getAction()->isActionFail()) {
+                                        } else if ($this->thing_parent->getAction()?->isActionFail()) {
                                             $this->thing_parent->thing_status = TypeOfThingStatus::THING_FAIL;
                                         } else {
                                             $this->thing_parent->thing_status = TypeOfThingStatus::THING_ERROR;
@@ -449,7 +449,7 @@ class Thing extends Model
 
 
     /**
-     * a leaf must run async if any of its ancestors are async, found in stats for it
+     * leaf must run async if any of its ancestors are async, found in stats for it
      */
     protected function pushLeavesToJobs() :void {
         foreach ($this->getLeaves() as $leaf) {
@@ -546,7 +546,8 @@ class Thing extends Model
      * @return Thing[]
      * @throws Exception
      */
-    protected function buildMore(IThingAction $action) :array {
+    protected function buildMore(?IThingAction $action) :array {
+        if (!$action) {return [];}
         $ret = [];
         if ($key = $action->isMoreBuilding()) {
             $tree = $action->getChildrenTree(key: $key);
@@ -573,6 +574,8 @@ class Thing extends Model
                 $owner = $action->getActionOwner();
             }
         }
+
+        $root_tags = ($parent_thing?->thing_root?:$parent_thing)?->thing_tags?->getArrayCopy()??[];
 
         $calculated_priority = max($parent_thing?->thing_priority??0, $action->getActionPriority());
 
@@ -607,7 +610,7 @@ class Thing extends Model
             $tree_node->owner_type_id = $owner?->getOwnerId();
             $tree_node->thing_priority = $calculated_priority;
             $tree_node->is_async = $async;
-            $tree_node->thing_tags = array_merge($action->getActionTags()??[],$extra_tags);
+            $tree_node->thing_tags = array_merge($action->getActionTags()??[],$root_tags,$extra_tags);
             $tree_node->thing_constant_data = $action->getInitialConstantData(); //mulched up by the stats
             $tree_node->save();
             ThingSetting::makeStatFromSettings(thing: $tree_node,settings: $settings);
@@ -735,8 +738,8 @@ class Thing extends Model
                 {
                     $query->from('things as s')->select('s.id')->where('s.id',$me_id)
                         ->unionAll(
-                            DB::table('things as c')->select('c.id')
-                                ->join('my_thing_descendants', 'my_thing_descendants.id', '=', 'c.parent_thing_id')
+                            DB::table('things as ant')->select('ant.id')
+                                ->join('my_thing_descendants', 'my_thing_descendants.id', '=', 'ant.parent_thing_id')
                         );
                 }
             )

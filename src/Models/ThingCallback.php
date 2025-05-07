@@ -7,6 +7,7 @@ use ArrayObject;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfHookScope;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Helpers\CallResponse;
 use Hexbatch\Things\Interfaces\ICallResponse;
@@ -28,7 +29,7 @@ use TorMorten\Eventy\Facades\Eventy;
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int owning_hooker_id
- * @property int callback_callplate_id
+ * @property int owning_callplate_id
  * @property int callback_error_id
  *
  * @property int callback_http_code
@@ -45,14 +46,15 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property string created_at
  * @property string modified_at
  *
- * @property ThingHooker callback_owning_hooker
+ * @property ThingHooker owning_hooker
+ * @property ThingCallplate my_callplate
  *
  */
 class ThingCallback extends Model
 {
 
 
-    protected $table = 'thing_callplates';
+    protected $table = 'thing_callbacks';
     public $timestamps = false;
 
     /**
@@ -81,8 +83,12 @@ class ThingCallback extends Model
         'thing_callback_status' => TypeOfCallbackStatus::class,
     ];
 
-    public function callback_owning_hooker() : BelongsTo {
+    public function owning_hooker() : BelongsTo {
         return $this->belongsTo(ThingHooker::class,'owning_hooker_id','id');
+    }
+
+    public function my_callplate() : BelongsTo {
+        return $this->belongsTo(ThingCallplate::class,'owning_callplate_id','id');
     }
 
     public static function buildCallback(
@@ -109,37 +115,83 @@ class ThingCallback extends Model
         }
 
         if ($callplate_id) {
-            $build->where('thing_callbacks.callback_callplate_id',$callplate_id);
+            $build->where('thing_callbacks.owning_callplate_id',$callplate_id);
         }
 
 
 
 
-        /** @uses ThingCallback::callback_owning_hooker() */
-        $build->with('callback_owning_hooker');
+        /** @uses ThingCallback::owning_hooker(),static::my_callplate() */
+        $build->with('owning_hooker','my_callplate');
 
 
         return $build;
+    }
+
+    public function makeCallback(ThingHooker $hooker) : ThingCallback {
+        //why do scope here?
+        switch ($hooker->parent_hook->hook_scope) {
+            case TypeOfHookScope::GLOBAL: {
+                /** @var ThingHooker $global_hooker */
+                $global_hooker = ThingHooker::buildHooker(hook_id: $hooker->id)->first();
+                if ($global_hooker) {
+                    $callback = ThingCallback::buildCallback(hooker_id: $global_hooker->id)->first() ;
+                    if ($callback) {return $callback;}
+                }
+                break;
+            }
+            case TypeOfHookScope::ALL_TREE: {
+                /** @var ThingHooker $tree_hooker */
+                $tree_hooker = ThingHooker::buildHooker(hook_id: $hooker->id,belongs_to_tree_thing_id: $hooker->hooker_thing->root_thing_id)->first();
+                if ($tree_hooker) {
+                    $callback = ThingCallback::buildCallback(hooker_id: $tree_hooker->id)->first() ;
+                    if ($callback) {return $callback;}
+                }
+                break;
+            }
+
+            case TypeOfHookScope::ANCESTOR_CHAIN:
+            {
+                /** @var ThingHooker $ancestor_hooker */
+                $ancestor_hooker = ThingHooker::buildHooker(hook_id: $hooker->id,belongs_to_ancestor_of_thing_id: $hooker->hooker_thing->id)->first();
+                if ($ancestor_hooker) {
+                    $callback = ThingCallback::buildCallback(hooker_id: $ancestor_hooker->id)->first() ;
+                    if ($callback) {return $callback;}
+                }
+                break;
+            }
+
+            case TypeOfHookScope::CURRENT: {break;}
+        }
+
+        $c = new ThingCallback();
+        $c->owning_callplate_id = $this->id;
+        $c->thing_callback_status = TypeOfCallbackStatus::WAITING;
+        $c->callback_outgoing_data = array_merge($this->callplate_data_template?->getArrayCopy()??[],
+            $hooker->parent_hook->hook_constant_data?->getArrayCopy()??[]);
+        $c->callback_outgoing_header = $this->callplate_header_template;
+        $c->save();
+        return $c;
     }
 
     protected function getOutoingDataAsArray() : array {
 
         $fourth_data = [
             'callback' => $this->ref_uuid,
-            'hook' => $this->callback_owning_hooker->parent_hook->ref_uuid,
-            'thing' => $this->callback_owning_hooker->hooker_thing->ref_uuid,
-            'action' => $this->callback_owning_hooker->hooker_thing->getAction()->getActionRef(),
+            'hook' => $this->owning_hooker->parent_hook->ref_uuid,
+            'thing' => $this->owning_hooker->hooker_thing->ref_uuid,
+            'action' => $this->owning_hooker->hooker_thing->getAction()?->getActionRef()??null,
         ];
 
-        $third_data = $this->callback_owning_hooker->hooker_thing->thing_stat->stat_constant_data?->getArrayCopy()??[];
+        $third_data = $this->owning_hooker->hooker_thing->thing_stat->stat_constant_data?->getArrayCopy()??[];
 
         $action_data = [];
-        $action = $this->callback_owning_hooker->hooker_thing->getAction();
-        if ($action->isActionComplete()) {
+        $action = $this->owning_hooker->hooker_thing->getAction();
+        if ($action?->isActionComplete()) {
             $action_data = $action->getActionResult();
         }
 
-        $second_data = $this->callback_owning_hooker->parent_hook->hook_constant_data?->getArrayCopy()??[];
+        $second_data = $this->owning_hooker->parent_hook->hook_constant_data?->getArrayCopy()??[];
 
         $first_data = $this->callback_outgoing_data?->getArrayCopy()??[];
 
@@ -152,6 +204,7 @@ class ThingCallback extends Model
     protected function callCode()
     :ICallResponse
     {
+        //todo check if address is correct interface, what is that?
         $params = $this->maybeCastOutgoingData();
         if ($this->callback_class && $this->callback_function) {
             $method = "$this->callback_class::$this->callback_function";
@@ -178,12 +231,12 @@ class ThingCallback extends Model
     protected function callEvent()
     : ICallResponse
     {
-        if (!$this->callback_event) {
+        if (!$this->my_callplate->address) {
             throw new HbcThingException("Callback event name not defined");
         }
         $params = $this->maybeCastOutgoingData();
         /** @noinspection PhpUndefinedMethodInspection */
-        $ret = Eventy::filter($this->callback_event, array_values($params));
+        $ret = Eventy::filter($this->my_callplate->address, array_values($params));
         $success = true;
         $code = 200;
         if (empty($ret) ||(is_array($ret) && count($ret) === 0)) {
@@ -199,7 +252,7 @@ class ThingCallback extends Model
     protected function maybeCastOutgoingData() : array|null|string
     {
         $params = $this->getOutoingDataAsArray();
-        switch ($this->thing_callback_type) {
+        switch ($this->my_callplate->callplate_callback_type) {
             case TypeOfCallback::DISABLED:
             case TypeOfCallback::MANUAL:
             case TypeOfCallback::CODE:
@@ -225,8 +278,11 @@ class ThingCallback extends Model
             case TypeOfCallback::HTTP_PATCH_XML:
             case TypeOfCallback::HTTP_DELETE_XML:
             {
+                //todo make xml from body , need root?
                 return Array2XML::createXML($this->callback_xml_root??'root', $params)->saveXML();
-            }
+            }break;
+            case TypeOfCallback::DUMP:
+                throw new \Exception('To be implemented');
         }
         return null;
     }
@@ -251,7 +307,7 @@ class ThingCallback extends Model
             $ret[$header_key] = $modified_header_val;
         }
 
-        switch ($this->thing_callback_type) {
+        switch ($this->my_callplate->callplate_callback_type) {
             case TypeOfCallback::HTTP_POST_XML:
             case TypeOfCallback::HTTP_PUT_XML:
             case TypeOfCallback::HTTP_PATCH_XML:
@@ -273,7 +329,7 @@ class ThingCallback extends Model
         $params = $this->maybeCastOutgoingData();
         $headers = $this->getOutgoingHeaders();
         $response = null;
-        switch ($this->thing_callback_type) {
+        switch ($this->my_callplate->callplate_callback_type) {
 
             case TypeOfCallback::DISABLED:
             case TypeOfCallback::MANUAL:
@@ -284,60 +340,60 @@ class ThingCallback extends Model
             }
 
             case TypeOfCallback::HTTP_GET:
-                $response = Http::withHeaders($headers)->get($this->callback_url, $params);
+                $response = Http::withHeaders($headers)->get($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_POST:
-                $response = Http::withHeaders($headers)->post($this->callback_url,$params);
+                $response = Http::withHeaders($headers)->post($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_PUT:
-                $response = Http::withHeaders($headers)->put($this->callback_url, $params);
+                $response = Http::withHeaders($headers)->put($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_PATCH:
-                $response = Http::withHeaders($headers)->patch($this->callback_url, $params);
+                $response = Http::withHeaders($headers)->patch($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_DELETE:
-                $response = Http::withHeaders($headers)->delete($this->callback_url, $params);
+                $response = Http::withHeaders($headers)->delete($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_POST_FORM:
-                $response = Http::asForm()->withHeaders($headers)->post($this->callback_url,$params);
+                $response = Http::asForm()->withHeaders($headers)->post($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_PUT_FORM:
-                $response = Http::asForm()->withHeaders($headers)->put($this->callback_url, $params);
+                $response = Http::asForm()->withHeaders($headers)->put($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_PATCH_FORM:
-                $response = Http::asForm()->withHeaders($headers)->patch($this->callback_url,$params);
+                $response = Http::asForm()->withHeaders($headers)->patch($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_DELETE_FORM:
-                $response = Http::asForm()->withHeaders($headers)->delete($this->callback_url,$params);
+                $response = Http::asForm()->withHeaders($headers)->delete($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_POST_JSON:
-                $response = Http::asJson()->withHeaders($headers)->post($this->callback_url,$params);
+                $response = Http::asJson()->withHeaders($headers)->post($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_PUT_JSON:
-                $response = Http::asJson()->withHeaders($headers)->put($this->callback_url, $params);
+                $response = Http::asJson()->withHeaders($headers)->put($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_PATCH_JSON:
-                $response = Http::asJson()->withHeaders($headers)->patch($this->callback_url,$params);
+                $response = Http::asJson()->withHeaders($headers)->patch($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_DELETE_JSON:
-                $response = Http::asJson()->withHeaders($headers)->delete($this->callback_url,$params);
+                $response = Http::asJson()->withHeaders($headers)->delete($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_POST_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->post($this->callback_url,$params);
+                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->post($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_PUT_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->put($this->callback_url, $params);
+                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->put($this->my_callplate->address, $params);
                 break;
             case TypeOfCallback::HTTP_PATCH_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->patch($this->callback_url,$params);
+                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->patch($this->my_callplate->address,$params);
                 break;
             case TypeOfCallback::HTTP_DELETE_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->delete($this->callback_url,$params);
+                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->delete($this->my_callplate->address,$params);
                 break;
         }
 
 
-        switch ($this->thing_callback_type) {
+        switch ($this->my_callplate->callplate_callback_type) {
             case TypeOfCallback::HTTP_POST_XML:
             case TypeOfCallback::HTTP_PUT_XML:
             case TypeOfCallback::HTTP_PATCH_XML:
@@ -374,7 +430,7 @@ class ThingCallback extends Model
     }
 
     public function runCallback() :void  {
-        if ($this->thing_callback_type === TypeOfCallback::DISABLED) {
+        if ($this->my_callplate->callplate_callback_type === TypeOfCallback::DISABLED) {
             return;
         }
 
@@ -383,7 +439,7 @@ class ThingCallback extends Model
         try {
 
             $response = null;
-            switch ($this->thing_callback_type) {
+            switch ($this->my_callplate->callplate_callback_type) {
 
                 case TypeOfCallback::DISABLED:
                 case TypeOfCallback::MANUAL:
@@ -440,7 +496,7 @@ class ThingCallback extends Model
         } finally {
             $this->callback_run_at = Carbon::now()->timezone('UTC')->toDateTime();
             $this->save();
-            $this->callback_owning_hooker->maybeCallbacksDone();
+            $this->owning_hooker->maybeCallbacksDone();
         }
 
 

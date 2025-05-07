@@ -10,7 +10,7 @@ trait ThingActionHandler
     protected static array $action_type_lookup = [];
 
 
-    public function getAction() : IThingAction {
+    public function getAction() : ?IThingAction {
         return static::resolveAction(action_type: $this->action_type,action_id: $this->action_type_id);
     }
 

@@ -108,7 +108,7 @@ class ThingStat extends Model
         $node->stat_constant_data = $constants;
 
 
-        $node->stat_data_byte_rows = $action->getDataByteRowsUsed();
+        $node->stat_data_byte_rows = $action?->getDataByteRowsUsed()??0;
 
         $node->save();
         return $node;
