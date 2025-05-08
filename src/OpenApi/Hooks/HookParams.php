@@ -4,9 +4,7 @@ namespace Hexbatch\Things\OpenApi\Hooks;
 
 
 use Hexbatch\Things\Enums\TypeOfCallback;
-use Hexbatch\Things\Enums\TypeOfCallbackSharing;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Enums\TypeOfHookScope;
 use Hexbatch\Things\Interfaces\IHookParams;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
@@ -28,10 +26,6 @@ class HookParams implements IHookParams, JsonSerializable
     public function __construct(
         #[OA\Property( title: 'Mode',description: 'Each hook must have a mode set',nullable: false)]
         protected ?TypeOfHookMode $mode = null,
-
-
-        #[OA\Property( title: 'Scope',description: 'Scope of the hook action',nullable: false)]
-        protected TypeOfHookScope $scope = TypeOfHookScope::CURRENT,
 
 
         #[OA\Property( title: 'Name',description: 'Hooks can have names',nullable: true)]
@@ -66,13 +60,14 @@ class HookParams implements IHookParams, JsonSerializable
         #[OA\Property( title: 'Writing',description: 'If true writes to thing or thing parent.',nullable: true)]
         protected bool $is_writing = true,
 
+        #[OA\Property( title: 'Sharing',description: 'If true the callback is shared among descendants.',nullable: true)]
+        protected bool $is_sharing = true,
+
 
         #[OA\Property( title:"Callback type",description: 'What type of callback is this?')]
         protected ?TypeOfCallback $callback_type = null,
 
 
-        #[OA\Property( title:"Sharing policy",description: 'Is this shared?')]
-        protected ?TypeOfCallbackSharing $sharing = TypeOfCallbackSharing::NO_SHARING,
 
 
         #[OA\Property( title:"Seconds this shared is kept",description: 'Use only if shared')]
@@ -101,7 +96,6 @@ class HookParams implements IHookParams, JsonSerializable
     {
         return [
             'mode' => $this->mode->value,
-            'scope' => $this->scope->value,
             'name' => $this->name,
             'notes' => $this->notes,
             'owner_type' => $this->owner?->getOwnerType(),
@@ -138,10 +132,6 @@ class HookParams implements IHookParams, JsonSerializable
         }
 
 
-        if ($scope = (string)$source['scope']??null) {
-            $this->scope = TypeOfHookScope::tryFromInput($scope);
-        }
-
         if ($name = (string)$source['name']??null) {
             $this->name = $name;
         }
@@ -161,6 +151,7 @@ class HookParams implements IHookParams, JsonSerializable
         $this->hook_on =  filter_var($source['hook_on']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
         $this->is_blocking =  filter_var($source['is_blocking']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
         $this->is_writing =  filter_var($source['is_writing']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
+        $this->is_sharing =  filter_var($source['is_sharing']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
 
         if ( ($const = $source['constant_data']??null ) && is_array($const)) {
             $this->constant_data = $const;
@@ -175,10 +166,6 @@ class HookParams implements IHookParams, JsonSerializable
             $this->callback_type = TypeOfCallback::tryFromInput($type);
         }
 
-        $this->sharing = TypeOfCallbackSharing::NO_SHARING;
-        if ($sharing = (string)$source['sharing']??null) {
-            $this->sharing = TypeOfCallbackSharing::tryFromInput($sharing);
-        }
 
         if ($ttl = (int)$source['ttl_shared']??null) {
             $this->ttl_shared = $ttl;
@@ -236,11 +223,6 @@ class HookParams implements IHookParams, JsonSerializable
         return $this->mode;
     }
 
-    public function getHookScope(): TypeOfHookScope
-    {
-        return $this->scope;
-    }
-
 
     public function getHookName(): ?string
     {
@@ -257,10 +239,6 @@ class HookParams implements IHookParams, JsonSerializable
         return $this->callback_type;
     }
 
-    public function getCallbackSharing():  ?TypeOfCallbackSharing
-    {
-        return $this->sharing;
-    }
 
     public function getDataTemplate(): array
     {
@@ -298,5 +276,10 @@ class HookParams implements IHookParams, JsonSerializable
     public function isWriting(): bool
     {
         return $this->is_writing;
+    }
+
+    public function isSharing(): bool
+    {
+        return $this->is_sharing;
     }
 }

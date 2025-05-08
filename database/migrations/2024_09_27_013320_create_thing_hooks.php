@@ -37,6 +37,8 @@ return new class extends Migration
             $table->boolean('is_writing_data_to_thing')->default(false)->nullable(false)
                 ->comment('if true, and is blocking, then if pre-thing writes to thing, if post thing writes to parent (if exists). No writing for non blocking ');
 
+            $table->boolean('is_sharing')->default(false)->nullable(false)
+                ->comment('if true then callback shared among descendants');
 
             $table->integer('ttl_shared')->default(null)->nullable(false)
                 ->comment('if set then shared callbacks are discarded if this old in seconds');
@@ -92,14 +94,7 @@ return new class extends Migration
         });
 
 
-        DB::statement("CREATE TYPE type_of_thing_callback_sharing AS ENUM (
-            'no_sharing',
-            'per_parent',
-            'per_tree',
-            'global'
-            );");
 
-        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_sharing_type type_of_thing_callback_sharing NOT NULL default 'no_sharing';");
 
 
         DB::statement("CREATE TYPE type_of_thing_callback AS ENUM (
@@ -149,16 +144,6 @@ return new class extends Migration
 
 
 
-        DB::statement("CREATE TYPE type_of_thing_hook_scope AS ENUM (
-            'current',
-            'ancestor_chain',
-            'all_tree',
-            'global'
-            );");
-
-        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_scope type_of_thing_hook_scope NOT NULL default 'current';");
-
-
 
         Schema::table('thing_hooks', function (Blueprint $table) {
 
@@ -189,8 +174,6 @@ return new class extends Migration
     {
         Schema::dropIfExists('thing_hooks');
         DB::statement("DROP TYPE type_of_thing_hook_mode;");
-        DB::statement("DROP TYPE type_of_thing_hook_scope;");
         DB::statement("DROP TYPE type_of_thing_callback;");
-        DB::statement("DROP TYPE type_of_thing_callback_sharing;");
     }
 };

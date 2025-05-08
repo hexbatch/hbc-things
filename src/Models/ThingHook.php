@@ -5,9 +5,7 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Hexbatch\Things\Enums\TypeOfCallback;
-use Hexbatch\Things\Enums\TypeOfCallbackSharing;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Enums\TypeOfHookScope;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Interfaces\IHookParams;
 use Hexbatch\Things\Interfaces\IThingAction;
@@ -30,6 +28,11 @@ use Illuminate\Support\Facades\DB;
  * @property string owner_type
  * @property int owner_type_id
  * @property bool is_on
+ * @property bool is_sharing
+         * todo when figuring out the hook, and if  shared, then see if hook will be used later, up the ancestry chain of things: if so,
+         * pick the highest ancestor, then create the result using that. When referencing this again, see if ttl + callback_run_at is less than now,
+         * if so, discard this (delete) and make new result with same thing as before
+ *
  * @property bool is_blocking
  * @property bool is_writing_data_to_thing
  * @property int ttl_shared
@@ -42,12 +45,10 @@ use Illuminate\Support\Facades\DB;
  * @property ArrayObject hook_constant_data
  * @property ArrayObject hook_tags
  * @property TypeOfHookMode hook_mode
- * @property TypeOfHookScope hook_scope
  *
  * @property ArrayObject hook_data_template
  * @property ArrayObject hook_header_template
  * @property TypeOfCallback hook_callback_type
- * @property TypeOfCallbackSharing hook_sharing_type
  * @property ThingCallback[] hook_callbacks
  *
  *
@@ -83,10 +84,8 @@ class ThingHook extends Model
         'hook_constant_data' => AsArrayObject::class,
         'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfHookMode::class,
-        'hook_scope' => TypeOfHookScope::class,
         'hook_header_template' => AsArrayObject::class,
         'hook_callback_type' => TypeOfCallback::class,
-        'hook_sharing_type' => TypeOfCallbackSharing::class,
     ];
 
 
@@ -228,6 +227,7 @@ class ThingHook extends Model
         $hook->action_type_id = $action?->getActionId() ;
         $hook->action_type = $action?->getActionType() ;
         $hook->is_on = $it->isHookOn() ;
+        $hook->is_sharing = $it->isSharing() ;
         $hook->is_blocking = $it->isBlocking() ;
         $hook->is_writing_data_to_thing = $it->isWriting() ;
         $hook->hook_constant_data = $it->getConstantData() ;
@@ -239,19 +239,11 @@ class ThingHook extends Model
         if (!$it->getHookMode()) { throw new HbcThingException("Need hook mode");}
         $hook->hook_mode = $it->getHookMode() ;
 
-        if (!$it->getHookScope()) { throw new HbcThingException("Need hook scope");}
-        $hook->hook_scope = $it->getHookScope() ;
-
-
-
 
         $hook->ttl_shared = $it->getSharedTtl();
         $hook->hook_data_template = $it->getDataTemplate();
         $hook->hook_header_template = $it->getHeaderTemplate();
 
-
-        if (!$it->getCallbackSharing()) { throw new HbcThingException("Need sharing mode");}
-        $hook->hook_sharing_type = $it->getCallbackSharing();
 
         if (!$it->getCallbackType()) { throw new HbcThingException("Need callback type");}
         $hook->hook_callback_type = $it->getCallbackType();
