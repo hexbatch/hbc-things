@@ -31,6 +31,21 @@ return new class extends Migration
             $table->boolean('is_on')->default(true)->nullable(false)
                 ->comment('if false then this hook is not used');
 
+            $table->boolean('is_blocking')->default(false)->nullable(false)
+                ->comment('if false then the callbacks run in parallel. If true then blocks');
+
+            $table->boolean('is_writing_data_to_thing')->default(false)->nullable(false)
+                ->comment('if true, and is blocking, then if pre-thing writes to thing, if post thing writes to parent (if exists). No writing for non blocking ');
+
+
+            $table->integer('ttl_shared')->default(null)->nullable(false)
+                ->comment('if set then shared callbacks are discarded if this old in seconds');
+
+            $table->integer('hook_priority')
+                ->nullable(false)->default(0)
+                ->comment("the higher priority will run their callbacks first first")
+                ->index()
+            ;
 
             $table->timestamps();
 
@@ -39,7 +54,18 @@ return new class extends Migration
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
 
+            $table->jsonb('hook_data_template')
+                ->nullable()->default(null)
+                ->comment("The data and structure that makes up the query|body|form|event|xml".
+                    " If missing , the data sent is the constant data from the action, thing, hook if run before, and the result of the action if after.".
+                    " Params are nulled keys, are filled in by the above.".
+                    " Keys with null values will be removed, including params that are not filled in");
 
+            $table->jsonb('hook_header_template')
+                ->nullable()->default(null)
+                ->comment('This is what will be in the header for http calls'.
+                    ' Keys with null values will use the values from the action,'.
+                    ' or that header removed if not there');
 
             $table->jsonb('hook_constant_data')
                 ->nullable()->default(null)
@@ -65,42 +91,62 @@ return new class extends Migration
 
         });
 
+
+        DB::statement("CREATE TYPE type_of_thing_callback_sharing AS ENUM (
+            'no_sharing',
+            'per_parent',
+            'per_tree',
+            'global'
+            );");
+
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_sharing_type type_of_thing_callback_sharing NOT NULL default 'no_sharing';");
+
+
+        DB::statement("CREATE TYPE type_of_thing_callback AS ENUM (
+            'disabled',
+            'manual',
+            'dump',
+            'http_get',
+            'http_post',
+            'http_post_form',
+            'http_post_xml',
+            'http_post_json',
+            'http_put',
+            'http_put_form',
+            'http_put_xml',
+            'http_put_json',
+            'http_patch',
+            'http_patch_form',
+            'http_patch_xml',
+            'http_patch_json',
+            'http_delete'
+            'http_delete_form'
+            'http_delete_xml'
+            'http_delete_json'
+            'code',
+            'event_call'
+            );");
+
+        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_callback_type type_of_thing_callback NOT NULL default 'disabled';");
+
+
+
+
         /*
          * Breakpoints are set to the entire tree if matched, or can manually put a breakpoint on a single thing or collection of them
          */
         DB::statement("CREATE TYPE type_of_thing_hook_mode AS ENUM (
             'none',
 
-            'tree_creation_hook',
-            'tree_starting_hook',
-            'node_before_running_hook',
-            'node_after_running_hook',
-
-            'tree_resources_notice',
-            'node_resources_notice',
-            'tree_unpaused_notice',
-            'tree_finished_notice',
-            'system_tree_results',
-            'tree_success_notice',
-            'tree_failure_notice',
-
-            'node_failure_notice',
-            'node_success_notice'
+            'node',
+            'node_failure',
+            'node_success',
+            'node_finally'
 
             );");
 
         DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_mode type_of_thing_hook_mode NOT NULL default 'none';");
 
-
-        DB::statement("CREATE TYPE type_of_thing_hook_blocking AS ENUM (
-            'none',
-            'block',
-            'block_add_data_to_parent',
-            'block_add_data_to_current'
-            );");
-
-
-        DB::statement("ALTER TABLE thing_hooks Add COLUMN blocking_mode type_of_thing_hook_blocking NOT NULL default 'none';");
 
 
         DB::statement("CREATE TYPE type_of_thing_hook_scope AS ENUM (
@@ -112,15 +158,6 @@ return new class extends Migration
 
         DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_scope type_of_thing_hook_scope NOT NULL default 'current';");
 
-        DB::statement("CREATE TYPE type_of_thing_hook_position AS ENUM (
-            'any_position',
-            'root',
-            'any_child',
-            'sub_root',
-            'leaf'
-            );");
-
-        DB::statement("ALTER TABLE thing_hooks Add COLUMN hook_position type_of_thing_hook_position NOT NULL default 'any_position';");
 
 
         Schema::table('thing_hooks', function (Blueprint $table) {
@@ -129,6 +166,9 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->unique()
                 ->comment('optional name that must be unique if given');
+
+            $table->string('address')->nullable(false)
+                ->comment('If this is http call, then url, if this is callable, then namespaced class, if event, then event name.');
         });
 
 
@@ -149,8 +189,8 @@ return new class extends Migration
     {
         Schema::dropIfExists('thing_hooks');
         DB::statement("DROP TYPE type_of_thing_hook_mode;");
-        DB::statement("DROP TYPE type_of_thing_hook_blocking;");
         DB::statement("DROP TYPE type_of_thing_hook_scope;");
-        DB::statement("DROP TYPE type_of_thing_hook_position;");
+        DB::statement("DROP TYPE type_of_thing_callback;");
+        DB::statement("DROP TYPE type_of_thing_callback_sharing;");
     }
 };

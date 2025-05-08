@@ -3,9 +3,7 @@ namespace Hexbatch\Things;
 
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
-use Hexbatch\Things\Models\ThingCallplate;
 use Hexbatch\Things\Models\ThingHook;
-use Hexbatch\Things\Models\ThingHooker;
 use Hexbatch\Things\Models\ThingSetting;
 use Illuminate\Support\Facades\Route;
 use Spatie\LaravelPackageTools\Package;
@@ -43,11 +41,11 @@ class HexbatchThingsProvider extends PackageServiceProvider
      */
     public function packageBooted()
     {
+        //todo add queue and batch events here
+
         Route::model('thing', Thing::class);
-        Route::model('thing_hooker', ThingHooker::class);
         Route::model('thing_hook', ThingHook::class);
         Route::model('thing_callback', ThingCallback::class);
-        Route::model('thing_callplate', ThingCallplate::class);
         Route::model('thing_setting', ThingSetting::class);
         return $this;
     }

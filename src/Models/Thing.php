@@ -8,7 +8,6 @@ namespace Hexbatch\Things\Models;
 use ArrayObject;
 use Carbon\Carbon;
 use Exception;
-use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Exceptions\HbcThingStackException;
 use Hexbatch\Things\Exceptions\HbcThingTreeLimitException;
@@ -26,17 +25,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use LogicException;
-use Staudenmeir\LaravelCte\Query\Traits\BuildsExpressionQueries;
 
 /**
  *
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
- * @mixin BuildsExpressionQueries
+ * @mixin \Staudenmeir\LaravelCte\Query\Traits\BuildsExpressionQueries
  * @property int id
  * @property int parent_thing_id
  * @property int root_thing_id
  * @property int thing_error_id
+ *
  * @property int thing_priority
  * @property string action_type
  * @property int action_type_id
@@ -49,6 +48,9 @@ use Staudenmeir\LaravelCte\Query\Traits\BuildsExpressionQueries;
  * @property string thing_start_at
  * @property string thing_invalid_at
  * @property string thing_started_at
+ *
+ * @property string batch_string_id
+ *
  * @property string ref_uuid
  * @property TypeOfThingStatus thing_status
  * @property ArrayObject thing_constant_data
@@ -64,7 +66,7 @@ use Staudenmeir\LaravelCte\Query\Traits\BuildsExpressionQueries;
  * @property Thing thing_parent
  * @property Thing thing_root
  * @property Thing[]|\Illuminate\Database\Eloquent\Collection thing_children
- * @property ThingHooker[]|\Illuminate\Database\Eloquent\Collection applied_hooks
+ * @property ThingCallback[]|\Illuminate\Database\Eloquent\Collection applied_callbacks
  */
 class Thing extends Model
 {
@@ -124,27 +126,13 @@ class Thing extends Model
         return $this->hasOne(ThingStat::class,'stat_thing_id','id');
     }
 
-    public function applied_hooks() : HasMany {
-        return $this->hasMany(ThingHooker::class,'hooked_thing_id','id')
-            /** @uses ThingHooker::parent_hook(),ThingHooker::hooker_thing(),ThingHooker::hooker_callbacks() */
-            ->with('parent_hook','hooker_thing','hooker_callbacks');
+    public function applied_callbacks() : HasMany {
+        return $this->hasMany(ThingCallback::class,'source_thing_id','id');
     }
 
-    /**
-     * @param TypeOfHookMode $mode
-     * @return ThingHooker[]
+    /** todo do I use this resumeBlockedThing?
+     * @noinspection PhpUnused
      */
-    public function dispatchHooksOfMode(TypeOfHookMode $mode) : array {
-        $blocking = [];
-        foreach ($this->hasHooksOfMode(mode:$mode) as $hooker) {
-            if ($hooker->parent_hook->isBlocking()) {
-                $blocking[] = $hooker;
-            }
-            $hooker->dispatchHooker(); //todo when is hooker made? at tree creation or when node fires? many nodes may not fire. Should be at runtime
-        }
-        return $blocking;
-    }
-
     public function resumeBlockedThing() {
         if ($this->isBlocked()) {
             $this->thing_status = TypeOfThingStatus::THING_PENDING;
@@ -153,19 +141,7 @@ class Thing extends Model
         }
     }
 
-    /**
-     * @param TypeOfHookMode $mode
-     * @return ThingHooker[]
-     */
-    public function hasHooksOfMode(TypeOfHookMode $mode) : array {
-        $ret = [];
-        foreach ($this->applied_hooks as $hooker) {
-            if ($hooker->parent_hook->hook_mode === $mode) {
-                $ret[] = $hooker;
-            }
-        }
-        return $ret;
-    }
+
 
 
 
@@ -194,6 +170,7 @@ class Thing extends Model
                     ->join('thing_descendants', 'thing_descendants.id', '=', 'desc_b.parent_thing_id')
             );
 
+        /** @noinspection PhpUndefinedMethodInspection */
         $query_nodes = DB::table("things as node_a")
             ->selectRaw("node_a.id, thing_descendants.level, thing_descendants.max_priority")
             ->where('node_a.id', $this->id)
@@ -215,6 +192,7 @@ class Thing extends Model
 
             )->withRecursiveExpression('thing_descendants',$query_descendants);
 
+        /** @noinspection PhpUndefinedMethodInspection */
         $query_term = DB::table("things as term")->selectRaw("term.id, term.thing_priority, max(term.thing_priority) OVER () as max_thinger")
             ->join('thing_nodes', 'thing_nodes.id', '=', 'term.id')
             ->leftJoin('things as y', 'y.parent_thing_id', '=', 'term.id')
@@ -304,24 +282,16 @@ class Thing extends Model
                 } else if ($this->thing_stat->checkForDataOverflow()) {
                     $this->doBackoff();
                     $this->save();
-                    $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_RESOURCES_NOTICE);
                 } else {
                     $action->setLimitDataByteRows($this->thing_stat->stat_limit_data_byte_rows);
-                    $blocking = $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_BEFORE_RUNNING_HOOK);
 
-                    if (count($blocking)) {
-                        $this->thing_status = TypeOfThingStatus::THING_HOOKED_BEFORE_RUN;
-                        $this->save(); //after hooks finished and resume, the node goes through this function again
-                    } else {
-                        $send_back_to_pending = false;
-                        $not_done = false;
+
+
                         $data_for_this = [];
                         $constant_data = $this->thing_stat->stat_constant_data->getArrayCopy();
                         $data_for_parent = [];
-                        ThingHooker::getHookerData(
-                            thing_id: $this->id, mode: TypeOfHookMode::NODE_BEFORE_RUNNING_HOOK, b_out_of_time: $send_back_to_pending,
-                            b_still_pending: $not_done, data_for_this: $data_for_this, data_for_parent: $data_for_parent);
-                        if (!$send_back_to_pending && !$not_done) {
+                        //todo data is set by callbacks when they complete, also this flow is changing because batch, figure out sending back to pending and stuff
+
                             $all_data_to_action = array_merge($data_for_this,$constant_data);
                             $action->runAction($all_data_to_action); //set hook data
                             if (!empty($data_for_parent)) {
@@ -347,22 +317,16 @@ class Thing extends Model
                             if ($this->thing_stat->checkForDataOverflow()) {
                                 //do backoff of its parent, if no parent then no backoff
                                 $this->thing_parent?->doBackoff();
-                                $this->thing_parent?->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_RESOURCES_NOTICE);
                             }
 
 
-                            if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
-                                $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_SUCCESS_NOTICE);
-                            } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR || $this->thing_status === TypeOfThingStatus::THING_FAIL) {
-                                $this->dispatchHooksOfMode(mode: TypeOfHookMode::NODE_FAILURE_NOTICE);
-                            }
                             if ($action->isActionComplete()) {
 
                                 //it is done, for better or worse
 
 
                                 if ($this->parent_thing_id) {
-                                    $new_children = [];
+
                                     //notify parent action of result
                                     $this->thing_parent->getAction()?->setChildActionResult(child: $action);
                                     if ($this->thing_parent->getAction()?->isActionComplete()) {
@@ -383,28 +347,19 @@ class Thing extends Model
                                             $this->pushLeavesToJobs();
                                         }
                                     }
-                                    if (count($new_children) === 0) {
-                                        if ($this->thing_status === TypeOfThingStatus::THING_SUCCESS) {
-                                            $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_SUCCESS_NOTICE);
-                                        } elseif ($this->thing_status === TypeOfThingStatus::THING_ERROR || $this->thing_status === TypeOfThingStatus::THING_FAIL) {
-                                            $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_FAILURE_NOTICE);
-                                        }
-                                    }
-                                } else {
-                                    $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_FINISHED_NOTICE);
-                                    $this->dispatchHooksOfMode(mode: TypeOfHookMode::SYSTEM_TREE_RESULTS);
-                                } //else no parent
+
+                                }
                             } //if action is complete (it will run again next time this is called for the thing)
-                        } //if not sent back to pending (ttl)
-                    } //else not blocked
+
+
                 } //else not overflowed
             } //if not complete
             DB::commit();
-        } catch (HbcThingStackException) {
+        } catch (HbcThingStackException $e) {
             DB::commit();
             $this->thing_status = TypeOfThingStatus::THING_RESOURCES;
-            $this->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_RESOURCES_NOTICE);
             $this->save();
+            throw $e;
         }catch (Exception $e) {
             DB::rollBack();
             $this->thing_status = TypeOfThingStatus::THING_ERROR;
@@ -471,25 +426,17 @@ class Thing extends Model
     /**
      * @throws Exception
      */
-    public static function buildFromAction(IThingAction $action, IThingOwner $owner,
-                                           bool $b_run_now = true,
-                                           array $extra_tags = []
-    ): ?ThingHooker
+    public static function buildFromAction(IThingAction $action, IThingOwner $owner, array $extra_tags = [])
+    : \Illuminate\Database\Eloquent\Collection
     {
 
         try {
             DB::beginTransaction();
             $root = static::makeThingTree(action: $action, extra_tags: $extra_tags,owner: $owner);
-            $blocking = $root->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_CREATION_HOOK);
-            if (empty($blocking) && $b_run_now) {
-                $blocking = $root->dispatchHooksOfMode(mode: TypeOfHookMode::TREE_STARTING_HOOK);
-                if (empty($blocking)) {
-                    $root->pushLeavesToJobs();
-                }
 
-            }
+            $root->pushLeavesToJobs();
             DB::commit();
-            return ThingHooker::buildHooker(thing_id: $root->id, mode: TypeOfHookMode::SYSTEM_TREE_RESULTS)->first();
+            return ThingCallback::buildCallback(thing_id: $root->id)->get();
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;
@@ -533,7 +480,6 @@ class Thing extends Model
                 static::makeTreeNodes(parent_thing: $root, node: $a_node);
             }
 
-            ThingHook::makeHooksForThing(thing: $root);
             DB::commit();
             return static::getThing(id: $root->id);
         } catch (Exception $e) {
@@ -653,7 +599,7 @@ class Thing extends Model
         foreach ( $children as $child) {
             static::makeTreeNodes(parent_thing: $tree_node,node: $child);
         }
-        ThingHook::makeHooksForThing(thing: $tree_node);
+
         return $tree_node;
     }
 
@@ -732,6 +678,7 @@ class Thing extends Model
         }
 
         if ($include_my_descendants && $me_id) {
+            /** @noinspection PhpUndefinedMethodInspection */
             $build->withRecursiveExpression('my_thing_descendants',
                 /** @param \Illuminate\Database\Query\Builder $query */
                 function ($query) use($me_id)
@@ -751,7 +698,7 @@ class Thing extends Model
         if ($eager_load) {
             /**
              * @uses Thing::thing_parent(),Thing::thing_children(),Thing::thing_error(),
-             * @uses Thing::thing_root(),Thing::thing_stat(),Thing::applied_hooks(),static::thing_setting()
+             * @uses Thing::thing_root(),Thing::thing_stat(),Thing::applied_callbacks(),static::thing_setting()
              */
             $build->with('thing_parent', 'thing_children', 'thing_error',
                 'thing_root', 'thing_stat', 'applied_hooks', 'thing_setting');

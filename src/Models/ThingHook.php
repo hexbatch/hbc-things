@@ -4,9 +4,9 @@ namespace Hexbatch\Things\Models;
 
 
 use ArrayObject;
-use Hexbatch\Things\Enums\TypeOfHookBlocking;
+use Hexbatch\Things\Enums\TypeOfCallback;
+use Hexbatch\Things\Enums\TypeOfCallbackSharing;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Enums\TypeOfHookPosition;
 use Hexbatch\Things\Enums\TypeOfHookScope;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Interfaces\IHookParams;
@@ -30,18 +30,26 @@ use Illuminate\Support\Facades\DB;
  * @property string owner_type
  * @property int owner_type_id
  * @property bool is_on
+ * @property bool is_blocking
+ * @property bool is_writing_data_to_thing
+ * @property int ttl_shared
+ * @property int hook_priority
  *
  * @property string ref_uuid
  * @property string hook_name
+ * @property string  address
  * @property string hook_notes
  * @property ArrayObject hook_constant_data
  * @property ArrayObject hook_tags
  * @property TypeOfHookMode hook_mode
- * @property TypeOfHookBlocking blocking_mode
  * @property TypeOfHookScope hook_scope
- * @property TypeOfHookPosition hook_position
  *
- * @property ThingCallplate[] hook_callplates
+ * @property ArrayObject hook_data_template
+ * @property ArrayObject hook_header_template
+ * @property TypeOfCallback hook_callback_type
+ * @property TypeOfCallbackSharing hook_sharing_type
+ * @property ThingCallback[] hook_callbacks
+ *
  *
  */
 class ThingHook extends Model
@@ -76,47 +84,39 @@ class ThingHook extends Model
         'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfHookMode::class,
         'hook_scope' => TypeOfHookScope::class,
-        'hook_position' => TypeOfHookPosition::class,
-        'blocking_mode' => TypeOfHookBlocking::class,
+        'hook_header_template' => AsArrayObject::class,
+        'hook_callback_type' => TypeOfCallback::class,
+        'hook_sharing_type' => TypeOfCallbackSharing::class,
     ];
 
 
-    public function hook_callplates() : HasMany {
-        return $this->hasMany(ThingCallplate::class,'callplate_for_hook_id','id')
-            /** @uses ThingCallplate::callplate_owning_hook() */
-            ->with('callplate_owning_hook');
+    /**
+     * @see static::hook_callbacks() used in laravel
+     * @see static::$hook_callbacks as the bind point
+     */
+    public function hook_callbacks() : HasMany {
+        return $this->hasMany(ThingCallback::class,'owning_hook_id','id');
     }
 
 
     /**
-     * @return ThingHooker[]
+     * //todo hooks are assigned at run time, using tags, owner and action filters..  not design time, call this when the thing runs
+     * //put the finally, success and fail callbacks into the batch setup, position the node callbacks in parallel or sequence, before or after thing
+     * @return ThingHook[]
      * @throws \Exception
+     * @noinspection PhpUnused
      */
     public static function makeHooksForThing(Thing $thing, ?TypeOfHookMode $mode = null) : array {
 
         try {
-            $ret = [];
+
             DB::beginTransaction();
-            //figure out node position
-            if (!$thing->parent_thing_id) {
-                $position = TypeOfHookPosition::ROOT;
-            } elseif (count($thing->thing_children) > 0) {
-                $position = TypeOfHookPosition::SUB_ROOT;
-            } else {
-                $position = TypeOfHookPosition::LEAF;
-            }
-            /** @var ThingHook[] $hooks */
-            $hooks = ThingHook::buildHook(mode: $mode, action: $thing->getAction(), owner: $thing->getOwner(),
-                position: $position,tags: $thing->thing_tags->getArrayCopy())->get();
 
-            foreach ($hooks as $hook) {
-                $hooker = new ThingHooker();
-                $hooker->hooked_thing_id = $thing->id;
-                $hooker->owning_hook_id = $hook->id;
-                $hooker->save(); //callbacks are made from the pool of callplates when the hooker is run
 
-                $ret[] = ThingHooker::buildHooker(id: $hooker->id);
-            }
+            /** @var ThingHook[] $ret */
+            $ret = ThingHook::buildHook(mode: $mode, action: $thing->getAction(), owner: $thing->getOwner(),
+                tags: $thing->thing_tags->getArrayCopy())->get()->toArray();
+
             DB::commit();
             return $ret;
         } catch(\Exception $e) {
@@ -125,17 +125,6 @@ class ThingHook extends Model
         }
     }
 
-    public function isBlocking() : bool {
-        if (in_array($this->blocking_mode,[
-            TypeOfHookBlocking::BLOCK,
-            TypeOfHookBlocking::BLOCK_ADD_DATA_TO_CURRENT,
-            TypeOfHookBlocking::BLOCK_ADD_DATA_TO_PARENT])
-        ) {
-            return true;
-        }
-
-        return false;
-    }
 
 
     public static function buildHook(
@@ -148,8 +137,6 @@ class ThingHook extends Model
         ?string             $owner_type = null,
         ?int                $owner_id = null,
         array               $owners = [],
-
-        ?TypeOfHookPosition $position = null,
         ?array              $tags = null
     )
     : Builder
@@ -213,12 +200,6 @@ class ThingHook extends Model
             $build->where('thing_hooks.hook_mode',$mode);
         }
 
-        if ($position) {
-            $build->where(function (Builder $q) use($position) {
-                $q->where('thing_hooks.hook_position',$position);
-                $q->orWhere('thing_hooks.hook_position',TypeOfHookPosition::ANY_POSITION);
-            });
-        }
 
         if ($tags !== null ) {
             if (count($tags) ) {
@@ -229,11 +210,6 @@ class ThingHook extends Model
             }
         }
 
-
-        /**
-         * @uses ThingHook::hook_callplates()
-         */
-        $build->with('hook_callplates');
 
 
         return $build;
@@ -252,29 +228,38 @@ class ThingHook extends Model
         $hook->action_type_id = $action?->getActionId() ;
         $hook->action_type = $action?->getActionType() ;
         $hook->is_on = $it->isHookOn() ;
+        $hook->is_blocking = $it->isBlocking() ;
+        $hook->is_writing_data_to_thing = $it->isWriting() ;
         $hook->hook_constant_data = $it->getConstantData() ;
         $hook->hook_tags = $it->getHookTags() ;
         $hook->hook_notes = $it->getHookNotes() ;
         $hook->hook_name = $it->getHookName() ;
 
+
         if (!$it->getHookMode()) { throw new HbcThingException("Need hook mode");}
         $hook->hook_mode = $it->getHookMode() ;
-
-        if (!$it->getHookBlocking()) { throw new HbcThingException("Need hook blocking");}
-        $hook->blocking_mode = $it->getHookBlocking() ;
 
         if (!$it->getHookScope()) { throw new HbcThingException("Need hook scope");}
         $hook->hook_scope = $it->getHookScope() ;
 
-        if (!$it->getHookPosition()) { throw new HbcThingException("Need hook position");}
-        $hook->hook_position = $it->getHookPosition() ;
+
+
+
+        $hook->ttl_shared = $it->getSharedTtl();
+        $hook->hook_data_template = $it->getDataTemplate();
+        $hook->hook_header_template = $it->getHeaderTemplate();
+
+
+        if (!$it->getCallbackSharing()) { throw new HbcThingException("Need sharing mode");}
+        $hook->hook_sharing_type = $it->getCallbackSharing();
+
+        if (!$it->getCallbackType()) { throw new HbcThingException("Need callback type");}
+        $hook->hook_callback_type = $it->getCallbackType();
+
+        if (!$it->getAddress()) { throw new HbcThingException("Need address");}
+        $hook->address = $it->getAddress();
 
         $hook->save();
-
-        foreach ($it->getCallplates() as $callplate_setup) {
-            ThingCallplate::makeCallplate(hook: $hook,setup: $callplate_setup);
-        }
-
         $hook->refresh();
         return $hook;
     }

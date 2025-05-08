@@ -15,21 +15,23 @@ return new class extends Migration
         Schema::create('thing_callbacks', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('owning_hooker_id')
+            $table->foreignId('owning_hook_id')
                 ->nullable(false)
-                ->comment("the hooker that runs this callback")
+                ->comment("the hook that spawned this callback")
                 ->index()
-                ->constrained('thing_hookers')
+                ->constrained('thing_hooks')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->foreignId('owning_callplate_id')
+
+            $table->foreignId('source_thing_id')
                 ->nullable(false)
-                ->comment("if generated from a callback tempalte")
+                ->comment("The thing this is for")
                 ->index()
-                ->constrained('thing_callplates')
+                ->constrained('things')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
+
 
             $table->foreignId('callback_error_id')
                 ->nullable()
@@ -39,6 +41,12 @@ return new class extends Migration
                 ->constrained('thing_errors')
                 ->cascadeOnUpdate()
                 ->nullOnDelete();
+
+
+
+
+            $table->boolean('is_initialized')->default(false)->nullable(false)
+                ->comment('if true then the outgoing data is filled in');
 
             $table->integer('callback_http_code')->nullable()->default(null)
                 ->comment('When the callback was made, what was the http code from that url');
@@ -91,7 +99,11 @@ return new class extends Migration
 
         DB::statement('ALTER TABLE thing_callbacks ALTER COLUMN ref_uuid SET DEFAULT uuid_generate_v4();');
 
-
+        Schema::table('thing_callbacks', function (Blueprint $table) {
+            $table->string('batch_string_id', 255)
+                ->nullable()->default(null)
+                ->comment("last batch id");
+        });
 
 
     }

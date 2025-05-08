@@ -5,25 +5,11 @@ namespace Hexbatch\Things\Enums;
  */
 enum TypeOfHookMode : string {
     case NONE = 'none';
-    case TREE_CREATION_HOOK = 'tree_creation_hook';
-    case TREE_STARTING_HOOK = 'tree_starting_hook';
-    case NODE_BEFORE_RUNNING_HOOK = 'node_before_running_hook';
-    case NODE_AFTER_RUNNING_HOOK = 'node_after_running_hook';
+    case NODE = 'node';
 
-
-    case TREE_RESOURCES_NOTICE = 'tree_resources_notice';
-    case NODE_RESOURCES_NOTICE = 'node_resources_notice';
-
-
-
-    case TREE_FINISHED_NOTICE = 'tree_finished_notice';
-    case SYSTEM_TREE_RESULTS = 'system_tree_results';
-    case TREE_SUCCESS_NOTICE = 'tree_success_notice';
-    case TREE_FAILURE_NOTICE = 'tree_failure_notice';
-
-
-    case NODE_FAILURE_NOTICE = 'node_failure_notice';
-    case NODE_SUCCESS_NOTICE = 'node_success_notice';
+    case NODE_FAILURE = 'node_failure';
+    case NODE_SUCCESS = 'node_success';
+    case NODE_FINALLY = 'node_finally';
 
 
     public static function tryFromInput(string|int|bool|null $test ) : TypeOfHookMode {

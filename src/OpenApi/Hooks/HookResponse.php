@@ -3,7 +3,6 @@
 namespace Hexbatch\Things\OpenApi\Hooks;
 
 use Hexbatch\Things\Models\ThingHook;
-use Hexbatch\Things\OpenApi\Hooks\Callplates\CallplateResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 
@@ -26,18 +25,12 @@ class HookResponse extends HookParams implements  JsonSerializable
     protected ?string  $owner_id = null;
 
 
-    #[OA\Property( title: 'Callback templates',description: 'Callbacks are made from these.',nullable: false)]
-    /** @var CallplateResponse[] $callplates */
-    protected array $callplates = [];
-
     public function __construct(
         protected ThingHook $hook
     ) {
 
         parent::__construct(
             mode: $hook->hook_mode,
-            position:  $hook->hook_position,
-            blocking:  $hook->blocking_mode,
             scope:  $hook->hook_scope,
             name:  $hook->hook_name,
             notes:  $hook->hook_notes,
@@ -46,17 +39,20 @@ class HookResponse extends HookParams implements  JsonSerializable
             constant_data: $hook->hook_constant_data?->getArrayCopy()??[],
             tags: $hook->hook_tags?->getArrayCopy()??[],
             hook_on: $hook->is_on,
+            is_blocking: $hook->is_blocking,
+            is_writing: $hook->is_writing_data_to_thing,
+            callback_type: $hook->hook_callback_type,
+            sharing: $hook->hook_sharing_type,
+            ttl_shared: $hook->ttl_shared,
+            data_template: $hook->hook_data_template?->getArrayCopy()??[],
+            header_template: $hook->hook_header_template?->getArrayCopy()??[],
+            address: $hook->address,
         );
 
-        $this->uuid = $this->hook->ref_uuid;
+        $this->uuid = $hook->ref_uuid;
 
-        $this->callplates = [];
-        foreach ($hook->hook_callplates as $callplate) {
-            $this->callplates[] = new CallplateResponse(callplate: $callplate);
-        }
-
-        $this->owner_id = $this->hook->getOwner()?->getOwnerId();
-        $this->owner_type = $this->hook->getOwner()?->getOwnerType();
+        $this->owner_id = $hook->getOwner()?->getOwnerId();
+        $this->owner_type = $hook->getOwner()?->getOwnerType();
     }
 
     public function jsonSerialize(): array
@@ -66,7 +62,6 @@ class HookResponse extends HookParams implements  JsonSerializable
         $arr['uuid'] = $this->uuid;
         $arr['owner_id'] = $this->owner_id;
         $arr['owner_type'] = $this->owner_type;
-        $arr['callplates'] = $this->callplates;
         return $arr;
     }
 }

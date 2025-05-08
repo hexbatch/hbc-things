@@ -45,6 +45,8 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
 
+
+
             $table->bigInteger('action_type_id')
                 ->nullable()->default(null)
                 ->comment("The id of the action, see type to lookup");
@@ -125,6 +127,10 @@ return new class extends Migration
             $table->string('owner_type',30)
                 ->nullable()->default(null)
                 ->comment("The type of owner");
+
+            $table->string('batch_string_id',255)
+                ->nullable()->default(null)
+                ->comment("last batch id");
 
             $table->index(['action_type','action_type_id'],'idx_thing_action');
             $table->index(['owner_type','owner_type_id'],'idx_thing_owner');

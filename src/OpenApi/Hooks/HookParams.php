@@ -3,14 +3,13 @@
 namespace Hexbatch\Things\OpenApi\Hooks;
 
 
-use Hexbatch\Things\Enums\TypeOfHookBlocking;
+use Hexbatch\Things\Enums\TypeOfCallback;
+use Hexbatch\Things\Enums\TypeOfCallbackSharing;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Enums\TypeOfHookPosition;
 use Hexbatch\Things\Enums\TypeOfHookScope;
 use Hexbatch\Things\Interfaces\IHookParams;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
-use Hexbatch\Things\OpenApi\Hooks\Callplates\CallplateParams;
 use Illuminate\Http\Request;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
@@ -30,11 +29,6 @@ class HookParams implements IHookParams, JsonSerializable
         #[OA\Property( title: 'Mode',description: 'Each hook must have a mode set',nullable: false)]
         protected ?TypeOfHookMode $mode = null,
 
-        #[OA\Property( title: 'Position',description: 'Where the hook can be set at',nullable: false)]
-        protected ?TypeOfHookPosition $position = null,
-
-        #[OA\Property( title: 'Blocking',description: 'Must the hook be completed before the thing can complete?',nullable: false)]
-        protected ?TypeOfHookBlocking $blocking = null,
 
         #[OA\Property( title: 'Scope',description: 'Scope of the hook action',nullable: false)]
         protected TypeOfHookScope $scope = TypeOfHookScope::CURRENT,
@@ -65,9 +59,36 @@ class HookParams implements IHookParams, JsonSerializable
         #[OA\Property( title: 'Active',description: 'If false, the callback is not used until this is changed.',nullable: true)]
         protected bool $hook_on = true,
 
-        #[OA\Property( title: 'Callback definitions',description: 'Hooks can have one or more callbacks.',nullable: true)]
-        /** @var CallplateParams[] $callplate_setup */
-        protected array $callplate_setup = [],
+
+        #[OA\Property( title: 'Blocking',description: 'If true, then blocks.',nullable: true)]
+        protected bool $is_blocking = true,
+
+        #[OA\Property( title: 'Writing',description: 'If true writes to thing or thing parent.',nullable: true)]
+        protected bool $is_writing = true,
+
+
+        #[OA\Property( title:"Callback type",description: 'What type of callback is this?')]
+        protected ?TypeOfCallback $callback_type = null,
+
+
+        #[OA\Property( title:"Sharing policy",description: 'Is this shared?')]
+        protected ?TypeOfCallbackSharing $sharing = TypeOfCallbackSharing::NO_SHARING,
+
+
+        #[OA\Property( title:"Seconds this shared is kept",description: 'Use only if shared')]
+        protected ?int $ttl_shared = null,
+
+
+        #[OA\Property( title:"Data template",description: 'The keys that make up the query|body|form|event|xml data')]
+        protected array $data_template = [],
+
+
+        #[OA\Property( title:"Header template",description: 'The keys that make up the header for the http requests')]
+        protected array $header_template = [],
+
+
+        #[OA\Property( title:"Address",description: 'the url|callable|evemt')]
+        protected ?string $address = null,
 
         protected ?array $from_array = null
 
@@ -80,8 +101,6 @@ class HookParams implements IHookParams, JsonSerializable
     {
         return [
             'mode' => $this->mode->value,
-            'blocking' => $this->blocking->value,
-            'position' => $this->position->value,
             'scope' => $this->scope->value,
             'name' => $this->name,
             'notes' => $this->notes,
@@ -90,10 +109,17 @@ class HookParams implements IHookParams, JsonSerializable
             'action_type' => $this->action?->getActionType(),
             'action_id' => $this->action?->getActionId(),
             'hook_on' => $this->hook_on,
+            'is_writing' => $this->is_writing,
+            'is_blocking' => $this->is_blocking,
             'constant_data' => $this->constant_data,
             'tags' => $this->tags,
 
-            'callplate_setup' => $this->callplate_setup,
+            'callback_type' => $this->callback_type->value,
+            'sharing' => $this->callback_type->value,
+            'ttl_shared' => $this->ttl_shared,
+            'data_template' => $this->data_template,
+            'header_template' => $this->header_template,
+            'address' => $this->address,
         ];
     }
 
@@ -111,13 +137,6 @@ class HookParams implements IHookParams, JsonSerializable
             $this->mode = TypeOfHookMode::tryFromInput($mode);
         }
 
-        if ($blocking = (string)$source['blocking']??null) {
-            $this->blocking = TypeOfHookBlocking::tryFromInput($blocking);
-        }
-
-        if ($position = (string)$source['position']??null) {
-            $this->position = TypeOfHookPosition::tryFromInput($position);
-        }
 
         if ($scope = (string)$source['scope']??null) {
             $this->scope = TypeOfHookScope::tryFromInput($scope);
@@ -140,6 +159,8 @@ class HookParams implements IHookParams, JsonSerializable
         }
 
         $this->hook_on =  filter_var($source['hook_on']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
+        $this->is_blocking =  filter_var($source['is_blocking']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
+        $this->is_writing =  filter_var($source['is_writing']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
 
         if ( ($const = $source['constant_data']??null ) && is_array($const)) {
             $this->constant_data = $const;
@@ -150,12 +171,29 @@ class HookParams implements IHookParams, JsonSerializable
             $this->tags = $ag;
         }
 
-        if ( ($setup = $source['callplate_setup']??null ) && is_array($setup)) {
-            foreach ($setup as $part) {
-                if (is_array($part)) {
-                    $this->callplate_setup[] = CallplateParams::fromArray(source: $part);
-                }
-            }
+        if ($type = (string)$source['callback_type']??null) {
+            $this->callback_type = TypeOfCallback::tryFromInput($type);
+        }
+
+        $this->sharing = TypeOfCallbackSharing::NO_SHARING;
+        if ($sharing = (string)$source['sharing']??null) {
+            $this->sharing = TypeOfCallbackSharing::tryFromInput($sharing);
+        }
+
+        if ($ttl = (int)$source['ttl_shared']??null) {
+            $this->ttl_shared = $ttl;
+        }
+
+        if ($address = (string)$source['address']??null) {
+            $this->address = $address;
+        }
+
+        if ( ($body = $source['data_template']??null ) && is_array($body)) {
+            $this->data_template = $body;
+        }
+
+        if ( ($header = $source['header_template']??null ) && is_array($header)) {
+            $this->header_template = $header;
         }
     }
 
@@ -198,20 +236,11 @@ class HookParams implements IHookParams, JsonSerializable
         return $this->mode;
     }
 
-    public function getHookBlocking(): ?TypeOfHookBlocking
-    {
-        return $this->blocking;
-    }
-
     public function getHookScope(): TypeOfHookScope
     {
         return $this->scope;
     }
 
-    public function getHookPosition(): ?TypeOfHookPosition
-    {
-        return $this->position;
-    }
 
     public function getHookName(): ?string
     {
@@ -223,10 +252,35 @@ class HookParams implements IHookParams, JsonSerializable
         return $this->notes;
     }
 
-    /** @return CallplateParams[] */
-    public function getCallplates(): array
+    public function getCallbackType(): ?TypeOfCallback
     {
-        return $this->callplate_setup;
+        return $this->callback_type;
+    }
+
+    public function getCallbackSharing():  ?TypeOfCallbackSharing
+    {
+        return $this->sharing;
+    }
+
+    public function getDataTemplate(): array
+    {
+        return $this->data_template;
+    }
+
+    public function getHeaderTemplate(): array
+    {
+        return $this->header_template;
+    }
+
+    public function getAddress(): string
+    {
+        return $this->address;
+    }
+
+
+    public function getSharedTtl(): ?int
+    {
+        return $this->ttl_shared;
     }
 
 
@@ -234,5 +288,15 @@ class HookParams implements IHookParams, JsonSerializable
     {
         $this->owner = $owner;
         return $this;
+    }
+
+    public function isBlocking(): bool
+    {
+        return $this->is_blocking;
+    }
+
+    public function isWriting(): bool
+    {
+        return $this->is_writing;
     }
 }

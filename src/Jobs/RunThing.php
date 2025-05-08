@@ -4,27 +4,37 @@ namespace Hexbatch\Things\Jobs;
 
 
 use Hexbatch\Things\Models\Thing;
+use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
+use Illuminate\Queue\Attributes\WithoutRelations;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\SkipIfBatchCancelled;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 
-
+#[DeleteWhenMissingModels]
 class RunThing implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels,Batchable;
+
 
     /**
      * Create a new job instance.
      */
     public function __construct(
+        #[WithoutRelations]
         public Thing $thing
     ) {}
 
 
+    /**
+     * @throws \Exception
+     */
     public function handle(): void
     {
         try {
@@ -33,5 +43,15 @@ class RunThing implements ShouldQueue
             Log::error(message: "while running thing: ".$e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
             throw $e;
         }
+    }
+
+    /**
+     * Get the middleware the job should pass through.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(): array
+    {
+        return [(new WithoutOverlapping($this->thing->ref_uuid))->expireAfter(180) , new SkipIfBatchCancelled()];
     }
 }
