@@ -20,6 +20,14 @@ trait ThingActionHandler
         return $resolver::resolveAction(action_id: $action_id);
     }
 
+    protected static function isRegisteredActionType(string $action_type) : bool {
+        return !empty(static::$action_type_lookup[$action_type]);
+    }
+
+    protected static function isRegisteredAction(string $action_type, int $action_id) : bool {
+        return !!static::resolveAction(action_type: $action_type,action_id: $action_id);
+    }
+
     public static function registerActionType(IThingAction|string $action_class) :void {
         $interfaces = class_implements($action_class);
         if (!isset($interfaces['Hexbatch\Things\Interfaces\IThingAction'])) {

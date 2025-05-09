@@ -22,6 +22,15 @@ trait ThingOwnerHandler
         return $resolver::resolveOwner(owner_id: $owner_id);
     }
 
+
+    protected static function isRegisteredOwnerType(string $owner_type) : bool {
+        return !empty(static::$owner_type_lookup[$owner_type]);
+    }
+
+    protected static function isRegisteredOwner(string $owner_type, int $owner_id) : bool {
+        return !!static::resolveOwner(owner_type: $owner_type,owner_id: $owner_id);
+    }
+
     public static function registerOwnerType(IThingOwner|string $owner_class) :void {
         $interfaces = class_implements($owner_class);
         if (!isset($interfaces['Hexbatch\Things\Interfaces\IThingOwner'])) {

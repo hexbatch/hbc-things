@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
 
+
 /**
  * @mixin Builder
  * @mixin \Illuminate\Database\Query\Builder
@@ -44,7 +45,6 @@ use Illuminate\Support\Facades\DB;
  * @property string hook_name
  * @property string  address
  * @property string hook_notes
- * @property ArrayObject hook_constant_data
  * @property ArrayObject hook_tags
  * @property TypeOfHookMode hook_mode
  *
@@ -67,7 +67,27 @@ class ThingHook extends Model
      *
      * @var array<int, string>
      */
-    protected $fillable = [];
+    protected $fillable = [
+        'action_type',
+        'action_type_id',
+        'owner_type',
+        'owner_type_id',
+        'is_on',
+        'is_manual',
+        'is_after',
+        'is_sharing',
+        'is_blocking',
+        'is_writing_data_to_thing',
+        'ttl_shared',
+        'hook_priority',
+        'hook_name',
+        'address',
+        'hook_notes',
+        'hook_tags',
+        'hook_mode',
+        'hook_data_template',
+        'hook_header_template',
+    ];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -87,7 +107,6 @@ class ThingHook extends Model
         'is_after' => 'boolean',
         'is_sharing' => 'boolean',
         'is_blocking' => 'boolean',
-        'hook_constant_data' => AsArrayObject::class,
         'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfHookMode::class,
         'hook_header_template' => AsArrayObject::class,
@@ -270,7 +289,6 @@ class ThingHook extends Model
         $hook->is_manual = $it->isManual() ;
         $hook->is_blocking = $it->isBlocking() ;
         $hook->is_writing_data_to_thing = $it->isWriting() ;
-        $hook->hook_constant_data = $it->getConstantData() ;
         $hook->hook_tags = $it->getHookTags() ;
         $hook->hook_notes = $it->getHookNotes() ;
         $hook->hook_name = $it->getHookName() ;

@@ -35,7 +35,6 @@ class HookResponse extends HookParams implements  JsonSerializable
             notes: $hook->hook_notes,
             action_type: $hook->getAction()?->getActionType(),
             action_id: $hook->getAction()?->getActionId(),
-            constant_data: $hook->hook_constant_data?->getArrayCopy()??[],
             tags: $hook->hook_tags?->getArrayCopy()??[],
             hook_on: $hook->is_on,
             is_blocking: $hook->is_blocking,

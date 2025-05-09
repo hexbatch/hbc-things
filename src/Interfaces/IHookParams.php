@@ -10,7 +10,6 @@ interface IHookParams
     public function getHookOwner() : ?IThingOwner;
     public function setHookOwner(?IThingOwner $owner) :IHookParams  ;
     public function getHookAction() : ?IThingAction;
-    public function getConstantData():  array;
     public function getHookTags():  array;
     public function isHookOn():  bool;
     public function isBlocking():  bool;

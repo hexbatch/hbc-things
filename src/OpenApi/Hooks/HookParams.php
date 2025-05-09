@@ -43,8 +43,6 @@ class HookParams implements IHookParams, JsonSerializable
         #[OA\Property( title: 'Action id filter',description: 'Optional action used to filter.',nullable: true)]
         protected ?string  $action_id = null,
 
-        #[OA\Property( title: 'Callback constants to send',description: 'Optional data to send in each callback.',nullable: true)]
-        protected array $constant_data = [],
 
         #[OA\Property( title: 'Tags filter',description: 'Optional tags used to filter.',nullable: true)]
         protected array $tags = [],
@@ -81,7 +79,7 @@ class HookParams implements IHookParams, JsonSerializable
         protected ?int $ttl_shared = null,
 
 
-        #[OA\Property( title:"Data template",description: 'The keys that make up the query|body|form|event|xml data')]
+        #[OA\Property( title:"Data template",description: 'The keys that make up the query|body|form|event data')]
         protected array $data_template = [],
 
 
@@ -115,7 +113,6 @@ class HookParams implements IHookParams, JsonSerializable
             'is_blocking' => $this->is_blocking,
             'is_manual' => $this->is_manual,
             'is_after' => $this->is_after,
-            'constant_data' => $this->constant_data,
             'tags' => $this->tags,
 
             'callback_type' => $this->callback_type->value,
@@ -166,10 +163,6 @@ class HookParams implements IHookParams, JsonSerializable
         $this->is_manual =  filter_var($source['is_manual']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
         $this->is_after =  filter_var($source['is_after']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
 
-        if ( ($const = $source['constant_data']??null ) && is_array($const)) {
-            $this->constant_data = $const;
-        }
-
 
         if ( ($ag = $source['tags']??null ) && is_array($ag)) {
             $this->tags = $ag;
@@ -215,10 +208,6 @@ class HookParams implements IHookParams, JsonSerializable
         return $this->action;
     }
 
-    public function getConstantData(): array
-    {
-        return $this->constant_data;
-    }
 
     public function getHookTags(): array
     {

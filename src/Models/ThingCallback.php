@@ -10,6 +10,7 @@ use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Helpers\CallResponse;
 use Hexbatch\Things\Interfaces\ICallResponse;
+use Hexbatch\Things\Interfaces\IHookCode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -17,8 +18,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use LaLit\Array2XML;
-use LaLit\XML2Array;
 use TorMorten\Eventy\Facades\Eventy;
 
 
@@ -163,28 +162,32 @@ class ThingCallback extends Model
         return $ret;
     }
 
-    protected function getOutoingDataAsArray() : array {
+    protected function getOutgoingDataAsArray(?ThingHook $hook = null, ?Thing $thing = null) : array {
 
-        $fourth_data = [
+        if (!$hook) {$hook = $this->owning_hook;}
+        /** @uses static::thing_source() */
+        if (!$thing) {$thing = $this->thing_source;}
+
+        $action = $thing->getAction();
+
+        $uuid_data = [
             'callback' => $this->ref_uuid,
-            'hook' => $this->owning_hook->ref_uuid,
-            'thing' => $this->owning_hook->ref_uuid,
-            'action' => $this->owning_hook->getAction()?->getActionRef()??null,
+            'hook' => $hook->ref_uuid,
+            'thing' => $thing->ref_uuid,
+            'action' => $action?->getActionRef()??null,
         ];
 
-        $third_data = $this->owning_hook->thing_stat->stat_constant_data?->getArrayCopy()??[];
+        $action_constants = $action?->getInitialConstantData()??[];
+        $thing_constants = $thing->thing_constant_data?->getArrayCopy()??[];
 
         $action_data = [];
-        $action = $this->owning_hook->getAction();
         if ($action?->isActionComplete()) {
             $action_data = $action->getActionResult();
         }
 
-        $second_data = $this->owning_hook->parent_hook->hook_constant_data?->getArrayCopy()??[];
+        $template_data = $hook->hook_data_template?->getArrayCopy()??[];
 
-        $first_data = $this->callback_outgoing_data?->getArrayCopy()??[];
-
-        return array_merge($first_data,$second_data,$action_data,$third_data,$fourth_data);
+        return array_merge($template_data,$thing_constants,$uuid_data,$action_constants,$action_data);
     }
 
     /**
@@ -193,21 +196,24 @@ class ThingCallback extends Model
     protected function callCode()
     :ICallResponse
     {
-        //todo check if address is correct interface, what is that?
-        $params = $this->maybeCastOutgoingData();
-        if ($this->callback_class && $this->callback_function) {
-            $method = "$this->callback_class::$this->callback_function";
-        } elseif ($this->callback_function) {
-            $method = $this->callback_function;
+        if (class_exists($this->owning_hook->address)) {
+            $interfaces = class_implements($this->owning_hook->address);
+
+            if (!isset($interfaces['Hexbatch\Things\Interfaces\IHookCode'])) {
+                throw new HbcThingException($this->owning_hook->address." does not implement IHookCode");
+            }
         } else {
-            throw new HbcThingException("no class or method, or only class, in callback");
+            throw new HbcThingException($this->owning_hook->address." is not a class, is this correct namespace?");
         }
-        $code = 200;
+
+        $code = 0;
         try {
-            $ret = call_user_func_array($method, $params);
+            /** @var IHookCode|string $callable */
+            $callable = $this->owning_hook->address;
+            $ret = $callable::runHook(header: $this->callback_outgoing_header??[],body: $this->callback_outgoing_data??[],return_int: $code  );
 
         } catch (\Exception|\Error $e) {
-            Log::warning("Got error when calling $method :".$e->getMessage());
+            Log::warning("Got error when calling $callable :".$e->getMessage());
             throw $e;
         }
 
@@ -223,9 +229,8 @@ class ThingCallback extends Model
         if (!$this->owning_hook->address) {
             throw new HbcThingException("Callback event name not defined");
         }
-        $params = $this->maybeCastOutgoingData();
         /** @noinspection PhpUndefinedMethodInspection */
-        $ret = Eventy::filter($this->owning_hook->address, array_values($params));
+        $ret = Eventy::filter($this->owning_hook->address, array_values($this->callback_outgoing_data?->getArrayCopy()??[]));
         $success = true;
         $code = 200;
         if (empty($ret) ||(is_array($ret) && count($ret) === 0)) {
@@ -235,86 +240,48 @@ class ThingCallback extends Model
         return new CallResponse(code: $code,successful: $success,data: $ret);
     }
 
-    /**
-     * @throws \Exception
-     */
-    protected function maybeCastOutgoingData() : array|null|string
+
+
+
+    protected function calculateData(array $source,?ThingHook $hook = null, ?Thing $thing = null) : array
     {
-        $params = $this->getOutoingDataAsArray();
-        switch ($this->owning_hook->hook_callback_type) {
-            case TypeOfCallback::DISABLED:
-            case TypeOfCallback::CODE:
-            case TypeOfCallback::EVENT_CALL:
-            case TypeOfCallback::HTTP_GET:
-            case TypeOfCallback::HTTP_POST:
-            case TypeOfCallback::HTTP_PUT:
-            case TypeOfCallback::HTTP_PATCH:
-            case TypeOfCallback::HTTP_DELETE:
-            case TypeOfCallback::HTTP_POST_JSON:
-            case TypeOfCallback::HTTP_PUT_JSON:
-            case TypeOfCallback::HTTP_PATCH_JSON:
-            case TypeOfCallback::HTTP_DELETE_JSON:
-            case TypeOfCallback::HTTP_POST_FORM:
-            case TypeOfCallback::HTTP_PUT_FORM:
-            case TypeOfCallback::HTTP_PATCH_FORM:
-            case TypeOfCallback::HTTP_DELETE_FORM:
-            {
-                return $params;
-            }
-            case TypeOfCallback::HTTP_POST_XML:
-            case TypeOfCallback::HTTP_PUT_XML:
-            case TypeOfCallback::HTTP_PATCH_XML:
-            case TypeOfCallback::HTTP_DELETE_XML:
-            {
-                //todo make xml from body , need root?
-                return Array2XML::createXML($this->callback_xml_root??'root', $params)->saveXML();
-            }
+        if (!$hook) {$hook = $this->owning_hook;}
+        /** @uses static::thing_source() */
+        if (!$thing) {$thing = $this->thing_source;}
 
-        }
-        return null;
-    }
+        $found_data = $this->getOutgoingDataAsArray(hook: $hook,thing: $thing);
 
-    protected function getOutgoingHeaders() : array {
-        $params = $this->getOutoingDataAsArray();
-        $ret = [];
-        $pattern = '/\$\{(\w+)}/';
-        foreach ($this->callback_outgoing_header as $header_key => $header_val) {
-
-            $has_lookup = preg_match($pattern,$header_val,$matches);
-            if ($has_lookup) {
-                if (!array_key_exists($matches[1],$params)) {
-                    continue;
+        if (empty($found_data)) {
+            $prep = $found_data;
+        } else {
+            $prep = [];
+            foreach ($source as $key => $value) {
+                if ($value === null && isset($found_data[$key])) {
+                    $prep[$key] = $found_data[$key];
+                } else {
+                    $prep[$key] = $value;
                 }
-                $modified_header_val = preg_replace_callback($pattern , function($matches) use ($params) {
-                    return $params[$matches[1]]??null;
-                }, $header_val);
-            } else {
-                $modified_header_val = $header_val;
-            }
-            $ret[$header_key] = $modified_header_val;
-        }
-
-        switch ($this->owning_hook->hook_callback_type) {
-            case TypeOfCallback::HTTP_POST_XML:
-            case TypeOfCallback::HTTP_PUT_XML:
-            case TypeOfCallback::HTTP_PATCH_XML:
-            case TypeOfCallback::HTTP_DELETE_XML:
-                $ret["Content-Type"] = "text/xml";
-                break;
-            default: {
-
             }
         }
-       return $ret;
+
+        foreach ($prep as $p_key => $p_val) {
+            if ($p_val === null) { unset($prep[$p_key]);}
+        }
+
+
+        return $prep;
     }
+
+
 
     /**
      * @throws ConnectionException
      * @throws \Exception
      */
     protected function callRemote() : ICallResponse {
-        $params = $this->maybeCastOutgoingData();
-        $headers = $this->getOutgoingHeaders();
+        $params = $this->callback_outgoing_data?->getArrayCopy()??[];
+
+        $headers = $this->callback_outgoing_header?->getArrayCopy()??[];
         $response = null;
         switch ($this->owning_hook->hook_callback_type) {
 
@@ -364,29 +331,10 @@ class ThingCallback extends Model
             case TypeOfCallback::HTTP_DELETE_JSON:
                 $response = Http::asJson()->withHeaders($headers)->delete($this->owning_hook->address,$params);
                 break;
-            case TypeOfCallback::HTTP_POST_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->post($this->owning_hook->address,$params);
-                break;
-            case TypeOfCallback::HTTP_PUT_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->put($this->owning_hook->address, $params);
-                break;
-            case TypeOfCallback::HTTP_PATCH_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->patch($this->owning_hook->address,$params);
-                break;
-            case TypeOfCallback::HTTP_DELETE_XML:
-                $response = Http::withBody($params,'text/xml')->withHeaders($headers)->delete($this->owning_hook->address,$params);
-                break;
         }
 
 
         switch ($this->owning_hook->hook_callback_type) {
-            case TypeOfCallback::HTTP_POST_XML:
-            case TypeOfCallback::HTTP_PUT_XML:
-            case TypeOfCallback::HTTP_PATCH_XML:
-            case TypeOfCallback::HTTP_DELETE_XML:
-                $string_xml = $response->body();
-                $data = XML2Array::createArray($string_xml);
-                break;
             case TypeOfCallback::HTTP_POST_JSON:
             case TypeOfCallback::HTTP_PUT_JSON:
             case TypeOfCallback::HTTP_PATCH_JSON:
@@ -456,10 +404,6 @@ class ThingCallback extends Model
                 case TypeOfCallback::HTTP_PUT_JSON:
                 case TypeOfCallback::HTTP_PATCH_JSON:
                 case TypeOfCallback::HTTP_DELETE_JSON:
-                case TypeOfCallback::HTTP_POST_XML:
-                case TypeOfCallback::HTTP_PUT_XML:
-                case TypeOfCallback::HTTP_PATCH_XML:
-                case TypeOfCallback::HTTP_DELETE_XML:
                 {
                     $response =  $this->callRemote();
                     break;
@@ -484,7 +428,20 @@ class ThingCallback extends Model
             $this->save();
         }
 
+    }
 
+
+    public static function createFromHook(ThingHook $hook,Thing $thing) : ThingCallback {
+        $node = new ThingCallback();
+        $node->owning_hook_id = $hook->id;
+        $node->source_thing_id = $thing->id;
+        $node->save(); //save and refresh first time to get uuid
+        $node->refresh();
+        $node->callback_outgoing_data = $node->calculateData(source: $hook->hook_data_template?->getArrayCopy()??[], hook: $hook, thing: $thing);
+        $node->callback_outgoing_header = $node->calculateData(source: $hook->hook_header_template?->getArrayCopy()??[],hook: $hook, thing: $thing);
+
+        $node->save();
+        return $node;
     }
 
 }

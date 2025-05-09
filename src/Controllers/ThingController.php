@@ -13,11 +13,11 @@ use Hexbatch\Things\Models\ThingSetting;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
-use HookRequest;
+use Hexbatch\Things\Requests\HookRequest;
 use Illuminate\Http\Request;
+use OpenApi\Attributes as OA;
 use OpenApi\Attributes\JsonContent;
 use Symfony\Component\HttpFoundation\Response as CodeOf;
-use OpenApi\Attributes as OA;
 
 class ThingController  {
 
@@ -29,6 +29,8 @@ class ThingController  {
         summary: 'List all the hooks registered to this owner',
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
     public function hook_list(IThingOwner $owner,ThingOwnerGroup $group) {
@@ -47,7 +49,11 @@ class ThingController  {
         description: "",
         summary: 'List all the hooks',
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented'),
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_hook_list(Request $request) {
@@ -71,7 +77,11 @@ class ThingController  {
         summary: 'Removes a hook',
 
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented'),
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_hook_destroy(ThingHook $hook) {
@@ -83,13 +93,20 @@ class ThingController  {
         operationId: 'hbc-things.hooks.admin.show',
         description: "",
         summary: 'Shows information about a hook',
-
+        security: [['bearerAuth' => []]],
+        tags: ['hook','admin'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_hook_show(ThingHook $hook) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_OK);
     }
 
 
@@ -107,7 +124,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_CREATED, description: 'The created hook',content: new JsonContent(ref: HookResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>400,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function thing_hook_create(IThingOwner $owner,HookRequest $request) {
@@ -124,13 +141,17 @@ class ThingController  {
         operationId: 'hbc-things.hooks.show',
         description: "",
         summary: 'Shows information about a hook',
-
+        security: [['bearerAuth' => []]],
+        tags: ['hook'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function thing_hook_show(ThingHook $hook,IThingOwner $owner) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    public function thing_hook_show(ThingHook $hook) {
+        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_OK);
     }
 
     #[OA\Patch(
@@ -138,13 +159,23 @@ class ThingController  {
         operationId: 'hbc-things.hooks.edit',
         description: "Affects future hooks",
         summary: 'Edits a hook',
-
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody( content: [
+            new OA\MediaType(mediaType: "multipart/form-data",schema: new  OA\Schema(ref: HookParams::class))
+        ] ),
+        tags: ['hook'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The edited hook',content: new JsonContent(ref: HookResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function thing_hook_edit(ThingHook $hook,IThingOwner $owner) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    public function thing_hook_edit(ThingHook $hook,HookRequest $request) {
+        $request->offsetUnset('is_manual'); //cannot change after creation
+        $hook->fill($request->validated());
+        $hook->save();
+        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_OK);
     }
 
 

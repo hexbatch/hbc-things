@@ -46,7 +46,7 @@ return new class extends Migration
             $table->boolean('is_manual')->default(false)->nullable(false)
                 ->comment('if true then callback has manual input');
 
-            $table->integer('ttl_shared')->default(null)->nullable(false)
+            $table->integer('ttl_shared')->default(0)->nullable(false)
                 ->comment('if set then shared callbacks are discarded if this old in seconds');
 
             $table->integer('hook_priority')
@@ -62,6 +62,7 @@ return new class extends Migration
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
 
+
             $table->jsonb('hook_data_template')
                 ->nullable()->default(null)
                 ->comment("The data and structure that makes up the query|body|form|event|xml".
@@ -74,10 +75,6 @@ return new class extends Migration
                 ->comment('This is what will be in the header for http calls'.
                     ' Keys with null values will use the values from the action,'.
                     ' or that header removed if not there');
-
-            $table->jsonb('hook_constant_data')
-                ->nullable()->default(null)
-                ->comment("This is merged with the callback outgoing data, if duplicate keys, the callback wins");
 
             $table->jsonb('hook_tags')
                 ->nullable()->default(null)
@@ -108,19 +105,15 @@ return new class extends Migration
             'http_get',
             'http_post',
             'http_post_form',
-            'http_post_xml',
             'http_post_json',
             'http_put',
             'http_put_form',
-            'http_put_xml',
             'http_put_json',
             'http_patch',
             'http_patch_form',
-            'http_patch_xml',
             'http_patch_json',
             'http_delete'
             'http_delete_form'
-            'http_delete_xml'
             'http_delete_json'
             'code',
             'event_call'
