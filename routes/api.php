@@ -81,6 +81,12 @@ Route::prefix('hbc-things')->group(function () {
             $hbc_setting_viewable,$hbc_setting_listing,
             $hbc_hook_viewable,$hbc_hook_list,$hbc_hook_editable)
     {
+        Route::prefix('callbacks')->group(function () {
+            Route::prefix('manual/{thing_callback}')->group(function () {
+                Route::post('answer', [ThingController::class, 'manual_answer'])->name('hbc-things.callbacks.manual_answer');
+            });
+        });
+
         Route::middleware($hbc_middleware)->group(function ()
             use($hbc_middleware,$hbc_admin,
                 $hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable,

@@ -247,4 +247,38 @@ class ThingSetting extends Model
         return $build;
     }
 
+
+    /**
+     * Retrieve the model for a bound value.
+     *
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return Model|null
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $ret = null;
+        try {
+            if ($field) {
+                $ret = $this->where($field, $value)->first();
+            } else {
+                if (ctype_digit($value)) {
+                    $ret = $this->where('id', $value)->first();
+                } else {
+                    $ret = $this->where('ref_uuid', $value)->first();
+                }
+            }
+            if ($ret) {
+                $ret = static::buildSetting(me_id:$ret->id)->first();
+            }
+        } finally {
+            if (empty($ret)) {
+                throw new \RuntimeException(
+                    "Did not find setting with $field $value"
+                );
+            }
+        }
+        return $ret;
+    }
+
 }

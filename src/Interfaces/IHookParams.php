@@ -16,6 +16,8 @@ interface IHookParams
     public function isBlocking():  bool;
     public function isWriting():  bool;
     public function isSharing():  bool;
+    public function isManual():  bool;
+    public function isAfter():  bool;
     public function getHookMode():  ?TypeOfHookMode;
     public function  getHookName() :?string;
     public function  getHookNotes() :?string;

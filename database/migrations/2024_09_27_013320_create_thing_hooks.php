@@ -40,6 +40,12 @@ return new class extends Migration
             $table->boolean('is_sharing')->default(false)->nullable(false)
                 ->comment('if true then callback shared among descendants');
 
+            $table->boolean('is_after')->default(false)->nullable(false)
+                ->comment('if true then callback is run after the thing is run');
+
+            $table->boolean('is_manual')->default(false)->nullable(false)
+                ->comment('if true then callback has manual input');
+
             $table->integer('ttl_shared')->default(null)->nullable(false)
                 ->comment('if set then shared callbacks are discarded if this old in seconds');
 
@@ -99,8 +105,6 @@ return new class extends Migration
 
         DB::statement("CREATE TYPE type_of_thing_callback AS ENUM (
             'disabled',
-            'manual',
-            'dump',
             'http_get',
             'http_post',
             'http_post_form',

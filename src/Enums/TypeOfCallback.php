@@ -6,8 +6,6 @@ namespace Hexbatch\Things\Enums;
 enum TypeOfCallback : string {
 
     case DISABLED = 'disabled';
-    case MANUAL = 'manual';
-    case DUMP = 'dump';
     case HTTP_GET = 'http_get';
     case HTTP_POST = 'http_post';
 

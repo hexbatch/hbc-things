@@ -41,6 +41,8 @@ class HookResponse extends HookParams implements  JsonSerializable
             is_blocking: $hook->is_blocking,
             is_writing: $hook->is_writing_data_to_thing,
             is_sharing: $hook->is_sharing,
+            is_manual: $hook->is_manual,
+            is_after: $hook->is_after,
             callback_type: $hook->hook_callback_type,
             ttl_shared: $hook->ttl_shared,
             data_template: $hook->hook_data_template?->getArrayCopy()??[],

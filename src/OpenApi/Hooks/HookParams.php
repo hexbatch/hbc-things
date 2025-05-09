@@ -55,13 +55,20 @@ class HookParams implements IHookParams, JsonSerializable
 
 
         #[OA\Property( title: 'Blocking',description: 'If true, then blocks.',nullable: true)]
-        protected bool $is_blocking = true,
+        protected bool            $is_blocking = true,
 
         #[OA\Property( title: 'Writing',description: 'If true writes to thing or thing parent.',nullable: true)]
-        protected bool $is_writing = true,
+        protected bool            $is_writing = true,
 
         #[OA\Property( title: 'Sharing',description: 'If true the callback is shared among descendants.',nullable: true)]
-        protected bool $is_sharing = true,
+        protected bool            $is_sharing = true,
+
+
+        #[OA\Property( title: 'Manual',description: 'If true the callback is manually entered.',nullable: true)]
+        protected bool            $is_manual = true,
+
+        #[OA\Property( title: 'After',description: 'If true the callback is run after the thing is run.',nullable: true)]
+        protected bool            $is_after = true,
 
 
         #[OA\Property( title:"Callback type",description: 'What type of callback is this?')]
@@ -104,7 +111,10 @@ class HookParams implements IHookParams, JsonSerializable
             'action_id' => $this->action?->getActionId(),
             'hook_on' => $this->hook_on,
             'is_writing' => $this->is_writing,
+            'is_sharing' => $this->is_sharing,
             'is_blocking' => $this->is_blocking,
+            'is_manual' => $this->is_manual,
+            'is_after' => $this->is_after,
             'constant_data' => $this->constant_data,
             'tags' => $this->tags,
 
@@ -115,6 +125,7 @@ class HookParams implements IHookParams, JsonSerializable
             'header_template' => $this->header_template,
             'address' => $this->address,
         ];
+
     }
 
     public static function fromArray(array $source) : static {
@@ -152,6 +163,8 @@ class HookParams implements IHookParams, JsonSerializable
         $this->is_blocking =  filter_var($source['is_blocking']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
         $this->is_writing =  filter_var($source['is_writing']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
         $this->is_sharing =  filter_var($source['is_sharing']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
+        $this->is_manual =  filter_var($source['is_manual']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
+        $this->is_after =  filter_var($source['is_after']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
 
         if ( ($const = $source['constant_data']??null ) && is_array($const)) {
             $this->constant_data = $const;
@@ -281,5 +294,15 @@ class HookParams implements IHookParams, JsonSerializable
     public function isSharing(): bool
     {
         return $this->is_sharing;
+    }
+
+    public function isManual(): bool
+    {
+        return $this->is_manual;
+    }
+
+    public function isAfter(): bool
+    {
+        return $this->is_after;
     }
 }

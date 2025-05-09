@@ -28,6 +28,8 @@ use Illuminate\Support\Facades\DB;
  * @property string owner_type
  * @property int owner_type_id
  * @property bool is_on
+ * @property bool is_manual
+ * @property bool is_after
  * @property bool is_sharing
          * todo when figuring out the hook, and if  shared, then see if hook will be used later, up the ancestry chain of things: if so,
          * pick the highest ancestor, then create the result using that. When referencing this again, see if ttl + callback_run_at is less than now,
@@ -81,6 +83,10 @@ class ThingHook extends Model
      */
     protected $casts = [
         'is_on' => 'boolean',
+        'is_manual' => 'boolean',
+        'is_after' => 'boolean',
+        'is_sharing' => 'boolean',
+        'is_blocking' => 'boolean',
         'hook_constant_data' => AsArrayObject::class,
         'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfHookMode::class,
@@ -125,18 +131,50 @@ class ThingHook extends Model
     }
 
 
+    /**
+     * Retrieve the model for a bound value.
+     *
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return Model|null
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $ret = null;
+        try {
+            if ($field) {
+                $ret = $this->where($field, $value)->first();
+            } else {
+                if (ctype_digit($value)) {
+                    $ret = $this->where('id', $value)->first();
+                } else {
+                    $ret = $this->where('ref_uuid', $value)->first();
+                }
+            }
+            if ($ret) {
+                $ret = static::buildHook(me_id:$ret->id)->first();
+            }
+        } finally {
+            if (empty($ret)) {
+                throw new \RuntimeException(
+                    "Did not find hook with $field $value"
+                );
+            }
+        }
+        return $ret;
+    }
 
     public static function buildHook(
-        ?int                $id = null,
-        ?TypeOfHookMode     $mode = null,
-        ?IThingAction       $action = null,
-        ?string             $action_type = null,
-        ?int                $action_id = null,
-        ?IThingOwner        $owner = null,
-        ?string             $owner_type = null,
-        ?int                $owner_id = null,
-        array               $owners = [],
-        ?array              $tags = null
+        ?int            $me_id = null,
+        ?TypeOfHookMode $mode = null,
+        ?IThingAction   $action = null,
+        ?string         $action_type = null,
+        ?int            $action_id = null,
+        ?IThingOwner    $owner = null,
+        ?string         $owner_type = null,
+        ?int            $owner_id = null,
+        array           $owners = [],
+        ?array          $tags = null
     )
     : Builder
     {
@@ -148,8 +186,8 @@ class ThingHook extends Model
             ->selectRaw(" extract(epoch from  thing_hooks.created_at) as created_at_ts,  extract(epoch from  thing_hooks.updated_at) as updated_at_ts")
         ;
 
-        if ($id) {
-            $build->where('thing_hooks.id',$id);
+        if ($me_id) {
+            $build->where('thing_hooks.id',$me_id);
         }
 
         if ($action_type) { $build->where('thing_hooks.action_type',$action_type); }
@@ -228,6 +266,8 @@ class ThingHook extends Model
         $hook->action_type = $action?->getActionType() ;
         $hook->is_on = $it->isHookOn() ;
         $hook->is_sharing = $it->isSharing() ;
+        $hook->is_after = $it->isSharing() ;
+        $hook->is_manual = $it->isManual() ;
         $hook->is_blocking = $it->isBlocking() ;
         $hook->is_writing_data_to_thing = $it->isWriting() ;
         $hook->hook_constant_data = $it->getConstantData() ;

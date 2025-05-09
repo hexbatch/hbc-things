@@ -375,6 +375,20 @@ class ThingController  {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
+    #[OA\Post(
+        path: '/hbc-things/v1/callbacks/manual/{thing_callback}/answer',
+        operationId: 'hbc-things.callbacks.manual_answer',
+        description: "",
+        summary: 'Show a callback',
+
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+        ]
+    )]
+    public function manual_answer(Thing $thing,ThingCallback $callback) {
+        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    }
+
     #[OA\Get(
         path: '/hbc-things/v1/callbacks/{thing_callback}/show',
         operationId: 'hbc-things.callbacks.show',

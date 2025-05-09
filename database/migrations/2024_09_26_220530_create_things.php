@@ -105,7 +105,7 @@ return new class extends Migration
         DB::statement("CREATE TYPE type_of_thing_status AS ENUM (
             'thing_building',
             'thing_pending',
-            'thing_hooked_before_run',
+            'thing_running',
             'thing_short_circuited',
             'thing_resources',
             'thing_success',

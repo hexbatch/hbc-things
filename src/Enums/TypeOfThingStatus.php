@@ -6,8 +6,9 @@ namespace Hexbatch\Things\Enums;
 enum TypeOfThingStatus : string {
 
   case THING_BUILDING = 'thing_building';
-  case THING_PENDING = 'thing_pending'; //waiting to run
-  case THING_HOOKED_BEFORE_RUN = 'thing_hooked_before_run'; //when waiting for remote hook to complete, which will resume it
+  case THING_PENDING = 'thing_pending'; //waiting for manual callback
+  case THING_RUNNING = 'thing_running'; //in the bus
+
   case THING_SHORT_CIRCUITED = 'thing_short_circuited'; //-- these will not run, and if queued, will be finished without processing
   case THING_RESOURCES = 'thing_resources'; //not enough resources to finish building the tree
   case THING_SUCCESS = 'thing_success';
@@ -33,8 +34,7 @@ enum TypeOfThingStatus : string {
     ];
 
     const array STATUSES_OF_INTERRUPTION = [
-        self::THING_RESOURCES,
-        self::THING_HOOKED_BEFORE_RUN
+        self::THING_RESOURCES
     ];
 
 }

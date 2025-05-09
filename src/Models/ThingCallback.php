@@ -96,7 +96,7 @@ class ThingCallback extends Model
 
 
     public static function buildCallback(
-        ?int $id = null,
+        ?int $me_id = null,
         ?int $hook_id = null,
         ?int $thing_id = null,
     )
@@ -109,8 +109,8 @@ class ThingCallback extends Model
             ->selectRaw(" extract(epoch from  thing_callbacks.created_at) as created_at_ts,  extract(epoch from  thing_callbacks.updated_at) as updated_at_ts")
         ;
 
-        if ($id) {
-            $build->where('thing_callbacks.id',$id);
+        if ($me_id) {
+            $build->where('thing_callbacks.id',$me_id);
         }
 
         if ($hook_id) {
@@ -122,13 +122,45 @@ class ThingCallback extends Model
         }
 
 
-
-
         /** @uses ThingCallback::owning_hook() */
         $build->with('owning_hook');
 
 
         return $build;
+    }
+
+
+    /**
+     * Retrieve the model for a bound value.
+     *
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return Model|null
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $ret = null;
+        try {
+            if ($field) {
+                $ret = $this->where($field, $value)->first();
+            } else {
+                if (ctype_digit($value)) {
+                    $ret = $this->where('id', $value)->first();
+                } else {
+                    $ret = $this->where('ref_uuid', $value)->first();
+                }
+            }
+            if ($ret) {
+                $ret = static::buildCallback(me_id:$ret->id)->first();
+            }
+        } finally {
+            if (empty($ret)) {
+                throw new \RuntimeException(
+                    "Did not find callback with $field $value"
+                );
+            }
+        }
+        return $ret;
     }
 
     protected function getOutoingDataAsArray() : array {
@@ -211,7 +243,6 @@ class ThingCallback extends Model
         $params = $this->getOutoingDataAsArray();
         switch ($this->owning_hook->hook_callback_type) {
             case TypeOfCallback::DISABLED:
-            case TypeOfCallback::MANUAL:
             case TypeOfCallback::CODE:
             case TypeOfCallback::EVENT_CALL:
             case TypeOfCallback::HTTP_GET:
@@ -238,8 +269,7 @@ class ThingCallback extends Model
                 //todo make xml from body , need root?
                 return Array2XML::createXML($this->callback_xml_root??'root', $params)->saveXML();
             }
-            case TypeOfCallback::DUMP:
-                throw new \Exception('To be implemented');
+
         }
         return null;
     }
@@ -289,7 +319,6 @@ class ThingCallback extends Model
         switch ($this->owning_hook->hook_callback_type) {
 
             case TypeOfCallback::DISABLED:
-            case TypeOfCallback::MANUAL:
             case TypeOfCallback::CODE:
             case TypeOfCallback::EVENT_CALL:
             {
@@ -347,8 +376,6 @@ class ThingCallback extends Model
             case TypeOfCallback::HTTP_DELETE_XML:
                 $response = Http::withBody($params,'text/xml')->withHeaders($headers)->delete($this->owning_hook->address,$params);
                 break;
-            case TypeOfCallback::DUMP:
-                throw new \Exception('To be implemented');
         }
 
 
@@ -401,7 +428,6 @@ class ThingCallback extends Model
             switch ($this->owning_hook->hook_callback_type) {
 
                 case TypeOfCallback::DISABLED:
-                case TypeOfCallback::MANUAL:
                 {
                     return;
                 }
@@ -438,8 +464,6 @@ class ThingCallback extends Model
                     $response =  $this->callRemote();
                     break;
                 }
-                case TypeOfCallback::DUMP:
-                    throw new \Exception('To be implemented');
             }
 
             if (!$response) {

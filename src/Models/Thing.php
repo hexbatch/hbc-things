@@ -130,16 +130,6 @@ class Thing extends Model
         return $this->hasMany(ThingCallback::class,'source_thing_id','id');
     }
 
-    /** todo do I use this resumeBlockedThing?
-     * @noinspection PhpUnused
-     */
-    public function resumeBlockedThing() {
-        if ($this->isBlocked()) {
-            $this->thing_status = TypeOfThingStatus::THING_PENDING;
-            $this->save();
-            $this->pushLeavesToJobs();
-        }
-    }
 
 
 
@@ -153,9 +143,6 @@ class Thing extends Model
         return in_array($this->thing_status,TypeOfThingStatus::STATUSES_OF_INTERRUPTION);
     }
 
-    public function isBlocked() : bool {
-        return $this->thing_status === TypeOfThingStatus::THING_HOOKED_BEFORE_RUN;
-    }
 
 
     /** @return \Illuminate\Database\Eloquent\Collection|Thing[] */
@@ -720,6 +707,39 @@ class Thing extends Model
             $ret[] = $it;
         }
         return array_reverse($ret);
+    }
+
+    /**
+     * Retrieve the model for a bound value.
+     *
+     * @param  mixed  $value
+     * @param  string|null  $field
+     * @return Model|null
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        $ret = null;
+        try {
+            if ($field) {
+                $ret = $this->where($field, $value)->first();
+            } else {
+                if (ctype_digit($value)) {
+                    $ret = $this->where('id', $value)->first();
+                } else {
+                    $ret = $this->where('ref_uuid', $value)->first();
+                }
+            }
+            if ($ret) {
+                $ret = static::buildThing(me_id:$ret->id)->first();
+            }
+        } finally {
+            if (empty($ret)) {
+                throw new \RuntimeException(
+                    "Did not find thing with $field $value"
+                );
+            }
+        }
+        return $ret;
     }
 
 
