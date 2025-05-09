@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property ArrayObject thing_error_trace
  * @property ArrayObject thing_previous_errors
  * @property string thing_error_file
+ * @property string ref_uuid
  *
  * @property string created_at
  * @property string updated_at

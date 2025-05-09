@@ -48,6 +48,7 @@ use TorMorten\Eventy\Facades\Eventy;
  *
  * @property ThingHook owning_hook
  * @property Thing thing_source
+ * @property ThingError|null callback_error
  *
  */
 class ThingCallback extends Model
@@ -90,6 +91,10 @@ class ThingCallback extends Model
 
     public function thing_source() : BelongsTo {
         return $this->belongsTo(Thing::class,'source_thing_id','id');
+    }
+
+    public function callback_error() : BelongsTo {
+        return $this->belongsTo(ThingError::class,'callback_error_id','id');
     }
 
 

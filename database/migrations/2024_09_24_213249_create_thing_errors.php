@@ -22,6 +22,11 @@ return new class extends Migration
             $table->integer('thing_error_line')->default(null)->nullable()
                 ->comment('The line of the exception');
 
+            $table->uuid('ref_uuid')
+                ->unique()
+                ->nullable(false)
+                ->comment("used for display and id outside the code");
+
             $table->text('thing_error_file')->default(null)->nullable()
                 ->comment('The file of the exception');
 
@@ -41,6 +46,8 @@ return new class extends Migration
                 ->comment('The version of the hexbatch code');
 
         });
+
+        DB::statement('ALTER TABLE thing_errors ALTER COLUMN ref_uuid SET DEFAULT uuid_generate_v4();');
 
         DB::statement("ALTER TABLE thing_errors ALTER COLUMN created_at SET DEFAULT NOW();");
 

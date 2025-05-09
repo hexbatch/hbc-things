@@ -416,7 +416,9 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function manual_answer(Thing $thing,ThingCallback $callback) {
+    public function manual_answer(Thing $thing,ThingCallback $callback,Request $request) {
+        //todo get the optional code and fill it in
+        $code = $request->request->getInt('code',200);
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
