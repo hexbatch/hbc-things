@@ -10,7 +10,6 @@ enum TypeOfThingStatus : string {
   case THING_RUNNING = 'thing_running'; //in the bus
 
   case THING_SHORT_CIRCUITED = 'thing_short_circuited'; //-- these will not run, and if queued, will be finished without processing
-  case THING_RESOURCES = 'thing_resources'; //not enough resources to finish building the tree
   case THING_SUCCESS = 'thing_success';
   case THING_FAIL = 'thing_fail';
   case THING_INVALID = 'thing_invalid';
@@ -33,9 +32,6 @@ enum TypeOfThingStatus : string {
         self::THING_FAIL,
     ];
 
-    const array STATUSES_OF_INTERRUPTION = [
-        self::THING_RESOURCES
-    ];
 
 }
 

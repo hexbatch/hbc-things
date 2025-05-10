@@ -131,32 +131,7 @@ Route::prefix('hbc-things')->group(function () {
 
 
 
-            Route::prefix('settings')->group(function ()
-                use($hbc_admin,$hbc_setting_viewable,$hbc_setting_listing)
-            {
 
-                Route::middleware($hbc_admin)->prefix('admin')->group(function() {
-                    Route::post('create', [ThingController::class, 'admin_setting_create'])->name('hbc-things.settings.admin.create');
-
-                    Route::get('list', [ThingController::class, 'admin_setting_list'])->name('hbc-things.settings.admin.list');
-
-                    Route::prefix('{thing_setting}')->group(function () {
-                        Route::delete('remove', [ThingController::class, 'admin_setting_remove'])->name('hbc-things.settings.admin.remove');
-                        Route::put('edit', [ThingController::class, 'admin_setting_edit'])->name('hbc-things.settings.admin.edit');
-                        Route::put('show', [ThingController::class, 'admin_setting_show'])->name('hbc-things.settings.admin.show');
-                    });
-                });
-
-
-                Route::middleware($hbc_setting_listing)->group(function () {
-                    Route::get('list', [ThingController::class, 'list_settings'])->name('hbc-things.settings.list');
-                });
-
-
-                Route::middleware($hbc_setting_viewable)->prefix('{thing_setting}')->group(function () {
-                    Route::get('show', [ThingController::class, 'setting_show'])->name('hbc-things.settings.show');
-                });
-            });
 
 
 

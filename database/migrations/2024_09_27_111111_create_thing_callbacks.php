@@ -44,9 +44,9 @@ return new class extends Migration
 
 
 
-
-            $table->boolean('is_initialized')->default(false)->nullable(false)
-                ->comment('if true then the outgoing data is filled in');
+            $table->boolean('is_signalling_when_done')
+                ->nullable(false)->default(0)
+                ->comment("if true, then will try to call the parent when its logic is done");
 
             $table->integer('callback_http_code')->nullable()->default(null)
                 ->comment('When the callback was made, what was the http code from that url');

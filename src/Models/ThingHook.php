@@ -32,9 +32,6 @@ use Illuminate\Support\Facades\DB;
  * @property bool is_manual
  * @property bool is_after
  * @property bool is_sharing
-         * todo when figuring out the hook, and if  shared, then see if hook will be used later, up the ancestry chain of things: if so,
-         * pick the highest ancestor, then create the result using that. When referencing this again, see if ttl + callback_run_at is less than now,
-         * if so, discard this (delete) and make new result with same thing as before
  *
  * @property bool is_blocking
  * @property bool is_writing_data_to_thing
@@ -123,31 +120,6 @@ class ThingHook extends Model
     }
 
 
-    /**
-     * //todo hooks are assigned at run time, using tags, owner and action filters..  not design time, call this when the thing runs
-     * //put the finally, success and fail callbacks into the batch setup, position the node callbacks in parallel or sequence, before or after thing
-     * @return ThingHook[]
-     * @throws \Exception
-     * @noinspection PhpUnused
-     */
-    public static function makeHooksForThing(Thing $thing, ?TypeOfHookMode $mode = null) : array {
-
-        try {
-
-            DB::beginTransaction();
-
-
-            /** @var ThingHook[] $ret */
-            $ret = ThingHook::buildHook(mode: $mode, action: $thing->getAction(), owner: $thing->getOwner(),
-                tags: $thing->thing_tags->getArrayCopy())->get()->toArray();
-
-            DB::commit();
-            return $ret;
-        } catch(\Exception $e) {
-            DB::rollBack();
-            throw $e;
-        }
-    }
 
 
     /**
@@ -193,7 +165,8 @@ class ThingHook extends Model
         ?string         $owner_type = null,
         ?int            $owner_id = null,
         array           $owners = [],
-        ?array          $tags = null
+        ?array          $tags = null,
+        ?bool           $is_on = null
     )
     : Builder
     {
@@ -209,36 +182,63 @@ class ThingHook extends Model
             $build->where('thing_hooks.id',$me_id);
         }
 
+        if ($is_on !== null) {
+            $build->where('thing_hooks.is_on',$is_on);
+        }
+
         if ($action_type) { $build->where('thing_hooks.action_type',$action_type); }
         if ($action_id) { $build->where('thing_hooks.action_type_id',$action_id); }
         if ($owner_type) { $build->where('thing_hooks.owner_type',$owner_type); }
         if ($owner_id) { $build->where('thing_hooks.owner_type_id',$owner_id); }
 
-        if ($action) {
-            $build->where(function (Builder $q) use($action) {
-                $q->where(function (Builder $q) use($action) {
-                    $q->where('thing_hooks.action_type',$action->getActionType());
-                    $q->where('thing_hooks.action_type_id',$action->getActionId());
-                })
-                ->orWhere(function (Builder $q) {
-                    $q->whereNull('thing_hooks.action_type')->orWhereNull('thing_hooks.action_type_id');
+        $action_clause = function(Builder $build) use($action){
+            if ($action) {
+                $build->where(function (Builder $q) use($action) {
+                    $q->where(function (Builder $q) use($action) {
+                        $q->where('thing_hooks.action_type',$action->getActionType());
+                        $q->where('thing_hooks.action_type_id',$action->getActionId());
+                    })
+                        ->orWhere(function (Builder $q) {
+                            $q->whereNull('thing_hooks.action_type')->orWhereNull('thing_hooks.action_type_id');
+                        });
+                });
+            }
+        };
+
+
+        $owner_clause = function(Builder $build) use($owner) {
+            if ($owner) {
+                $build->where(function (Builder $q) use($owner) {
+                    $q->where(function (Builder $q) use($owner) {
+                        $q->where('thing_hooks.owner_type',$owner->getOwnerType());
+                        $q->where('thing_hooks.owner_type_id',$owner->getOwnerId());
+                    })
+                        ->orWhere(function (Builder $q) {
+                            $q->whereNull('thing_hooks.owner_type')->orWhereNull('thing_hooks.owner_type_id');
+                        });
+                });
+            }
+        };
+
+        if ($action && $owner) {
+            $build->where(function (Builder $q) use($action_clause,$owner_clause) {
+                $q->where(function (Builder $q) use($owner_clause) {
+                    $owner_clause(build: $q);
+                });
+
+                $q->orWhere(function (Builder $q) use($action_clause) {
+                    $action_clause(build: $q);
                 });
             });
+        } elseif ($action) {
+            $action_clause(build: $build);
+        } elseif ($owner) {
+            $owner_clause(build: $build);
         }
 
 
 
-        if ($owner) {
-            $build->where(function (Builder $q) use($owner) {
-                $q->where(function (Builder $q) use($owner) {
-                    $q->where('thing_hooks.owner_type',$owner->getOwnerType());
-                    $q->where('thing_hooks.owner_type_id',$owner->getOwnerId());
-                })
-                ->orWhere(function (Builder $q) {
-                    $q->whereNull('thing_hooks.owner_type')->orWhereNull('thing_hooks.owner_type_id');
-                });
-            });
-        }
+
 
         if (count($owners)) {
             $build->where(function (Builder $q) use($owners) {

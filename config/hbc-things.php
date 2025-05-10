@@ -1,10 +1,6 @@
 <?php
 
 
-use Hexbatch\Things\Models\ThingSetting;
-/*
-
- */
 return [
     'middleware' => [
         'auth_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_AUTH'),
@@ -20,14 +16,6 @@ return [
         'hook_editable_alias' => env('HBC_THING_MIDDLEWARE_ALIAS_HOOK_EDITABLE'),
     ],
 
-
-    'default_thing_settings' => [
-        'data_byte_row_limit' => env('HBC_THING_SETTING_DATA_BYTE_ROWS_LIMIT',ThingSetting::DEFAULT_DATA_BYTE_ROWS_LIMIT),
-        'tree_limit' => env('HBC_THING_SETTING_DATA_BACKOFF',ThingSetting::DEFAULT_TREE_LIMIT),
-        'tree_node_limit' => env('HBC_THING_SETTING_TREE_NODE_LIMIT',ThingSetting::DEFAULT_TREE_NODE_LIMIT),
-        'backoff_data_policy' => env('HBC_THING_SETTING_DATA_BACKOFF',ThingSetting::DEFAULT_BACKOFF_DATA_POLICY),
-
-    ],
 
 ];
 

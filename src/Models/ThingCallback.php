@@ -31,7 +31,7 @@ use TorMorten\Eventy\Facades\Eventy;
  *
  *
  * @property int callback_http_code
- * @property bool is_initialized
+ * @property bool is_signalling_when_done
  *
  * @property string ref_uuid
  *
@@ -78,7 +78,7 @@ class ThingCallback extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'is_initialized' => 'boolean',
+        'is_signalling_when_done' => 'boolean',
         'callback_outgoing_data' => AsArrayObject::class,
         'callback_incoming_data' => AsArrayObject::class,
         'callback_outgoing_header' => AsArrayObject::class,
@@ -183,7 +183,6 @@ class ThingCallback extends Model
         ];
 
         $action_constants = $action?->getInitialConstantData()??[];
-        $thing_constants = $thing->thing_constant_data?->getArrayCopy()??[];
 
         $action_data = [];
         if ($action?->isActionComplete()) {
@@ -192,7 +191,7 @@ class ThingCallback extends Model
 
         $template_data = $hook->hook_data_template?->getArrayCopy()??[];
 
-        return array_merge($template_data,$thing_constants,$uuid_data,$action_constants,$action_data);
+        return array_merge($template_data,$uuid_data,$action_constants,$action_data);
     }
 
     /**
@@ -425,6 +424,19 @@ class ThingCallback extends Model
                 $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
             }
             $this->callback_incoming_data = $response->getData();
+
+            if ($this->owning_hook->is_blocking) {
+                if ($this->owning_hook->is_after) {
+                    $this->thing_source->thing_parent?->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy()??[]);
+                } else {
+                    $this->thing_source->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy()??[]);
+                }
+            }
+
+            if ($this->is_signalling_when_done) {
+                $this->thing_source->signal_parent();
+            }
+
         } catch (\Exception $e) {
             $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
             Log::error("Thing result callback had error: ". $e->getMessage());
@@ -432,6 +444,8 @@ class ThingCallback extends Model
             $this->callback_run_at = Carbon::now()->timezone('UTC')->toDateTime();
             $this->save();
         }
+
+        //todo if this is a manual, and the address is empty, then somehow start the queue again with the things after it
 
     }
 

@@ -4,7 +4,6 @@ namespace Hexbatch\Things;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingHook;
-use Hexbatch\Things\Models\ThingSetting;
 use Illuminate\Support\Facades\Route;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -46,7 +45,6 @@ class HexbatchThingsProvider extends PackageServiceProvider
         Route::model('thing', Thing::class);
         Route::model('thing_hook', ThingHook::class);
         Route::model('thing_callback', ThingCallback::class);
-        Route::model('thing_setting', ThingSetting::class);
         return $this;
     }
 

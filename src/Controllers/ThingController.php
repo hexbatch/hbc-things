@@ -9,7 +9,6 @@ use Hexbatch\Things\Interfaces\ThingOwnerGroup;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingHook;
-use Hexbatch\Things\Models\ThingSetting;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
@@ -287,124 +286,8 @@ class ThingController  {
     }
 
 
-    #[OA\Post(
-        path: '/hbc-things/v1/settings/create',
-        operationId: 'hbc-things.settings.create',
-        description: "Will apply it to current and new",
-        summary: 'Creates a setting',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function thing_setting_create(Request $request) {
-        //get all setting values from body
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Post(
-        path: '/hbc-things/v1/settings/admin/create',
-        operationId: 'hbc-things.settings.admin.create',
-        description: "Will apply it to current and new",
-        summary: 'Creates a setting',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function admin_setting_create(Request $request) {
-        //get all setting values from body
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Delete(
-        path: '/hbc-things/v1/things/settings/admin/{thing_setting}/remove',
-        operationId: 'hbc-things.settings.admin.remove',
-        description: "",
-        summary: 'Removes a rate(s) to a thing and its descendants',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function admin_setting_remove(ThingSetting $setting) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Put(
-        path: '/hbc-things/v1/things/settings/admin/{thing_setting}/edit',
-        operationId: 'hbc-things.settings.admin.edit',
-        description: "",
-        summary: 'Removes a rate(s) to a thing and its descendants',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function admin_setting_edit(ThingSetting $setting) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Get(
-        path: '/hbc-things/v1/things/settings/admin/{thing_setting}/show',
-        operationId: 'hbc-things.settings.admin.show',
-        description: "",
-        summary: 'Removes a rate(s) to a thing and its descendants',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function admin_setting_show(ThingSetting $setting) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
 
 
-
-
-    #[OA\Get(
-        path: '/hbc-things/v1/settings/admin/list',
-        operationId: 'hbc-things.settings.admin.list',
-        description: "",
-        summary: 'Lists settings applied to another user',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function admin_setting_list(Request $request) { //also search
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-
-    #[OA\Get(
-        path: '/hbc-things/v1/settings/list',
-        operationId: 'hbc-things.settings.list',
-        description: "",
-        summary: 'Lists the settings for me',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function list_settings(IThingOwner $owner, ThingOwnerGroup $group) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-
-    #[OA\Get(
-        path: '/hbc-things/v1/settings/{thing_setting}/settings/show',
-        operationId: 'hbc-things.settings.show',
-        description: "",
-        summary: 'Shows information about a setting',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function setting_show(ThingSetting $setting,IThingOwner $owner) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
 
     #[OA\Post(
         path: '/hbc-things/v1/callbacks/manual/{thing_callback}/answer',

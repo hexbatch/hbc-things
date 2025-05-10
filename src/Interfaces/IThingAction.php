@@ -8,7 +8,6 @@ use Carbon\Carbon;
 interface IThingAction
 {
     public function isActionComplete() : bool;
-    public function isActionError() : bool;
     public function isActionSuccess() : bool;
     public function isActionFail() : bool;
 
@@ -20,15 +19,12 @@ interface IThingAction
     public function getChildrenTree(?string $key = null) : ?Tree;
 
     public function runAction(array $data = []): void;
-    public function getDataByteRowsUsed(): int;
-    public function setLimitDataByteRows(int $limit): void;
 
     public function getActionOwner() : ?IThingOwner;
     public function getStartAt(): ?Carbon;
     public function getInvalidAt(): ?Carbon;
 
     public function isAsync() : bool;
-    public function isMoreBuilding() : ?string;
     public function getActionResult() : array ;
     public function getActionTags() : ?array ;
     public function getRenderHtml() : ?string ;

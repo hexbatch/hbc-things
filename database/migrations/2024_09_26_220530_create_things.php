@@ -84,15 +84,15 @@ return new class extends Migration
                 ->nullable(false)->default(0)
                 ->comment("if true, then will not complete immediately");
 
+            $table->boolean('is_signalling_when_done')
+                ->nullable(false)->default(0)
+                ->comment("if true, then will try to call the parent when its logic is done");
+
 
             $table->uuid('ref_uuid')
                 ->unique()
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
-
-            $table->jsonb('thing_constant_data')
-                ->nullable()->default(null)
-                ->comment("This is merged with the data going into each action before it runs, if duplicate keys, the data elsewhere wins");
 
             $table->jsonb('thing_tags')
                 ->nullable()->default(null)
@@ -107,7 +107,6 @@ return new class extends Migration
             'thing_pending',
             'thing_running',
             'thing_short_circuited',
-            'thing_resources',
             'thing_success',
             'thing_fail',
             'thing_invalid',
