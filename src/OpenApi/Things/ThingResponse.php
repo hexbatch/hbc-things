@@ -81,11 +81,11 @@ class ThingResponse  implements  JsonSerializable
 
         $this->started_at = Carbon::parse($this->thing->thing_started_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
         if ($this->b_include_hooks) {
-            $this->hooks = new HookCollectionResponse(hooks: $this->thing->attached_hooks,b_include_callbacks: true,callbacks_scoped_to_thing: $this->thing);
+            $this->hooks = new HookCollectionResponse(given_hooks: $this->thing->attached_hooks,b_include_callbacks: true,callbacks_scoped_to_thing: $this->thing);
         }
 
         if ($this->b_include_children) {
-            $this->children = new ThingCollectionResponse(things: $this->thing->thing_children,
+            $this->children = new ThingCollectionResponse(given_things: $this->thing->thing_children,
                 b_include_hooks: $this->b_include_hooks,b_include_children: $this->b_include_children);
         }
 
@@ -94,6 +94,7 @@ class ThingResponse  implements  JsonSerializable
 
     public function jsonSerialize(): array
     {
+        $arr = [];
         $arr['uuid'] = $this->uuid;
         $arr['parent_uuid'] = $this->parent_uuid;
         $arr['started_at'] = $this->started_at;

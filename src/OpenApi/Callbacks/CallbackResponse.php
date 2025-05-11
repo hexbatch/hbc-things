@@ -7,6 +7,7 @@ use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\OpenApi\Errors\ErrorResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
+use Hexbatch\Things\OpenApi\Things\ThingResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 
@@ -50,6 +51,9 @@ class CallbackResponse  implements  JsonSerializable
     #[OA\Property( title:"Hook")]
     protected ?HookResponse $hook = null;
 
+    #[OA\Property( title:"Thing")]
+    protected ?ThingResponse $thing = null;
+
     #[OA\Property( title: 'Ran at',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
     public ?string $ran_at = null;
 
@@ -57,7 +61,8 @@ class CallbackResponse  implements  JsonSerializable
 
     public function __construct(
         protected ThingCallback $callback,
-        protected bool $b_include_hook = false
+        protected bool $b_include_hook = false,
+        protected bool $b_include_thing = false,
     ) {
 
         $this->uuid = $this->callback->ref_uuid;
@@ -77,10 +82,14 @@ class CallbackResponse  implements  JsonSerializable
         if($b_include_hook) {
             $this->hook = new HookResponse(hook: $this->callback->owning_hook);
         }
+        if($b_include_hook) {
+            $this->thing = new ThingResponse(thing: $this->callback->thing_source);
+        }
     }
 
     public function jsonSerialize(): array
     {
+        $arr = [];
         $arr['uuid'] = $this->uuid;
         $arr['hook_uuid'] = $this->hook_uuid;
         $arr['thing_uuid'] = $this->thing_uuid;
@@ -93,6 +102,9 @@ class CallbackResponse  implements  JsonSerializable
         $arr['response'] = $this->response;
         if ($this->b_include_hook) {
             $arr['hook'] = $this->hook;
+        }
+        if ($this->b_include_thing) {
+            $arr['thing'] = $this->thing;
         }
         return $arr;
     }

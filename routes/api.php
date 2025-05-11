@@ -84,6 +84,7 @@ Route::prefix('hbc-things')->group(function () {
         Route::prefix('callbacks')->group(function () {
             Route::prefix('manual/{thing_callback}')->group(function () {
                 Route::post('answer', [ThingController::class, 'manual_answer'])->name('hbc-things.callbacks.manual_answer');
+                Route::get('question', [ThingController::class, 'manual_question'])->name('hbc-things.callbacks.manual_question');
             });
         });
 
@@ -136,23 +137,18 @@ Route::prefix('hbc-things')->group(function () {
 
 
             Route::prefix('callbacks')->group(function ()
-                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_editable,$hbc_thing_listing)
+                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_listing)
             {
                 Route::middleware($hbc_thing_listing)->group(function () {
                     Route::get('list', [ThingController::class, 'list_callbacks'])->name('hbc-things.callbacks.list');
                 });
 
                 Route::prefix('{thing_callback}')->group(function ()
-                    use($hbc_thing_viewable,$hbc_thing_editable)
+                    use($hbc_thing_viewable)
                 {
                     Route::middleware($hbc_thing_viewable)->group(function()
-                        use($hbc_thing_editable) {
-
+                    {
                         Route::get('show', [ThingController::class, 'callback_show'])->name('hbc-things.callbacks.show');
-
-                        Route::middleware($hbc_thing_editable)->group(function() {
-                            Route::post('complete', [ThingController::class, 'callback_complete'])->name('hbc-things.callbacks.complete');
-                        });
                     });
                 });
 

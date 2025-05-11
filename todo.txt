@@ -32,3 +32,5 @@ A thing stops running when all the blocking callbacks are finished for it. Non-b
 
 if a manual is non blocking, then the address part is put in the non blocking and has no special handling, and it does not matter if the manual is filled in
 
+-----------------
+testing

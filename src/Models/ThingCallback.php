@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -104,6 +105,7 @@ class ThingCallback extends Model
         ?int $me_id = null,
         ?int $hook_id = null,
         ?int $thing_id = null,
+        array           $owners = [],
     )
     : Builder
     {
@@ -124,6 +126,25 @@ class ThingCallback extends Model
 
         if ($thing_id) {
             $build->where('thing_callbacks.source_thing_id',$thing_id);
+        }
+
+        if (count($owners)) {
+            $build->join('thing_hooks as hook',
+                /** @param JoinClause $join */
+                function ($join) use($owners) {
+                    $join
+                        ->on('thing_callbacks.owning_hook_id','=','hook.id')
+                        ->where(function (Builder $q) use($owners) {
+                            foreach ($owners as $some_owner) {
+                                $q->orWhere(function (Builder $q) use($some_owner) {
+                                    $q->where('hook.owner_type',$some_owner->getOwnerType());
+                                    $q->where('hook.owner_type_id',$some_owner->getOwnerId());
+                                });
+                            }
+                        })
+                    ;
+                }
+            );
         }
 
 

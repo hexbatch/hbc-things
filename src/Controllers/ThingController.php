@@ -3,12 +3,16 @@
 namespace Hexbatch\Things\Controllers;
 
 use App\OpenApi\ErrorResponse;
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Helpers\OwnerHelper;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Interfaces\ThingOwnerGroup;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingHook;
+use Hexbatch\Things\OpenApi\Callbacks\CallbackCollectionResponse;
+use Hexbatch\Things\OpenApi\Callbacks\CallbackResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
@@ -28,19 +32,27 @@ class ThingController  {
         operationId: 'hbc-things.hooks.list',
         description: "",
         summary: 'List all the hooks registered to this owner',
+        security: [['bearerAuth' => []]],
+        tags: ['hook'],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
-    public function hook_list(IThingOwner $owner,ThingOwnerGroup $group) {
+    public function hook_list(IThingOwner $owner,ThingOwnerGroup $group,Request $request) {
 
         $owners = $group->getOwners();
         $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
-        /** @var ThingHook[] $hooks */
-        $hooks = ThingHook::buildHook(owners: $combined_owners)->get();
-        return response()->json(new HookCollectionResponse(hooks: $hooks), CodeOf::HTTP_OK);
+        $action_type = $request->query->getString('action_type');
+        $action_id =   $request->query->getInt('action_id');
+        $tags =        $request->get('tags');
+
+        $hooks = ThingHook::buildHook(
+            action_type: $action_type?:null, action_id: $action_id?:null, owners: $combined_owners, tags: is_array($tags)?:[]
+        )->orderBy('id','desc')
+            ->cursorPaginate();
+        return response()->json(new HookCollectionResponse(given_hooks: $hooks), CodeOf::HTTP_OK);
     }
 
 
@@ -49,7 +61,10 @@ class ThingController  {
         operationId: 'hbc-things.hooks.admin.list',
         description: "",
         summary: 'List all the hooks',
+        security: [['bearerAuth' => []]],
+        tags: ['hook','admin'],
         responses: [
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
@@ -66,8 +81,9 @@ class ThingController  {
         /** @var ThingHook[] $hooks */
         $hooks = ThingHook::buildHook(
             action_type: $action_type?:null, action_id: $action_id?:null, owner_type: $owner_type?:null, owner_id: $owner_id?:null, tags: is_array($tags)?:[]
-        )->get();
-        return response()->json(new HookCollectionResponse(hooks: $hooks), CodeOf::HTTP_OK);
+        )->orderBy('id','desc')
+            ->cursorPaginate();
+        return response()->json(new HookCollectionResponse(given_hooks: $hooks), CodeOf::HTTP_OK);
     }
 
     #[OA\Delete(
@@ -75,9 +91,11 @@ class ThingController  {
         operationId: 'hbc-things.hooks.admin.destroy',
         description: "",
         summary: 'Removes a hook',
-
+        security: [['bearerAuth' => []]],
+        tags: ['hook','admin'],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented'),
+            new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
@@ -85,7 +103,8 @@ class ThingController  {
         ]
     )]
     public function admin_hook_destroy(ThingHook $hook) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        $hook->delete();
+        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_ACCEPTED);
     }
 
     #[OA\Get(
@@ -95,6 +114,7 @@ class ThingController  {
         summary: 'Shows information about a hook',
         security: [['bearerAuth' => []]],
         tags: ['hook','admin'],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
 
@@ -106,7 +126,7 @@ class ThingController  {
         ]
     )]
     public function admin_hook_show(ThingHook $hook) {
-        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_OK);
+        return response()->json(new HookResponse(hook: $hook,b_include_callbacks: true), CodeOf::HTTP_OK);
     }
 
 
@@ -143,6 +163,7 @@ class ThingController  {
         summary: 'Shows information about a hook',
         security: [['bearerAuth' => []]],
         tags: ['hook'],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
 
@@ -151,7 +172,7 @@ class ThingController  {
         ]
     )]
     public function thing_hook_show(ThingHook $hook) {
-        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_OK);
+        return response()->json(new HookResponse(hook: $hook,b_include_callbacks: true), CodeOf::HTTP_OK);
     }
 
     #[OA\Patch(
@@ -164,6 +185,7 @@ class ThingController  {
             new OA\MediaType(mediaType: "multipart/form-data",schema: new  OA\Schema(ref: HookParams::class))
         ] ),
         tags: ['hook'],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The edited hook',content: new JsonContent(ref: HookResponse::class)),
 
@@ -184,13 +206,20 @@ class ThingController  {
         operationId: 'hbc-things.hooks.destroy',
         description: "",
         summary: 'Deletes a hook',
-
+        security: [['bearerAuth' => []]],
+        tags: ['hook'],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function thing_hook_destroy(ThingHook $hook) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        $hook->delete();
+        return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_ACCEPTED);
     }
 
 
@@ -218,17 +247,25 @@ class ThingController  {
         tags: ['thing'],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
-
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
-    public function thing_list(IThingOwner $owner, ThingOwnerGroup $group) {
+    public function thing_list(IThingOwner $owner, ThingOwnerGroup $group,Request $request) {
         $owners = $group->getOwners();
         $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
-        /** @var Thing[] $things */
-        $things = Thing::buildThing(owners: $combined_owners)->get();
-        return response()->json(new ThingCollectionResponse(things: $things), CodeOf::HTTP_OK);
+
+        $action_type = $request->query->getString('action_type');
+        $action_id = $request->query->getInt('action_id');
+        $tags = $request->get('tags');
+        if (empty($tags)) { $tags = [];}
+        elseif (is_scalar($tags)) {
+            $tags = [];
+        }
+
+        $things = Thing::buildThing(action_type_id: $action_id, action_type: $action_type, is_root: true, owners: $combined_owners, tags: $tags)
+            ->orderBy('id','desc')->cursorPaginate();
+        return response()->json(new ThingCollectionResponse(given_things: $things), CodeOf::HTTP_OK);
     }
 
 
@@ -237,12 +274,28 @@ class ThingController  {
         operationId: 'hbc-things.things.admin.list',
         description: "Shows tree status, times, progress",
         summary: 'Lists top things that are owned by user',
+        security: [['bearerAuth' => []]],
+        tags: ['thing'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function thing_admin_list(Request $request) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        $action_type = $request->query->getString('action_type');
+        $action_id = $request->query->getInt('action_id');
+        $tags = $request->get('tags');
+        if (empty($tags)) { $tags = [];}
+        elseif (is_scalar($tags)) {
+            $tags = [];
+        }
+
+        $things = Thing::buildThing(action_type_id: $action_id, action_type: $action_type, is_root: true,tags: $tags)
+            ->orderBy('id','desc')->cursorPaginate();
+        return response()->json(new ThingCollectionResponse(given_things: $things), CodeOf::HTTP_OK);
     }
 
     #[OA\Get(
@@ -252,6 +305,7 @@ class ThingController  {
         summary: 'Shows a thing and its descendants',
         security: [['bearerAuth' => []]],
         tags: ['thing'],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
@@ -270,13 +324,20 @@ class ThingController  {
         operationId: 'hbc-things.things.admin.show',
         description: "Lesser detail in decendants",
         summary: 'Shows a thing and its descendants',
-
+        security: [['bearerAuth' => []]],
+        tags: ['thing','admin'],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
-    public function admin_thing_show(Thing $thing,Request $request) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    public function admin_thing_show(Thing $thing) {
+        return response()->json(new ThingResponse(thing: $thing, b_include_hooks: true, b_include_children: true), CodeOf::HTTP_OK);
     }
 
 
@@ -290,33 +351,75 @@ class ThingController  {
         operationId: 'hbc-things.things.shortcut',
         description: "If children not run they are shortcut too",
         summary: 'Shortcuts a thing',
-
+        security: [['bearerAuth' => []]],
+        tags: ['thing'],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function thing_shortcut(Thing $thing,IThingOwner $owner) {  //(if child will return false to parent when it runs, if root then its just gone)
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    public function thing_shortcut(Thing $thing) {  //(if child will return false to parent when it runs, if root then its just gone)
+        $thing->markIncompleteDescendantsAs(TypeOfThingStatus::THING_SHORT_CIRCUITED);
+        /** @var Thing $refreshed */
+        $refreshed = Thing::buildThing(me_id: $thing->id)->first();
+        return response()->json(new ThingResponse(thing: $refreshed, b_include_hooks: true, b_include_children: true), CodeOf::HTTP_ACCEPTED);
     }
-
-
 
 
 
     #[OA\Post(
         path: '/hbc-things/v1/callbacks/manual/{thing_callback}/answer',
         operationId: 'hbc-things.callbacks.manual_answer',
-        description: "",
-        summary: 'Show a callback',
-
+        description: "Manual callbacks can be filled in without auth, if they are waiting",
+        summary: 'Fill in a manual callback',
+        tags: ['callback','manual'],
+        parameters: [
+            new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function manual_answer(Thing $thing,ThingCallback $callback,Request $request) {
-        //todo get the optional code and fill it in
+    public function manual_answer(ThingCallback $callback,Request $request) {
+        if ($callback->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
+        if (!$callback->owning_hook->is_manual) { abort(CodeOf::HTTP_BAD_REQUEST);}
+
+
         $code = $request->request->getInt('code',200);
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        if ($code < 0) {$code = 0;}
+        if ($code >= 600) {$code = 599;}
+        $callback->callback_http_code = $code;
+
+        $data = $request->get('data');
+        $callback->callback_incoming_data = $data;
+        $callback->save();
+        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true), CodeOf::HTTP_ACCEPTED);
+    }
+
+    #[OA\Post(
+        path: '/hbc-things/v1/callbacks/manual/{thing_callback}/question',
+        operationId: 'hbc-things.callbacks.manual_question',
+        description: "Manual callbacks can be shown without auth, if they are waiting",
+        summary: 'Show a waiting manual callback',
+        tags: ['callback','manual'],
+        parameters: [
+            new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+        ]
+    )]
+    public function manual_question(ThingCallback $callback) {
+        if ($callback->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
+        if (!$callback->owning_hook->is_manual) { abort(CodeOf::HTTP_BAD_REQUEST);}
+        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
     }
 
     #[OA\Get(
@@ -324,27 +427,42 @@ class ThingController  {
         operationId: 'hbc-things.callbacks.show',
         description: "",
         summary: 'Show a callback',
-
+        security: [['bearerAuth' => []]],
+        tags: ['callback'],
+        parameters: [new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function callback_show(ThingCallback $callback, IThingOwner $owner) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    public function callback_show(ThingCallback $callback) {
+        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_OK);
     }
 
     #[OA\Get(
         path: '/hbc-things/v1/callbacks/list',
         operationId: 'hbc-things.callbacks.list',
         description: "",
-        summary: 'Show a callback',
-
+        summary: 'Show a list of callbacks',
+        security: [['bearerAuth' => []]],
+        tags: ['callback'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback list',content: new JsonContent(ref: CallbackCollectionResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function list_callbacks( IThingOwner $owner,ThingOwnerGroup $group) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+
+        $owners = $group->getOwners();
+        $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
+        $callbacks = ThingCallback::buildCallback(
+             owners: $combined_owners
+        )->orderBy('id','desc')->cursorPaginate();
+        return response()->json(new CallbackCollectionResponse(given_callbacks: $callbacks,), CodeOf::HTTP_OK);
     }
 
 
@@ -353,27 +471,21 @@ class ThingController  {
         operationId: 'hbc-things.callbacks.admin.show',
         description: "",
         summary: 'Show a callback',
-
+        security: [['bearerAuth' => []]],
+        tags: ['callback','admin'],
+        parameters: [new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+
+            new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_callback_show(ThingCallback $callback) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
-    }
-
-    #[OA\Post(
-        path: '/hbc-things/v1/callbacks/{thing_callback}/complete',
-        operationId: 'hbc-things.callbacks.answer',
-        description: "",
-        summary: 'Complete a callback',
-
-        responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
-        ]
-    )]
-    public function callback_complete(ThingCallback $callback, IThingOwner $owner) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_OK);
     }
 
 

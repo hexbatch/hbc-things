@@ -242,7 +242,7 @@ class Thing extends Model
 
     }
 
-    protected function markIncompleteDescendantsAs(TypeOfThingStatus $status) {
+    public function markIncompleteDescendantsAs(TypeOfThingStatus $status) {
         static::buildThing(me_id: $this->id,include_my_descendants: true)
             ->where('id','<>',$this->id) //do not mark oneself
             ->whereNotIn('thing_status',TypeOfThingStatus::STATUSES_OF_COMPLETION)
@@ -739,6 +739,7 @@ class Thing extends Model
         bool    $include_my_descendants = false,
         bool    $eager_load = false,
         array   $owners = [],
+        array   $tags = []
     )
     : Builder
     {
@@ -806,6 +807,15 @@ class Thing extends Model
                     });
                 }
             });
+        }
+
+        if ($tags !== null ) {
+            if (count($tags) ) {
+                $tags_json = json_encode($tags);
+                $build->whereRaw("array(select jsonb_array_elements(things.thing_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
+            } else {
+                $build->whereRaw("jsonb_array_length(things.thing_tags) is null OR jsonb_array_length(things.thing_tags) = 0");
+            }
         }
 
         if ($eager_load) {

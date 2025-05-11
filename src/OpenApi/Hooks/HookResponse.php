@@ -68,7 +68,7 @@ class HookResponse extends HookParams implements  JsonSerializable
                 $laravel_callbacks->where('source_thing_id',$this->callbacks_scoped_to_thing->id);
             }
 
-            $this->callbacks = new CallbackCollectionResponse(callbacks: $laravel_callbacks->get());
+            $this->callbacks = new CallbackCollectionResponse(given_callbacks: $laravel_callbacks->get());
         }
     }
 
