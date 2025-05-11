@@ -2,8 +2,11 @@
 
 namespace Hexbatch\Things\OpenApi\Callbacks;
 
+use Carbon\Carbon;
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\OpenApi\Errors\ErrorResponse;
+use Hexbatch\Things\OpenApi\Hooks\HookResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 
@@ -33,10 +36,28 @@ class CallbackResponse  implements  JsonSerializable
     #[OA\Property( title:"Response of callback",nullable: true)]
     protected ?array $response;
 
+    #[OA\Property( title:"Headers sent",nullable: true)]
+    protected ?array $headers_sent;
+
+    #[OA\Property( title:"Data sent",nullable: true)]
+    protected ?array $data_sent;
+
+
+    #[OA\Property( title:"Status of callback")]
+    protected TypeOfCallbackStatus $status;
+
+
+    #[OA\Property( title:"Hook")]
+    protected ?HookResponse $hook = null;
+
+    #[OA\Property( title: 'Ran at',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
+    public ?string $ran_at = null;
+
 
 
     public function __construct(
-        protected ThingCallback $callback
+        protected ThingCallback $callback,
+        protected bool $b_include_hook = false
     ) {
 
         $this->uuid = $this->callback->ref_uuid;
@@ -49,6 +70,13 @@ class CallbackResponse  implements  JsonSerializable
         }
         $this->code = $this->callback->callback_http_code;
         $this->response = $this->callback->callback_incoming_data?->getArrayCopy()??null;
+        $this->headers_sent = $this->callback->callback_outgoing_header?->getArrayCopy()??null;
+        $this->data_sent = $this->callback->callback_outgoing_data?->getArrayCopy()??null;
+        $this->status = $this->callback->thing_callback_status;
+        $this->ran_at = Carbon::parse($this->callback->callback_run_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
+        if($b_include_hook) {
+            $this->hook = new HookResponse(hook: $this->callback->owning_hook);
+        }
     }
 
     public function jsonSerialize(): array
@@ -58,7 +86,14 @@ class CallbackResponse  implements  JsonSerializable
         $arr['thing_uuid'] = $this->thing_uuid;
         $arr['error'] = $this->error;
         $arr['code'] = $this->code;
+        $arr['status'] = $this->status->value;
+        $arr['ran_at'] = $this->ran_at;
+        $arr['headers_sent'] = $this->headers_sent;
+        $arr['data_sent'] = $this->data_sent;
         $arr['response'] = $this->response;
+        if ($this->b_include_hook) {
+            $arr['hook'] = $this->hook;
+        }
         return $arr;
     }
 }

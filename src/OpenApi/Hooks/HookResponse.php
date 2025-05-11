@@ -2,7 +2,9 @@
 
 namespace Hexbatch\Things\OpenApi\Hooks;
 
+use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingHook;
+use Hexbatch\Things\OpenApi\Callbacks\CallbackCollectionResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 
@@ -24,9 +26,14 @@ class HookResponse extends HookParams implements  JsonSerializable
     #[OA\Property( title: 'Owner id',description: 'Hook owner id',nullable: true)]
     protected ?string  $owner_id = null;
 
+    #[OA\Property( title: 'Callbacks',description: 'Callbacks generated',nullable: true)]
+    protected ?CallbackCollectionResponse  $callbacks = null;
+
 
     public function __construct(
-        protected ThingHook $hook
+        protected ThingHook $hook,
+        protected bool $b_include_callbacks = false,
+        protected ?Thing $callbacks_scoped_to_thing = null,
     ) {
 
         parent::__construct(
@@ -53,6 +60,16 @@ class HookResponse extends HookParams implements  JsonSerializable
 
         $this->owner_id = $hook->getOwner()?->getOwnerId();
         $this->owner_type = $hook->getOwner()?->getOwnerType();
+
+        if ($this->b_include_callbacks) {
+            $laravel_callbacks = $this->hook->hook_callbacks();
+
+            if ($this->callbacks_scoped_to_thing) {
+                $laravel_callbacks->where('source_thing_id',$this->callbacks_scoped_to_thing->id);
+            }
+
+            $this->callbacks = new CallbackCollectionResponse(callbacks: $laravel_callbacks->get());
+        }
     }
 
     public function jsonSerialize(): array

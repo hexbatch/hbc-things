@@ -42,6 +42,15 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->nullOnDelete();
 
+            $table->foreignId('source_shared_callback_id')
+                ->nullable()
+                ->default(null)
+                ->comment("When this is copied from a shared")
+                ->index()
+                ->constrained('thing_callbacks')
+                ->cascadeOnUpdate()
+                ->nullOnDelete();
+
 
 
             $table->boolean('is_signalling_when_done')

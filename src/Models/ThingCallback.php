@@ -28,6 +28,7 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property int owning_hook_id
  * @property int source_thing_id
  * @property int callback_error_id
+ * @property int source_shared_callback_id
  *
  *
  * @property int callback_http_code
@@ -368,73 +369,77 @@ class ThingCallback extends Model
     }
 
     public function runCallback() :void  {
-        if ($this->owning_hook->hook_callback_type === TypeOfCallback::DISABLED) {
+        if ($this->owning_hook->hook_callback_type === TypeOfCallback::DISABLED || empty($this->owning_hook->address))
+        {
             return;
         }
 
 
 
         try {
+            if ($this->thing_callback_status === TypeOfCallbackStatus::WAITING )
+            //run each callback only once to call the address, if no address then is manual
+            {
+                switch ($this->owning_hook->hook_callback_type) {
 
-            $response = null;
-            switch ($this->owning_hook->hook_callback_type) {
 
-                case TypeOfCallback::DISABLED:
-                {
-                    return;
+                    case TypeOfCallback::CODE:
+                    {
+                        $response = $this->callCode();
+                        break;
+                    }
+                    case TypeOfCallback::EVENT_CALL:
+                    {
+                        $response = $this->callEvent();
+                        break;
+                    }
+
+                    case TypeOfCallback::HTTP_GET:
+                    case TypeOfCallback::HTTP_POST:
+                    case TypeOfCallback::HTTP_PUT:
+                    case TypeOfCallback::HTTP_PATCH:
+                    case TypeOfCallback::HTTP_DELETE:
+                    case TypeOfCallback::HTTP_POST_FORM:
+                    case TypeOfCallback::HTTP_PUT_FORM:
+                    case TypeOfCallback::HTTP_PATCH_FORM:
+                    case TypeOfCallback::HTTP_DELETE_FORM:
+                    case TypeOfCallback::HTTP_POST_JSON:
+                    case TypeOfCallback::HTTP_PUT_JSON:
+                    case TypeOfCallback::HTTP_PATCH_JSON:
+                    case TypeOfCallback::HTTP_DELETE_JSON:
+                    {
+                        $response =  $this->callRemote();
+                        break;
+                    }
+                    default: {
+                        throw new \LogicException("should not get here");
+                    }
                 }
 
-                case TypeOfCallback::CODE:
-                {
-                    $response = $this->callCode();
-                    break;
-                }
-                case TypeOfCallback::EVENT_CALL:
-                {
-                    $response = $this->callEvent();
-                    break;
-                }
 
-                case TypeOfCallback::HTTP_GET:
-                case TypeOfCallback::HTTP_POST:
-                case TypeOfCallback::HTTP_PUT:
-                case TypeOfCallback::HTTP_PATCH:
-                case TypeOfCallback::HTTP_DELETE:
-                case TypeOfCallback::HTTP_POST_FORM:
-                case TypeOfCallback::HTTP_PUT_FORM:
-                case TypeOfCallback::HTTP_PATCH_FORM:
-                case TypeOfCallback::HTTP_DELETE_FORM:
-                case TypeOfCallback::HTTP_POST_JSON:
-                case TypeOfCallback::HTTP_PUT_JSON:
-                case TypeOfCallback::HTTP_PATCH_JSON:
-                case TypeOfCallback::HTTP_DELETE_JSON:
-                {
-                    $response =  $this->callRemote();
-                    break;
-                }
-            }
-
-            if (!$response) {
-                throw new HbcThingException("Response is null, which probably means a case was missed");
-            }
-            $this->callback_http_code = $response->getCode();
-            if ($response->isSuccessful()) {
-                $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_SUCCESSFUL;
-            } else {
-                $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
-            }
-            $this->callback_incoming_data = $response->getData();
-
-            if ($this->owning_hook->is_blocking) {
-                if ($this->owning_hook->is_after) {
-                    $this->thing_source->thing_parent?->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy()??[]);
+                $this->callback_http_code = $response->getCode();
+                if ($response->isSuccessful()) {
+                    $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_SUCCESSFUL;
                 } else {
-                    $this->thing_source->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy()??[]);
+                    $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
                 }
-            }
+                $this->callback_incoming_data = $response->getData();
+            } //end if this callback is waiting
 
-            if ($this->is_signalling_when_done) {
-                $this->thing_source->signal_parent();
+
+            if (!($this->owning_hook->is_manual && $this->owning_hook->address)) {
+                //if not a jump start, then do data and maybe signalling
+                if ($this->owning_hook->is_blocking) {
+                    if ($this->owning_hook->is_after) {
+                        $this->thing_source->thing_parent?->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy() ?? []);
+                    } else {
+                        $this->thing_source->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy() ?? []);
+                    }
+                }
+
+                if ($this->is_signalling_when_done) {
+                    $this->thing_source->signal_parent();
+                }
             }
 
         } catch (\Exception $e) {
@@ -445,12 +450,14 @@ class ThingCallback extends Model
             $this->save();
         }
 
-        //todo if this is a manual, and the address is empty, then somehow start the queue again with the things after it
-
     }
 
+    public static function createCallback(ThingHook $hook, Thing $thing) : ThingCallback {
 
-    public static function createFromHook(ThingHook $hook,Thing $thing) : ThingCallback {
+        $current_shared_callback = null;
+        if ($hook->is_sharing) {
+            $current_shared_callback = $thing->getCurrentSharedCallbackFromDescendant(hook: $hook);
+        }
         $node = new ThingCallback();
         $node->owning_hook_id = $hook->id;
         $node->source_thing_id = $thing->id;
@@ -458,6 +465,31 @@ class ThingCallback extends Model
         $node->refresh();
         $node->callback_outgoing_data = $node->calculateData(source: $hook->hook_data_template?->getArrayCopy()??[], hook: $hook, thing: $thing);
         $node->callback_outgoing_header = $node->calculateData(source: $hook->hook_header_template?->getArrayCopy()??[],hook: $hook, thing: $thing);
+        if ($current_shared_callback) {
+            $node->callback_incoming_data = $current_shared_callback->callback_incoming_data;
+            $node->thing_callback_status = $current_shared_callback->thing_callback_status;
+            $node->source_shared_callback_id = $current_shared_callback->id;
+        } else {
+            $node->thing_callback_status = TypeOfCallbackStatus::WAITING;
+        }
+
+        $node->save();
+        return $node;
+    }
+
+    public function createEmptyManual() : ?ThingCallback {
+        if (!$this->owning_hook->is_manual) {return null;}
+        if (!$this->owning_hook->address) {return $this;}
+        $node = new ThingCallback();
+        $node->owning_hook_id = $this->owning_hook_id;
+        $node->source_thing_id = $this->source_thing_id;
+        $node->save(); //save and refresh first time to get uuid
+        $node->refresh();
+        $node->callback_outgoing_data = $node->calculateData(source: $this->owning_hook->hook_data_template?->getArrayCopy()??[],
+            hook: $this->owning_hook, thing: $this->thing_source);
+        $node->callback_outgoing_header = $node->calculateData(source: $this->owning_hook->hook_header_template?->getArrayCopy()??[],
+            hook: $this->owning_hook, thing: $this->thing_source);
+        $node->thing_callback_status = TypeOfCallbackStatus::WAITING;
 
         $node->save();
         return $node;

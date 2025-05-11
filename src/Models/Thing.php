@@ -8,10 +8,13 @@ namespace Hexbatch\Things\Models;
 use ArrayObject;
 use Carbon\Carbon;
 use Exception;
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Jobs\RunThing;
+use Hexbatch\Things\Jobs\SendCallback;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,6 +22,8 @@ use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -61,6 +66,7 @@ use LogicException;
  * @property Thing thing_root
  * @property Thing[]|\Illuminate\Database\Eloquent\Collection thing_children
  * @property ThingCallback[]|\Illuminate\Database\Eloquent\Collection applied_callbacks
+ * @property ThingHook[]|\Illuminate\Database\Eloquent\Collection attached_hooks
  */
 class Thing extends Model
 {
@@ -94,7 +100,18 @@ class Thing extends Model
     ];
 
 
+    public function attached_hooks() : HasManyThrough
+    {
 
+        return $this->hasManyThrough(
+            ThingHook::class, //what is returned
+            ThingCallback::class, //the connecting class
+            'source_thing_id', // Foreign key on the connecting table...
+            'id', // Foreign key on the returned table...
+            'id', // Local key on this class table...
+            'owning_hook_id' // Local key on the connecting table...
+        );
+    }
     public function thing_children() : HasMany {
         return $this->hasMany(Thing::class,'parent_thing_id','id');
     }
@@ -127,7 +144,46 @@ class Thing extends Model
         return in_array($this->thing_status,TypeOfThingStatus::STATUSES_OF_COMPLETION);
     }
 
+    public function getCurrentSharedCallbackFromDescendant(ThingHook $hook)
+    : ?ThingCallback
+    {
+        $query_self_descandants = DB::table("things as desc_a")
+            ->selectRaw('desc_a.id, 0 as level')->where('desc_a.id', $this->id)
+            ->unionAll(
+                DB::table('things as desc_b')
+                    ->selectRaw('desc_b.id, level + 1 as level')
+                    ->join('thing_self_descendants', 'thing_self_descendants.id', '=', 'desc_b.parent_thing_id')
+            );
 
+        /** @noinspection PhpUndefinedMethodInspection */
+        $query_shared_callback = DB::table("things as node_a")
+            ->selectRaw("node_a.id, thing_self_descendants.level, thing_self_descendants.max_priority,thing_callbacks.id as callback_id")
+            ->where('node_a.id', $this->id)
+
+
+            ->join('thing_callbacks', 'thing_callbacks.owning_hook_id', '=', 'node_a.id')
+            ->join('thing_hooks', 'thing_descendants.id', '=', 'node_a.id')
+
+            ->join('thing_self_descendants', 'thing_self_descendants.id', '=', 'node_a.id')
+            ->join('thing_callbacks as shared',
+                /** @param JoinClause $join */
+                function ($join) use($hook) {
+                    $join
+                        ->on('shared.source_thing_id','=','node_a.id')
+                        ->where('shared.owning_hook_id',$hook->id)
+                        ->whereIn('shared.thing_callback_status',[TypeOfCallbackStatus::CALLBACK_ERROR,TypeOfCallbackStatus::CALLBACK_SUCCESSFUL])
+                        ->whereRaw('(shared.callback_run_at + make_interval(secs => ?) ) <= NOW()',[$hook->ttl_shared])
+                    ;
+                }
+            ) ->orderBy('level','desc')->limit(1)
+            ->withRecursiveExpression('thing_self_descendants',$query_self_descandants);
+
+        /** @noinspection PhpUndefinedMethodInspection */
+        return ThingCallback::where('thing_callbacks.id','callback_id')
+            ->join('shared_callbacks','shared_callbacks.callback_id')
+            ->withExpression('shared_callbacks',$query_shared_callback)
+            ->first();
+    }
 
     /** @return \Illuminate\Database\Eloquent\Collection|Thing[] */
 
@@ -196,7 +252,7 @@ class Thing extends Model
 
     protected function setStartData() {
         $this->update([
-            'thing_status' => TypeOfThingStatus::THING_PENDING,
+            'thing_status' => TypeOfThingStatus::THING_RUNNING,
             'thing_started_at'=>DB::raw("NOW()")
         ]);
     }
@@ -220,11 +276,7 @@ class Thing extends Model
             return;
         }
         /** @var IThingAction|null $action */
-        /*
-        todo move part of this to the dispatch, where make sure the thing is pending, and we set the start, and make sure it can run (pending)
 
-        todo have hooks optionally add in extra thing nodes, so do not check for that here (and remove that from the IAction)
-        */
         try {
             DB::beginTransaction();
             $b_ok = true;
@@ -237,6 +289,7 @@ class Thing extends Model
             } //end invalid check
 
             if ($b_ok) {
+                $action = $this->getAction();
                 $action->runAction();
 
                 if ($action->isActionComplete()) {
@@ -247,12 +300,11 @@ class Thing extends Model
                     } else {
                         $this->thing_status = TypeOfThingStatus::THING_ERROR;
                     }
+                    $this->save();
                     if ($this->is_signalling_when_done) {
                         //it is done, for better or worse
                         $this->signal_parent();
                     }
-                } else {
-                    $this->thing_status = TypeOfThingStatus::THING_PENDING;
                 }
             }//end if is ok
 
@@ -306,6 +358,7 @@ class Thing extends Model
      * If have children, if any non-pending have not finished, return
      * if only remaining children are pending, then push leaves
      * else push leaves of grandparent (starts )
+     * @throws Exception
      */
     protected function maybeQueueMore() : bool {
 
@@ -335,6 +388,7 @@ class Thing extends Model
 
     /**
      * leaf must run async if any of its ancestors are async, found in stats for it
+     * @throws Exception
      */
     protected function pushLeavesToJobs() :void {
         foreach ($this->getLeaves() as $leaf) {
@@ -342,18 +396,30 @@ class Thing extends Model
         }
     }
 
+    /**
+     * @throws Exception
+     */
     protected function dispatchThing() {
+
+
+        if ( $this->thing_invalid_at && Carbon::now('UTC')->greaterThanOrEqualTo(Carbon::parse($this->thing_invalid_at,'UTC')) ) {
+            $this->thing_status = TypeOfThingStatus::THING_FAIL;
+            $this->save();
+            $this->signal_parent();
+            return;
+        }
+
+        if ( $this->thing_start_at && Carbon::now('UTC')->lessThan(Carbon::parse($this->thing_start_at,'UTC')) ) {
+            $this->thing_status = TypeOfThingStatus::THING_PENDING;
+            $this->save();
+            return;
+        }
+
         /*
          * todo here we find the hooks for the thing, and arrange them in the bus
-         *  the callbacks will be made here, and organized, if a manual is found, add callbacks until that (pre),
-         *  including it if has address
-         *  or run thing and callbacks until the manual
          *
          * todo find the last blocking callback/thing , and set is_signalling_when_done  to tell the thing its done ,
          *
-         * * todo when figuring out the hook, and if  shared, then see if hook will be used later, up the ancestry chain of things: if so,
-         *    pick the highest ancestor, then create the result using that. When referencing this again, see if ttl + callback_run_at is less than now,
-         *    if so, discard this (delete) and make new result with same thing as before
          *
          * todo put the final, fail and success callbacks in the handlers
          *
@@ -363,9 +429,139 @@ class Thing extends Model
         $hooks = ThingHook::buildHook( action: $this->getAction(), owner: $this->getOwner(),
             tags: $this->thing_tags->getArrayCopy(),is_on: true)->get()->toArray();
 
+        $created_callbacks = [] ;
+        foreach ($this->applied_callbacks as $app) {
+            if (!isset($created_callbacks[$app->owning_hook_id])) { $created_callbacks[$app->owning_hook_id] = [];}
+            $created_callbacks[$app->owning_hook_id][] = $app;
+        }
+
         $callbacks = [];
-        foreach ($hooks as $hook) {
-            $callbacks[] = ThingCallback::createFromHook(hook: $hook,thing: $this);
+        $create_from_hooks = [];
+        $manual_ready = [];
+
+        $send_off_call = [];
+
+        foreach ($hooks as $hook)
+        {
+            if (isset($created_callbacks[$hook->id]))
+            {
+                if($hook->is_manual )
+                {
+                    if ($hook->address) {
+                        if (count($created_callbacks[$hook->id]) === 1) {
+                            /** @var ThingCallback $manual_jumpstart */
+                            $manual_jumpstart = $created_callbacks[$hook->id][1];
+                            if (in_array($manual_jumpstart->thing_callback_status, [TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR])) {
+                                $manual_jumpstart->createEmptyManual();
+                                return; //wait to have this filled out
+                            } elseif ($manual_jumpstart->thing_callback_status === TypeOfCallbackStatus::WAITING) {
+                                //jump-start still waiting, return
+                                return;
+                            }
+                        } else {
+                            //must be two
+                            /** @var ThingCallback $manual */
+                            $manual = $callbacks[] = $created_callbacks[$hook->id][1];
+                            if (in_array($manual->thing_callback_status, [TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR])) {
+                                $callbacks[] = $manual;
+                                $manual_ready[$hook->id] = $manual;
+                                $create_from_hooks[$hook->id] = $hook;
+                            } else {
+                                //still waiting, return
+                                return;
+                            }
+                        }
+                    } else {
+                        /** @var ThingCallback $manual */
+                        $manual = $created_callbacks[$hook->id][0];
+                        if (in_array($manual->thing_callback_status, [TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR])) {
+                            $callbacks[] = $manual;
+                            $manual_ready[$hook->id] = $manual;
+                            $create_from_hooks[$hook->id] = $hook;
+                        } else {
+                            //still waiting, return
+                            return;
+                        }
+                    }
+
+                } else {
+                    $callbacks[] = $created_callbacks[$hook->id];
+                }
+            } else {
+                $create_from_hooks[$hook->id] = $hook;
+            }
+        }
+
+        //send off any manual jump-starts not sent yet
+        foreach ($hooks as $hook)
+        {
+            if ($hook->is_manual && $hook->address && !in_array($hook->id,$manual_ready)) {
+                $send_off_call[] = $jump_start = ThingCallback::createCallback(hook: $hook,thing: $this);
+                SendCallback::dispatch($jump_start);
+            }
+        }
+
+        if (count($send_off_call)) {
+            return; //waiting for the jump start to do their thing
+        }
+
+        foreach ($hooks as $hook )
+        {
+            if (isset($create_from_hooks[$hook->id])) {continue;}
+            //now create the other callbacks
+            $callbacks[] = ThingCallback::createCallback(hook: $hook,thing: $this);
+        }
+
+        //sort greater priority first
+        usort($callbacks,function (ThingCallback $a,ThingCallback $b) {
+            return -($a->owning_hook->hook_priority <=> $b->owning_hook->hook_priority) ;
+        });
+
+        $non_blocking_pre = [];
+        $blocking_pre = [];
+
+        $non_blocking_post = [];
+        $blocking_post = [];
+
+        $success = [];
+        $fail = [];
+        $always = [];
+
+        foreach ($callbacks as $call) {
+            switch ($call->owning_hook->hook_mode) {
+                case TypeOfHookMode::NONE: {
+                    //not part of this
+                    break;
+                }
+                case TypeOfHookMode::NODE: {
+                    if ($call->owning_hook->is_after && $call->owning_hook->is_blocking) {
+                        $blocking_post[] = $call;
+                    }
+                    else if ($call->owning_hook->is_after && !$call->owning_hook->is_blocking) {
+                        $non_blocking_post[] = $call;
+                    }
+                    else if (!$call->owning_hook->is_after && $call->owning_hook->is_blocking) {
+                        $blocking_pre[] = $call;
+                    }
+                    else if (!$call->owning_hook->is_after && !$call->owning_hook->is_blocking) {
+                        $non_blocking_pre[] = $call;
+                    }
+                    break;
+                }
+                case TypeOfHookMode::NODE_FAILURE: {
+                    $fail[] = $call;
+                    break;
+                }
+                case TypeOfHookMode::NODE_SUCCESS: {
+                    $success[] = $call;
+                    break;
+                }
+                case TypeOfHookMode::NODE_FINALLY: {
+                    $always[] = $call;
+                    break;
+                }
+
+            }
         }
 
         $this->setStartData(); //combine with status change here in the update
@@ -541,7 +737,8 @@ class Thing extends Model
         ?string $owner_type = null,
         ?bool   $is_root = null,
         bool    $include_my_descendants = false,
-        bool    $eager_load = false
+        bool    $eager_load = false,
+        array   $owners = [],
     )
     : Builder
     {
@@ -600,7 +797,16 @@ class Thing extends Model
                 ->join('my_thing_descendants', 'my_thing_descendants.id', '=', 'things.id');
         }
 
-
+        if (count($owners)) {
+            $build->where(function (Builder $q) use($owners) {
+                foreach ($owners as $some_owner) {
+                    $q->orWhere(function (Builder $q) use($some_owner) {
+                        $q->where('things.owner_type',$some_owner->getOwnerType());
+                        $q->where('things.owner_type_id',$some_owner->getOwnerId());
+                    });
+                }
+            });
+        }
 
         if ($eager_load) {
             /**

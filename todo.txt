@@ -1,5 +1,4 @@
 
-todo: (see below)
 
     if the hook is manual, it makes one callback only, unless there is an address, then it makes two callbacks,
     where the second one has parent_callback_id set address one

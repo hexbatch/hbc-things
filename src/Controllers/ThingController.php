@@ -12,6 +12,8 @@ use Hexbatch\Things\Models\ThingHook;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
+use Hexbatch\Things\OpenApi\Things\ThingCollectionResponse;
+use Hexbatch\Things\OpenApi\Things\ThingResponse;
 use Hexbatch\Things\Requests\HookRequest;
 use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
@@ -48,7 +50,6 @@ class ThingController  {
         description: "",
         summary: 'List all the hooks',
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented'),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
@@ -182,13 +183,13 @@ class ThingController  {
         path: '/hbc-things/v1/hooks/{thing_hook}/destroy',
         operationId: 'hbc-things.hooks.destroy',
         description: "",
-        summary: 'Edits a hook',
+        summary: 'Deletes a hook',
 
         responses: [
             new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
         ]
     )]
-    public function thing_hook_destroy(ThingHook $hook,IThingOwner $owner) {
+    public function thing_hook_destroy(ThingHook $hook) {
         return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
     }
 
@@ -213,12 +214,21 @@ class ThingController  {
         operationId: 'hbc-things.things.list',
         description: "Shows tree status, times, progress",
         summary: 'Lists top things that are owned by user',
+        security: [['bearerAuth' => []]],
+        tags: ['thing'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
     public function thing_list(IThingOwner $owner, ThingOwnerGroup $group) {
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+        $owners = $group->getOwners();
+        $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
+        /** @var Thing[] $things */
+        $things = Thing::buildThing(owners: $combined_owners)->get();
+        return response()->json(new ThingCollectionResponse(things: $things), CodeOf::HTTP_OK);
     }
 
 
@@ -240,13 +250,17 @@ class ThingController  {
         operationId: 'hbc-things.things.show',
         description: "Lesser detail in decendants",
         summary: 'Shows a thing and its descendants',
-
+        security: [['bearerAuth' => []]],
+        tags: ['thing'],
         responses: [
-            new OA\Response( response: CodeOf::HTTP_NOT_IMPLEMENTED, description: 'Not yet implemented')
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
-    public function thing_show(Thing $thing,IThingOwner $owner) { //  (a tree)
-        return response()->json([], CodeOf::HTTP_NOT_IMPLEMENTED);
+    public function thing_show(Thing $thing) { //  (a tree)
+        return response()->json(new ThingResponse(thing: $thing, b_include_hooks: true, b_include_children: true), CodeOf::HTTP_OK);
     }
 
 
