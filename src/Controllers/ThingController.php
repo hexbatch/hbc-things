@@ -387,6 +387,7 @@ class ThingController  {
     public function manual_answer(ThingCallback $callback,Request $request) {
         if ($callback->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
         if (!$callback->owning_hook->is_manual) { abort(CodeOf::HTTP_BAD_REQUEST);}
+        if (!$callback->manual_alert_callback_id) { abort(CodeOf::HTTP_BAD_REQUEST);}
 
 
         $code = $request->request->getInt('code',200);
@@ -418,6 +419,7 @@ class ThingController  {
     public function manual_question(ThingCallback $callback) {
         if ($callback->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
         if (!$callback->owning_hook->is_manual) { abort(CodeOf::HTTP_BAD_REQUEST);}
+        if (!$callback->manual_alert_callback_id) { abort(CodeOf::HTTP_BAD_REQUEST);}
         return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
     }
 
