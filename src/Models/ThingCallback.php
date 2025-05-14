@@ -7,6 +7,7 @@ use ArrayObject;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Helpers\CallResponse;
 use Hexbatch\Things\Interfaces\ICallResponse;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use TorMorten\Eventy\Facades\Eventy;
@@ -106,11 +108,12 @@ class ThingCallback extends Model
      * @param TypeOfCallbackStatus[] $status_array
      */
     public static function buildCallback(
-        ?int $me_id = null,
-        ?int $hook_id = null,
-        ?int $thing_id = null,
-        array           $owners = [],
-        array $status_array = []
+        ?int  $me_id = null,
+        ?int  $hook_id = null,
+        ?int  $thing_id = null,
+        array $owners = [],
+        array $status_array = [],
+        ?bool $has_alert = null
     )
     : Builder
     {
@@ -135,6 +138,14 @@ class ThingCallback extends Model
 
         if ($thing_id) {
             $build->where('thing_callbacks.source_thing_id',$thing_id);
+        }
+
+        if ($has_alert !== null) {
+            if ($has_alert) {
+                $build->whereNotNull('thing_callbacks.manual_alert_callback_id');
+            } else {
+                $build->whereNull('thing_callbacks.manual_alert_callback_id');
+            }
         }
 
         if (count($owners)) {
@@ -530,5 +541,42 @@ class ThingCallback extends Model
     public function isCompleted() : bool {
         return in_array($this->thing_callback_status,[TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR]);
     }
+
+    /**
+     * @throws \Exception
+     */
+    public function setManualAnswer(array $data, int $code) {
+
+        try {
+            DB::beginTransaction();
+            if ($code < 0) {
+                $code = 0;
+            }
+            if ($code >= 600) {
+                $code = 599;
+            }
+            $this->callback_http_code = $code;
+            $this->callback_incoming_data = $data;
+            $this->save();
+            //see if any remaining manual callbacks waiting for thing, and if its status is waiting. If not more then set status
+            /** @var static[] $brothers */
+            $brothers = static::buildCallback(thing_id: $this->source_thing_id, has_alert: true)->get();
+            foreach ($brothers as $patter) {
+                if ($patter->id === $this->id) {
+                    continue;
+                }
+                if (!$patter->isCompleted()) {
+                    return;
+                }
+            }
+            //either no more, or all done
+            $this->thing_source->continueThing();
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollback();
+            throw $e;
+        }
+    }
+
 
 }

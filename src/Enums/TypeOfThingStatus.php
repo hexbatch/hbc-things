@@ -8,7 +8,8 @@ use OpenApi\Attributes as OA;
 enum TypeOfThingStatus : string {
 
   case THING_BUILDING = 'thing_building';
-  case THING_PENDING = 'thing_pending'; //waiting for manual callback
+  case THING_WAITING = 'thing_waiting'; //waiting for manual callback
+  case THING_PENDING = 'thing_pending'; //it in the jobs but not running yet
   case THING_RUNNING = 'thing_running'; //in the bus
 
   case THING_SHORT_CIRCUITED = 'thing_short_circuited'; //-- these will not run, and if queued, will be finished without processing

@@ -368,7 +368,9 @@ class ThingController  {
     }
 
 
-
+    /**
+     * @throws \Exception
+     */
     #[OA\Post(
         path: '/api/hbc-things/v1/callbacks/manual/{thing_callback}/answer',
         operationId: 'hbc-things.callbacks.manual_answer',
@@ -391,14 +393,10 @@ class ThingController  {
 
 
         $code = $request->request->getInt('code',200);
-        if ($code < 0) {$code = 0;}
-        if ($code >= 600) {$code = 599;}
-        $callback->callback_http_code = $code;
-
         $data = $request->get('data');
-        $callback->callback_incoming_data = $data;
-        $callback->save();
-        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true), CodeOf::HTTP_ACCEPTED);
+        $callback->setManualAnswer(data: $data,code: $code);
+        $callback->refresh();
+        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
     }
 
     #[OA\Post(

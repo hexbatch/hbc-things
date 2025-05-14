@@ -234,7 +234,9 @@ class Thing extends Model
             ->leftJoin('things as y', 'y.parent_thing_id', '=', 'term.id')
                 /** @param Builder $q  */
             ->where(function ( $q){
-                $q  ->whereNotIn('y.thing_status',[TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_PENDING,TypeOfThingStatus::THING_RUNNING])
+                $q  ->whereNotIn('y.thing_status',[
+                    //children must be completed or be leaves
+                    TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_PENDING,TypeOfThingStatus::THING_WAITING,TypeOfThingStatus::THING_RUNNING])
                     ->orWhereNull('y.id');
             })
 
@@ -249,6 +251,7 @@ class Thing extends Model
             ->withExpression('terminal_list',$query_term)
             ->join('terminal_list', 'terminal_list.id', '=', 'things.id')
             ->whereRaw("things.thing_priority = terminal_list.max_thinger")
+            ->where('things.thing_status',TypeOfThingStatus::THING_BUILDING)
             ;
 
         /** @var \Illuminate\Database\Eloquent\Collection|Thing[] */
@@ -293,12 +296,8 @@ class Thing extends Model
      * @throws Exception
      */
     public function runThing() :void {
-        if ($this->thing_status !== TypeOfThingStatus::THING_PENDING) {
-            if ($this->isComplete() ) {
-                return;
-            }
-            // something happened in the pauses between steps, so just stop running this
-            return;
+        if ($this->thing_status !== TypeOfThingStatus::THING_BUILDING) {
+           throw new HbcThingException("Non building thing has started a run : #". $this->id);
         }
         /** @var IThingAction|null $action */
 
@@ -374,7 +373,7 @@ class Thing extends Model
 
         $count_waiting_children = 0;
         foreach ($this->thing_children as $thang) {
-            if ($thang->thing_status === TypeOfThingStatus::THING_PENDING) { $count_waiting_children++; }
+            if ($thang->thing_status === TypeOfThingStatus::THING_WAITING) { $count_waiting_children++; }
         }
 
         foreach ($this->thing_children as $thang) {
@@ -382,6 +381,7 @@ class Thing extends Model
                 if (!$count_waiting_children) {  return false; }
             }
         }
+
         if ($count_waiting_children) { $this->pushLeavesToJobs();}
 
         //the parent is ready to run, but perhaps its priority is low and there are others to run first, so ask the grandparent to push leaves
@@ -522,6 +522,7 @@ class Thing extends Model
         $unresolved_manual = [];
         $blocking_pre = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: true,after: false,unresolved_manual: $unresolved_manual);
         if (count($unresolved_manual)) {
+            $this->setRunData(status: TypeOfThingStatus::THING_WAITING);
             return; //not until they are resolved
         }
         $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: false,after: true);
@@ -855,6 +856,16 @@ class Thing extends Model
             throw new HbcThingException("could not find thing with uuid of $value");
         }
         return $ret;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function continueThing() {
+        if ($this->thing_status !== TypeOfThingStatus::THING_WAITING) {return;}
+        $this->thing_status = TypeOfThingStatus::THING_PENDING;
+        $this->save();
+        $this->dispatchThing();
     }
 
 
