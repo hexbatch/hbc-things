@@ -11,6 +11,7 @@ use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Helpers\CallResponse;
 use Hexbatch\Things\Interfaces\ICallResponse;
 use Hexbatch\Things\Interfaces\IHookCode;
+use Hexbatch\Things\Interfaces\IThingOwner;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -30,6 +31,7 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property int source_thing_id
  * @property int callback_error_id
  * @property int source_shared_callback_id
+ * @property int manual_alert_callback_id
  *
  *
  * @property int callback_http_code
@@ -46,7 +48,6 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property string created_at
  * @property string modified_at
  *
- * @property string batch_string_id
  *
  * @property ThingHook owning_hook
  * @property Thing thing_source
@@ -100,12 +101,16 @@ class ThingCallback extends Model
     }
 
 
-
+    /**
+     * @param IThingOwner[] $owners
+     * @param TypeOfCallbackStatus[] $status_array
+     */
     public static function buildCallback(
         ?int $me_id = null,
         ?int $hook_id = null,
         ?int $thing_id = null,
         array           $owners = [],
+        array $status_array = []
     )
     : Builder
     {
@@ -122,6 +127,10 @@ class ThingCallback extends Model
 
         if ($hook_id) {
             $build->where('thing_callbacks.owning_hook_id',$hook_id);
+        }
+
+        if (count($status_array) ) {
+            $build->whereIn('thing_callbacks.thing_callback_status',$status_array);
         }
 
         if ($thing_id) {
@@ -206,9 +215,10 @@ class ThingCallback extends Model
 
         $action_constants = $action?->getInitialConstantData()??[];
 
-        $action_data = [];
         if ($action?->isActionComplete()) {
             $action_data = $action->getActionResult();
+        } else {
+            $action_data = $action->getPreRunData();
         }
 
         $template_data = $hook->hook_data_template?->getArrayCopy()??[];
@@ -504,6 +514,7 @@ class ThingCallback extends Model
         $node = new ThingCallback();
         $node->owning_hook_id = $this->owning_hook_id;
         $node->source_thing_id = $this->source_thing_id;
+        $node->manual_alert_callback_id = $this->id; //to tie them
         $node->save(); //save and refresh first time to get uuid
         $node->refresh();
         $node->callback_outgoing_data = $node->calculateData(source: $this->owning_hook->hook_data_template?->getArrayCopy()??[],
@@ -514,6 +525,10 @@ class ThingCallback extends Model
 
         $node->save();
         return $node;
+    }
+
+    public function isCompleted() : bool {
+        return in_array($this->thing_callback_status,[TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR]);
     }
 
 }

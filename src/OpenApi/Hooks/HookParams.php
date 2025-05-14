@@ -44,7 +44,10 @@ class HookParams implements IHookParams, JsonSerializable
         protected ?string  $action_id = null,
 
 
-        #[OA\Property( title: 'Tags filter',description: 'Optional tags used to filter.',nullable: true)]
+        #[OA\Property( title: 'Tags filter', description: 'Optional tags used to filter.', items: new OA\Items(), nullable: true)]
+        /**
+         * @var string[] $tags
+         */
         protected array $tags = [],
 
 
@@ -79,17 +82,22 @@ class HookParams implements IHookParams, JsonSerializable
         protected ?int $ttl_shared = null,
 
 
-        #[OA\Property( title:"Data template",description: 'The keys that make up the query|body|form|event data')]
+        #[OA\Property( title:"Data template",description: 'The keys that make up the query|body|form|event data',items: new OA\Items())]
+        /** @var mixed[] $data_template */
         protected array $data_template = [],
 
 
-        #[OA\Property( title:"Header template",description: 'The keys that make up the header for the http requests')]
+        #[OA\Property( title:"Header template",description: 'The keys that make up the header for the http requests',items: new OA\Items())]
+        /** @var mixed[] $header_template */
         protected array $header_template = [],
 
 
         #[OA\Property( title:"Address",description: 'the url|callable|evemt')]
         protected ?string $address = null,
 
+        /**
+         * @var mixed[]|null
+         */
         protected ?array $from_array = null
 
     )

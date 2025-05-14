@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\SkipIfBatchCancelled;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 #[DeleteWhenMissingModels]
 class SendCallback implements ShouldQueue
@@ -31,7 +32,14 @@ class SendCallback implements ShouldQueue
 
     public function handle(): void
     {
-        $this->callback->runCallback();
+
+
+        try {
+            $this->callback->runCallback();
+        } catch (\Exception $e) {
+            Log::error(message: "while running callback: ".$e->getMessage(),context: ['callback_id'=>$this->callback?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
+            $this->fail($e);
+        }
     }
 
     /**

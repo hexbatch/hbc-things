@@ -70,14 +70,17 @@ return new class extends Migration
 
             $table->timestamps();
 
-            $table->timestamp('thing_start_at')->nullable()->default(null)
+            $table->timestamp('thing_start_after')->nullable()->default(null)
                 ->comment('if set, then this will be done after the time, and not before');
 
-            $table->timestamp('thing_invalid_at')->nullable()->default(null)
+            $table->timestamp('thing_invalid_after')->nullable()->default(null)
                 ->comment('if set, then this thing will return false to its parent if the time its processed is after');
 
             $table->timestamp('thing_started_at')->nullable()->default(null)
                 ->comment('if set, then this thing started processing at this time');
+
+            $table->timestamp('thing_ran_at')->nullable()->default(null)
+                ->comment('if set, then this when the thing last ran at');
 
 
             $table->boolean('is_async')
@@ -117,7 +120,7 @@ return new class extends Migration
 
 
         Schema::table('things', function (Blueprint $table) {
-            $table->index(['thing_status','thing_start_at']);
+            $table->index(['thing_status','thing_start_after']);
 
             $table->string('action_type',30)
                 ->nullable()->default(null)
@@ -127,9 +130,6 @@ return new class extends Migration
                 ->nullable()->default(null)
                 ->comment("The type of owner");
 
-            $table->string('batch_string_id',255)
-                ->nullable()->default(null)
-                ->comment("last batch id");
 
             $table->index(['action_type','action_type_id'],'idx_thing_action');
             $table->index(['owner_type','owner_type_id'],'idx_thing_owner');

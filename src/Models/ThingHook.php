@@ -16,7 +16,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\DB;
 
 
 
@@ -166,7 +165,10 @@ class ThingHook extends Model
         ?int            $owner_id = null,
         array           $owners = [],
         ?array          $tags = null,
-        ?bool           $is_on = null
+        ?bool           $is_on = null,
+        ?bool           $is_after = null,
+        ?bool           $is_blocking = null,
+        ?TypeOfCallback $callback_type = null,
     )
     : Builder
     {
@@ -185,7 +187,14 @@ class ThingHook extends Model
         if ($is_on !== null) {
             $build->where('thing_hooks.is_on',$is_on);
         }
+        if ($is_after !== null) {
+            $build->where('thing_hooks.is_after',$is_after);
+        }
+        if ($is_blocking !== null) {
+            $build->where('thing_hooks.is_blocking',$is_blocking);
+        }
 
+        if ($callback_type) { $build->where('thing_hooks.hook_callback_type',$callback_type); }
         if ($action_type) { $build->where('thing_hooks.action_type',$action_type); }
         if ($action_id) { $build->where('thing_hooks.action_type_id',$action_id); }
         if ($owner_type) { $build->where('thing_hooks.owner_type',$owner_type); }

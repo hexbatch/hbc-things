@@ -12,7 +12,7 @@ interface IThingAction
     public function isActionFail() : bool;
 
     public function getActionId() : int;
-    public function getActionRef() : string;
+    public function getActionRef() : ?string;
     public function getActionPriority() : int;
     public function getActionType() : string;
     public static function getActionTypeStatic() : string;
@@ -26,6 +26,7 @@ interface IThingAction
 
     public function isAsync() : bool;
     public function getActionResult() : array ;
+    public function getPreRunData() : array ;
     public function getActionTags() : ?array ;
     public function getRenderHtml() : ?string ;
     public function getInitialConstantData() : ?array ;

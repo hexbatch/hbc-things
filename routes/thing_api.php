@@ -74,7 +74,6 @@ Route::prefix('hbc-things')->group(function () {
         $hbc_hook_editable[] =  $my_hook_editable;
     }
 
-
     Route::prefix('v1')->group(function ()
         use($hbc_middleware,$hbc_admin,
             $hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable,

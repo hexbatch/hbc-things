@@ -5,7 +5,7 @@ namespace Hexbatch\Things\OpenApi\Things;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Models\Thing;
-use Hexbatch\Things\OpenApi\Errors\ErrorResponse;
+use Hexbatch\Things\OpenApi\Errors\ThingErrorResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
@@ -21,17 +21,18 @@ class ThingResponse  implements  JsonSerializable
     #[OA\Property( title:"Self",format: 'uuid')]
     protected string $uuid;
 
-    #[OA\Property( title:"Parent",format: 'uuid')]
-    protected string $parent_uuid;
+    #[OA\Property( title:"Parent",format: 'uuid',nullable: true)]
+    protected ?string $parent_uuid;
 
 
     #[OA\Property( title:"Error",nullable: true)]
-    protected ?ErrorResponse $error;
+    protected ?ThingErrorResponse $error;
 
     #[OA\Property( title:"Priority")]
     protected int $priority;
 
     #[OA\Property( title:"Tags",nullable: true)]
+    /** @var string[] $tags */
     protected ?array $tags;
 
     #[OA\Property( title:"Status")]
@@ -54,8 +55,11 @@ class ThingResponse  implements  JsonSerializable
     #[OA\Property( title:"Action html")]
     protected ?string $action_html;
 
-    #[OA\Property( title: 'Started at',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
+    #[OA\Property( title: 'Started at',description: "Iso 8601 datetime string for when this was started", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
     public ?string $started_at = null;
+
+    #[OA\Property( title: 'Ran at',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
+    public ?string $ran_at = null;
 
 
     public function __construct(
@@ -65,12 +69,12 @@ class ThingResponse  implements  JsonSerializable
     ) {
 
         $this->uuid = $this->thing->ref_uuid;
-        $this->parent_uuid = $this->thing->thing_parent->ref_uuid;
+        $this->parent_uuid = $this->thing->thing_parent?->ref_uuid;
 
         $this->error = null;
-        /** @uses \Hexbatch\Things\Models\Thing::$thing_error() */
+        /** @uses \Hexbatch\Things\Models\Thing::thing_error() */
         if ($this->thing->thing_error) {
-            $this->error = new ErrorResponse(error: $this->thing->thing_error);
+            $this->error = new ThingErrorResponse(error: $this->thing->thing_error);
         }
         $this->priority = $this->thing->thing_priority;
         $this->status = $this->thing->thing_status;
@@ -79,8 +83,16 @@ class ThingResponse  implements  JsonSerializable
 
         $this->tags = $this->thing->thing_tags?->getArrayCopy()??[];
 
-        $this->started_at = Carbon::parse($this->thing->thing_started_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
+        if($this->thing->thing_started_at) {
+            $this->started_at = Carbon::parse($this->thing->thing_started_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
+        }
+
+        if($this->thing->thing_ran_at) {
+            $this->started_at = Carbon::parse($this->thing->thing_ran_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
+        }
+
         if ($this->b_include_hooks) {
+            /** @uses  \Hexbatch\Things\Models\Thing::attached_hooks() */
             $this->hooks = new HookCollectionResponse(given_hooks: $this->thing->attached_hooks,b_include_callbacks: true,callbacks_scoped_to_thing: $this->thing);
         }
 

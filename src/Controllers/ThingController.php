@@ -26,9 +26,8 @@ use Symfony\Component\HttpFoundation\Response as CodeOf;
 
 class ThingController  {
 
-
     #[OA\Get(
-        path: '/hbc-things/v1/hooks/list',
+        path: '/api/hbc-things/v1/hooks/list',
         operationId: 'hbc-things.hooks.list',
         description: "",
         summary: 'List all the hooks registered to this owner',
@@ -57,7 +56,7 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/hooks/admin/list',
+        path: '/api/hbc-things/v1/hooks/admin/list',
         operationId: 'hbc-things.hooks.admin.list',
         description: "",
         summary: 'List all the hooks',
@@ -87,7 +86,7 @@ class ThingController  {
     }
 
     #[OA\Delete(
-        path: '/hbc-things/v1/hooks/admin/{thing_hook}/destroy',
+        path: '/api/hbc-things/v1/hooks/admin/{thing_hook}/destroy',
         operationId: 'hbc-things.hooks.admin.destroy',
         description: "",
         summary: 'Removes a hook',
@@ -108,7 +107,7 @@ class ThingController  {
     }
 
     #[OA\Get(
-        path: '/hbc-things/v1/hooks/admin/{thing_hook}/show',
+        path: '/api/hbc-things/v1/hooks/admin/{thing_hook}/show',
         operationId: 'hbc-things.hooks.admin.show',
         description: "",
         summary: 'Shows information about a hook',
@@ -131,7 +130,7 @@ class ThingController  {
 
 
     #[OA\Post(
-        path: '/hbc-things/v1/hooks/create',
+        path: '/api/hbc-things/v1/hooks/create',
         operationId: 'hbc-things.hooks.create',
         description: "Make a hook with or without defined callback responses",
         summary: 'Create a new hook',
@@ -157,7 +156,7 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/hooks/{thing_hook}/show',
+        path: '/api/hbc-things/v1/hooks/{thing_hook}/show',
         operationId: 'hbc-things.hooks.show',
         description: "",
         summary: 'Shows information about a hook',
@@ -176,7 +175,7 @@ class ThingController  {
     }
 
     #[OA\Patch(
-        path: '/hbc-things/v1/hooks/{thing_hook}/edit',
+        path: '/api/hbc-things/v1/hooks/{thing_hook}/edit',
         operationId: 'hbc-things.hooks.edit',
         description: "Affects future hooks",
         summary: 'Edits a hook',
@@ -202,7 +201,7 @@ class ThingController  {
 
 
     #[OA\Delete(
-        path: '/hbc-things/v1/hooks/{thing_hook}/destroy',
+        path: '/api/hbc-things/v1/hooks/{thing_hook}/destroy',
         operationId: 'hbc-things.hooks.destroy',
         description: "",
         summary: 'Deletes a hook',
@@ -239,7 +238,7 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/things/list',
+        path: '/api/hbc-things/v1/things/list',
         operationId: 'hbc-things.things.list',
         description: "Shows tree status, times, progress",
         summary: 'Lists top things that are owned by user',
@@ -270,7 +269,7 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/things/admin/list',
+        path: '/api/hbc-things/v1/things/admin/list',
         operationId: 'hbc-things.things.admin.list',
         description: "Shows tree status, times, progress",
         summary: 'Lists top things that are owned by user',
@@ -299,7 +298,7 @@ class ThingController  {
     }
 
     #[OA\Get(
-        path: '/hbc-things/v1/things/{thing}/show',
+        path: '/api/hbc-things/v1/things/{thing}/show',
         operationId: 'hbc-things.things.show',
         description: "Lesser detail in decendants",
         summary: 'Shows a thing and its descendants',
@@ -320,7 +319,7 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/things/admin/{thing}/show',
+        path: '/api/hbc-things/v1/things/admin/{thing}/show',
         operationId: 'hbc-things.things.admin.show',
         description: "Lesser detail in decendants",
         summary: 'Shows a thing and its descendants',
@@ -347,7 +346,7 @@ class ThingController  {
 
 
     #[OA\Put(
-        path: '/hbc-things/v1/things/{thing}/shortcut',
+        path: '/api/hbc-things/v1/things/{thing}/shortcut',
         operationId: 'hbc-things.things.shortcut',
         description: "If children not run they are shortcut too",
         summary: 'Shortcuts a thing',
@@ -371,7 +370,7 @@ class ThingController  {
 
 
     #[OA\Post(
-        path: '/hbc-things/v1/callbacks/manual/{thing_callback}/answer',
+        path: '/api/hbc-things/v1/callbacks/manual/{thing_callback}/answer',
         operationId: 'hbc-things.callbacks.manual_answer',
         description: "Manual callbacks can be filled in without auth, if they are waiting",
         summary: 'Fill in a manual callback',
@@ -402,7 +401,7 @@ class ThingController  {
     }
 
     #[OA\Post(
-        path: '/hbc-things/v1/callbacks/manual/{thing_callback}/question',
+        path: '/api/hbc-things/v1/callbacks/manual/{thing_callback}/question',
         operationId: 'hbc-things.callbacks.manual_question',
         description: "Manual callbacks can be shown without auth, if they are waiting",
         summary: 'Show a waiting manual callback',
@@ -423,7 +422,7 @@ class ThingController  {
     }
 
     #[OA\Get(
-        path: '/hbc-things/v1/callbacks/{thing_callback}/show',
+        path: '/api/hbc-things/v1/callbacks/{thing_callback}/show',
         operationId: 'hbc-things.callbacks.show',
         description: "",
         summary: 'Show a callback',
@@ -442,7 +441,7 @@ class ThingController  {
     }
 
     #[OA\Get(
-        path: '/hbc-things/v1/callbacks/list',
+        path: '/api/hbc-things/v1/callbacks/list',
         operationId: 'hbc-things.callbacks.list',
         description: "",
         summary: 'Show a list of callbacks',
@@ -467,7 +466,7 @@ class ThingController  {
 
 
     #[OA\Get(
-        path: '/hbc-things/v1/callbacks/admin/{thing_callback}/show',
+        path: '/api/hbc-things/v1/callbacks/admin/{thing_callback}/show',
         operationId: 'hbc-things.callbacks.admin.show',
         description: "",
         summary: 'Show a callback',

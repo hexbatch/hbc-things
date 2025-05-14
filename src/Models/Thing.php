@@ -11,12 +11,14 @@ use Exception;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
+use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Jobs\RunThing;
 use Hexbatch\Things\Jobs\SendCallback;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
+use Illuminate\Bus\Batch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -24,8 +26,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use LogicException;
+use Ramsey\Uuid\Uuid;
 
 /**
  *
@@ -47,11 +52,11 @@ use LogicException;
  * @property bool is_signalling_when_done
  *
  *
- * @property string thing_start_at
- * @property string thing_invalid_at
+ * @property string thing_start_after
+ * @property string thing_invalid_after
  * @property string thing_started_at
+ * @property string thing_ran_at
  *
- * @property string batch_string_id
  *
  * @property string ref_uuid
  * @property TypeOfThingStatus thing_status
@@ -82,10 +87,12 @@ class Thing extends Model
         'thing_priority',
         'action_type',
         'action_type_id',
-        'thing_start_at',
+        'thing_start_after',
         'thing_started_at',
-        'thing_invalid_at',
+        'thing_invalid_after',
+        'thing_ran_at',
         'thing_status',
+        'is_signalling_when_done',
     ];
 
     /** @var array<int, string> */
@@ -202,8 +209,8 @@ class Thing extends Model
             ->selectRaw("node_a.id, thing_descendants.level, thing_descendants.max_priority")
             ->where('node_a.id', $this->id)
             ->where('node_a.thing_status', TypeOfThingStatus::THING_BUILDING)
-            ->whereRaw("(node_a.thing_start_at IS NULL OR node_a.thing_start_at <= NOW() )")
-            ->whereRaw("(node_a.thing_invalid_at IS NULL OR node_a.thing_invalid_at < NOW())")
+            ->whereRaw("(node_a.thing_start_after IS NULL OR node_a.thing_start_after <= NOW() )")
+            ->whereRaw("(node_a.thing_invalid_after IS NULL OR node_a.thing_invalid_after < NOW())")
 
             ->join('thing_descendants', 'thing_descendants.id', '=', 'node_a.id')
             ->unionAll(
@@ -214,24 +221,31 @@ class Thing extends Model
                     ->join('thing_descendants', 'thing_descendants.id', '=', 'node_b.id')
                     ->whereRaw("node_b.thing_priority = thing_descendants.max_priority")
                     ->where('node_b.thing_status', TypeOfThingStatus::THING_BUILDING)
-                    ->whereRaw("(node_b.thing_start_at IS NULL OR node_b.thing_start_at <= NOW() )")
-                    ->whereRaw("(node_b.thing_invalid_at IS NULL OR node_b.thing_invalid_at < NOW())")
+                    ->whereRaw("(node_b.thing_start_after IS NULL OR node_b.thing_start_after <= NOW() )")
+                    ->whereRaw("(node_b.thing_invalid_after IS NULL OR node_b.thing_invalid_after < NOW())")
 
             )->withRecursiveExpression('thing_descendants',$query_descendants);
 
         /** @noinspection PhpUndefinedMethodInspection */
-        $query_term = DB::table("things as term")->selectRaw("term.id, term.thing_priority, max(term.thing_priority) OVER () as max_thinger")
+        $query_term = DB::table("things as term")
+            ->distinct()
+            ->selectRaw("term.id, term.thing_priority, max(term.thing_priority) OVER () as max_thinger")
             ->join('thing_nodes', 'thing_nodes.id', '=', 'term.id')
             ->leftJoin('things as y', 'y.parent_thing_id', '=', 'term.id')
-            ->whereNull('y.id')
+                /** @param Builder $q  */
+            ->where(function ( $q){
+                $q  ->whereNotIn('y.thing_status',[TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_PENDING,TypeOfThingStatus::THING_RUNNING])
+                    ->orWhereNull('y.id');
+            })
+
             ->withRecursiveExpression('thing_nodes',$query_nodes)
             ;
 
         $lar =  Thing::select('things.*')
             ->selectRaw("extract(epoch from  things.created_at) as created_at_ts")
             ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
-            ->selectRaw("extract(epoch from  things.thing_start_at) as thing_start_at_ts")
-            ->selectRaw("extract(epoch from  things.thing_invalid_at) as thing_invalid_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_start_after) as thing_start_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_invalid_after) as thing_invalid_at_ts")
             ->withExpression('terminal_list',$query_term)
             ->join('terminal_list', 'terminal_list.id', '=', 'things.id')
             ->whereRaw("things.thing_priority = terminal_list.max_thinger")
@@ -244,23 +258,34 @@ class Thing extends Model
 
     public function markIncompleteDescendantsAs(TypeOfThingStatus $status) {
         static::buildThing(me_id: $this->id,include_my_descendants: true)
-            ->where('id','<>',$this->id) //do not mark oneself
+            ->where('things.id','<>',$this->id) //do not mark oneself
             ->whereNotIn('thing_status',TypeOfThingStatus::STATUSES_OF_COMPLETION)
             ->update(['thing_status'=>$status]);
     }
 
 
-    protected function setStartData() {
+    protected function setStartData(bool $signal_when_done) {
         $this->update([
-            'thing_status' => TypeOfThingStatus::THING_RUNNING,
+            'thing_status' => TypeOfThingStatus::THING_PENDING,
+            'is_signalling_when_done'=>$signal_when_done,
             'thing_started_at'=>DB::raw("NOW()")
+        ]);
+    }
+
+    protected function setRunData(TypeOfThingStatus $status) {
+        $this->update([
+            'thing_status' => $status,
+            'thing_ran_at'=>DB::raw("NOW()"),
         ]);
     }
 
     protected function setException(Exception $e) {
         $hex = ThingError::createFromException($e);
-        $this->thing_error_id = $hex->id;
-        $this->save();
+        $this->update([
+            'thing_status' => TypeOfThingStatus::THING_ERROR,
+            'thing_ran_at'=>DB::raw("NOW()"),
+            'thing_error_id'=>$hex?->id??null,
+        ]);
     }
 
 
@@ -279,42 +304,37 @@ class Thing extends Model
 
         try {
             DB::beginTransaction();
-            $b_ok = true;
-            if($this->thing_invalid_at) {
-                if(Carbon::parse($this->thing_start_at)->isAfter($this->thing_invalid_at) ) {
-                    //it fails
-                    $this->thing_status = TypeOfThingStatus::THING_INVALID;
-                    $b_ok = false;
+
+
+            $status = null;
+            $action = $this->getAction();
+            $action->runAction();
+            if($this->thing_invalid_after && Carbon::parse($this->thing_start_after)->isAfter($this->thing_invalid_after)) {
+                $status  = TypeOfThingStatus::THING_INVALID;
+            }
+            else if ($action->isActionComplete())
+            {
+                if ($action->isActionSuccess()) {
+                    $status  = TypeOfThingStatus::THING_SUCCESS;
+                } else if ($action->isActionFail()) {
+                    $status  = TypeOfThingStatus::THING_FAIL;
+                } else {
+                    $status  = TypeOfThingStatus::THING_ERROR;
                 }
-            } //end invalid check
+            }
 
-            if ($b_ok) {
-                $action = $this->getAction();
-                $action->runAction();
-
-                if ($action->isActionComplete()) {
-                    if ($action->isActionSuccess()) {
-                        $this->thing_status = TypeOfThingStatus::THING_SUCCESS;
-                    } else if ($action->isActionFail()) {
-                        $this->thing_status = TypeOfThingStatus::THING_FAIL;
-                    } else {
-                        $this->thing_status = TypeOfThingStatus::THING_ERROR;
-                    }
-                    $this->save();
-                    if ($this->is_signalling_when_done) {
-                        //it is done, for better or worse
-                        $this->signal_parent();
-                    }
+            if ($status) {
+                $this->setRunData(status: $status);
+                if ($this->is_signalling_when_done) {
+                    //it is done, for better or worse
+                    $this->signal_parent();
                 }
-            }//end if is ok
+            }
 
-            $this->save();
             DB::commit();
         } catch (Exception $e) {
             DB::rollBack();
-            $this->thing_status = TypeOfThingStatus::THING_ERROR;
             $this->setException($e);
-            $this->save();
             throw $e;
         }
 
@@ -325,32 +345,22 @@ class Thing extends Model
      */
     public function signal_parent() {
         if ($this->parent_thing_id) {
-            try {
-                $action = $this->getAction();
-                //notify parent action of result
-                $this->thing_parent->getAction()?->setChildActionResult(child: $action);
-                if ($this->thing_parent->getAction()?->isActionComplete()) {
-                    if ($this->thing_parent->getAction()?->isActionSuccess()) {
-                        $this->thing_parent->thing_status = TypeOfThingStatus::THING_SUCCESS;
-                    } else if ($this->thing_parent->getAction()?->isActionFail()) {
-                        $this->thing_parent->thing_status = TypeOfThingStatus::THING_FAIL;
-                    } else {
-                        $this->thing_parent->thing_status = TypeOfThingStatus::THING_ERROR;
-                    }
-                    $this->thing_parent->save();
-                    $this->thing_parent->markIncompleteDescendantsAs(TypeOfThingStatus::THING_SHORT_CIRCUITED);
+            $action = $this->getAction();
+            //notify parent action of result
+            $this->thing_parent->getAction()?->setChildActionResult(child: $action);
+            if ($this->thing_parent->getAction()?->isActionComplete()) {
+                if ($this->thing_parent->getAction()?->isActionSuccess()) {
+                    $this->thing_parent->thing_status = TypeOfThingStatus::THING_SUCCESS;
+                } else if ($this->thing_parent->getAction()?->isActionFail()) {
+                    $this->thing_parent->thing_status = TypeOfThingStatus::THING_FAIL;
+                } else {
+                    $this->thing_parent->thing_status = TypeOfThingStatus::THING_ERROR;
                 }
-            } catch (Exception $e) {
-                DB::rollBack();
-                $this->thing_status = TypeOfThingStatus::THING_ERROR;
-                $this->setException($e);
-                $this->save();
-                throw $e;
-            } finally {
-                //see if all children ran, if so, put the parent on the processing
-                $this->maybeQueueMore();
+                $this->thing_parent->save();
+                $this->thing_parent->markIncompleteDescendantsAs(TypeOfThingStatus::THING_SHORT_CIRCUITED);
             }
-
+            //see if all children ran, if so, put the parent on the processing
+            $this->maybeQueueMore();
         }
     }
 
@@ -397,180 +407,178 @@ class Thing extends Model
     }
 
     /**
+     * @return SendCallback[]
+     */
+    protected function getCallbacksOfType(TypeOfHookMode $which,?bool $blocking = null,?bool $after = null,&$unresolved_manual = []) : array {
+
+        /** @var ThingHook[] $hooks */
+        $hooks = ThingHook::buildHook( mode:$which,action: $this->getAction(), owner: $this->getOwner(),
+            tags: $this->thing_tags->getArrayCopy(),is_on: true,is_after: $after,is_blocking: $blocking)->get();
+
+        $callbacks = [];
+        foreach ($hooks as $hook) {
+            if ($hook->is_manual && $blocking && !$after) { //we only do manual for pre blocking
+                //see if filled in for thing already
+                /**
+                 * @var ThingCallback[] $maybe_existing
+                 */
+                $maybe_existing = ThingCallback::buildCallback(hook_id: $hook->id, thing_id: $this->id)->get();
+                /*
+                 * if none existing, create one or two
+                 */
+                if (count($maybe_existing) === 0) {
+                    if ($hook->address) {
+                        $jump_start = ThingCallback::createCallback(hook: $hook, thing: $this);
+                        $unresolved_manual[] = $jump_start->createEmptyManual();
+                        SendCallback::dispatch($jump_start)->afterCommit();
+                    }
+                } elseif (count($maybe_existing) === 1) {
+                    $manual = $maybe_existing[0];
+                    if ($hook->address && $manual->manual_alert_callback_id && !$manual->isCompleted()) {
+                        //hook was edited since callback created, now has address, send notification because manual not completed yet
+                        $jump_start = ThingCallback::createCallback(hook: $hook, thing: $this);
+                        $unresolved_manual[] = $manual;
+                        SendCallback::dispatch($jump_start)->afterCommit();
+                    } else if ($manual->manual_alert_callback_id && !$manual->isCompleted()) {
+                        $unresolved_manual[] = $manual;
+                    } else if ($hook->address && !$manual->manual_alert_callback_id) {
+                        //notice was sent out, but no manual created
+                        $unresolved_manual[] = $manual->createEmptyManual();
+                    } else if (!$hook->address && $manual->manual_alert_callback_id && !$manual->isCompleted()) {
+                        //waiting on manual
+                        $unresolved_manual[] = $manual;
+                    } else {
+                        $callbacks[] = $manual;
+                    }
+                } elseif (count($maybe_existing) >= 2) {
+                    foreach ($maybe_existing as $maybe) {
+                        if ($maybe->manual_alert_callback_id && !$maybe->isCompleted()) {
+                            $unresolved_manual[] = $maybe;
+                        }
+                        if ($maybe->manual_alert_callback_id && $maybe->isCompleted()) {
+                            $callbacks[] = $maybe;
+                        }
+                    }
+                }
+            }
+        } //end for each hook
+
+        if (count($unresolved_manual)) {
+            //do not create others yet
+            return [];
+        }
+
+        foreach ($hooks as $hook) {
+            if ($hook->is_manual) { continue; } //manual already done
+            $callbacks[] = ThingCallback::createCallback(hook: $hook,thing: $this);
+        }
+
+
+
+        //sort highest priority first
+        usort($callbacks,function (ThingCallback $a,ThingCallback $b) {
+            return -($a->owning_hook->hook_priority <=> $b->owning_hook->hook_priority) ;
+        });
+
+        $ret = [];
+        foreach ($callbacks as $call) {
+            $ret = new  SendCallback(callback:$call);
+        }
+        return $ret;
+    }
+
+    /**
+     * @return SendCallback[]
+     */
+    public static function getCallbacks(string $ref,TypeOfHookMode $which,?bool $blocking = null,?bool $after = null) {
+        /** @var Thing|null $thung */
+        $thung = Thing::where('ref_uuid',$ref)->first();
+        if (!$thung) {
+            Log::warning("could not get thing by uuid of $ref");
+            return [];
+        }
+        return $thung->getCallbacksOfType(which: $which,blocking: $blocking,after: $after);
+    }
+
+    /**
      * @throws Exception
      */
     protected function dispatchThing() {
 
 
-        if ( $this->thing_invalid_at && Carbon::now('UTC')->greaterThanOrEqualTo(Carbon::parse($this->thing_invalid_at,'UTC')) ) {
-            $this->thing_status = TypeOfThingStatus::THING_FAIL;
-            $this->save();
+        if ( $this->thing_invalid_after && Carbon::now('UTC')->greaterThanOrEqualTo(Carbon::parse($this->thing_invalid_after,'UTC')) ) {
+            $this->setRunData(status: TypeOfThingStatus::THING_FAIL);
             $this->signal_parent();
             return;
         }
 
-        if ( $this->thing_start_at && Carbon::now('UTC')->lessThan(Carbon::parse($this->thing_start_at,'UTC')) ) {
-            $this->thing_status = TypeOfThingStatus::THING_PENDING;
-            $this->save();
+        if ( $this->thing_start_after && Carbon::now('UTC')->lessThan(Carbon::parse($this->thing_start_after,'UTC')) ) {
+            $this->setRunData(status: TypeOfThingStatus::THING_INVALID);
+            $this->signal_parent();
             return;
         }
 
-        /*
-         * todo here we find the hooks for the thing, and arrange them in the bus
-         *
-         * todo find the last blocking callback/thing , and set is_signalling_when_done  to tell the thing its done ,
-         *
-         *
-         * todo put the final, fail and success callbacks in the handlers
-         *
-         */
 
-        /** @var ThingHook[] $hooks */
-        $hooks = ThingHook::buildHook( action: $this->getAction(), owner: $this->getOwner(),
-            tags: $this->thing_tags->getArrayCopy(),is_on: true)->get()->toArray();
-
-        $created_callbacks = [] ;
-        foreach ($this->applied_callbacks as $app) {
-            if (!isset($created_callbacks[$app->owning_hook_id])) { $created_callbacks[$app->owning_hook_id] = [];}
-            $created_callbacks[$app->owning_hook_id][] = $app;
+        $unresolved_manual = [];
+        $blocking_pre = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: true,after: false,unresolved_manual: $unresolved_manual);
+        if (count($unresolved_manual)) {
+            return; //not until they are resolved
         }
+        $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: false,after: true);
 
-        $callbacks = [];
-        $create_from_hooks = [];
-        $manual_ready = [];
+        $this->setStartData(signal_when_done:  !count($blocking_post)); //combine with status change here in the update
+        $blocking = array_merge($blocking_pre,[new RunThing(thing: $this)],$blocking_post);
+        $non_blocking_pre = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: false,after: false);
 
-        $send_off_call = [];
+        $chaining = [];
+        $chaining[] = Bus::batch(
+            $blocking
+        )
+            ->before(function (Batch $batch) {
 
-        foreach ($hooks as $hook)
-        {
-            if (isset($created_callbacks[$hook->id]))
-            {
-                if($hook->is_manual )
-                {
-                    if ($hook->address) {
-                        if (count($created_callbacks[$hook->id]) === 1) {
-                            /** @var ThingCallback $manual_jumpstart */
-                            $manual_jumpstart = $created_callbacks[$hook->id][1];
-                            if (in_array($manual_jumpstart->thing_callback_status, [TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR])) {
-                                $manual_jumpstart->createEmptyManual();
-                                return; //wait to have this filled out
-                            } elseif ($manual_jumpstart->thing_callback_status === TypeOfCallbackStatus::WAITING) {
-                                //jump-start still waiting, return
-                                return;
-                            }
-                        } else {
-                            //must be two
-                            /** @var ThingCallback $manual */
-                            $manual = $callbacks[] = $created_callbacks[$hook->id][1];
-                            if (in_array($manual->thing_callback_status, [TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR])) {
-                                $callbacks[] = $manual;
-                                $manual_ready[$hook->id] = $manual;
-                                $create_from_hooks[$hook->id] = $hook;
-                            } else {
-                                //still waiting, return
-                                return;
-                            }
-                        }
-                    } else {
-                        /** @var ThingCallback $manual */
-                        $manual = $created_callbacks[$hook->id][0];
-                        if (in_array($manual->thing_callback_status, [TypeOfCallbackStatus::CALLBACK_SUCCESSFUL, TypeOfCallbackStatus::CALLBACK_ERROR])) {
-                            $callbacks[] = $manual;
-                            $manual_ready[$hook->id] = $manual;
-                            $create_from_hooks[$hook->id] = $hook;
-                        } else {
-                            //still waiting, return
-                            return;
-                        }
-                    }
+                Log::debug(sprintf("before handler for %s |  %s",$batch->id,$batch->name));
 
-                } else {
-                    $callbacks[] = $created_callbacks[$hook->id];
-                }
-            } else {
-                $create_from_hooks[$hook->id] = $hook;
-            }
-        }
+            })->progress(function (Batch $batch) {
 
-        //send off any manual jump-starts not sent yet
-        foreach ($hooks as $hook)
-        {
-            if ($hook->is_manual && $hook->address && !in_array($hook->id,$manual_ready)) {
-                $send_off_call[] = $jump_start = ThingCallback::createCallback(hook: $hook,thing: $this);
-                SendCallback::dispatch($jump_start);
-            }
-        }
+                Log::notice("job in batch completed , pending left ".$batch->pendingJobs);
 
-        if (count($send_off_call)) {
-            return; //waiting for the jump start to do their thing
-        }
-
-        foreach ($hooks as $hook )
-        {
-            if (isset($create_from_hooks[$hook->id])) {continue;}
-            //now create the other callbacks
-            $callbacks[] = ThingCallback::createCallback(hook: $hook,thing: $this);
-        }
-
-        //sort greater priority first
-        usort($callbacks,function (ThingCallback $a,ThingCallback $b) {
-            return -($a->owning_hook->hook_priority <=> $b->owning_hook->hook_priority) ;
-        });
-
-        $non_blocking_pre = [];
-        $blocking_pre = [];
-
-        $non_blocking_post = [];
-        $blocking_post = [];
-
-        $success = [];
-        $fail = [];
-        $always = [];
-
-        foreach ($callbacks as $call) {
-            switch ($call->owning_hook->hook_mode) {
-                case TypeOfHookMode::NONE: {
-                    //not part of this
-                    break;
-                }
-                case TypeOfHookMode::NODE: {
-                    if ($call->owning_hook->is_after && $call->owning_hook->is_blocking) {
-                        $blocking_post[] = $call;
-                    }
-                    else if ($call->owning_hook->is_after && !$call->owning_hook->is_blocking) {
-                        $non_blocking_post[] = $call;
-                    }
-                    else if (!$call->owning_hook->is_after && $call->owning_hook->is_blocking) {
-                        $blocking_pre[] = $call;
-                    }
-                    else if (!$call->owning_hook->is_after && !$call->owning_hook->is_blocking) {
-                        $non_blocking_pre[] = $call;
-                    }
-                    break;
-                }
-                case TypeOfHookMode::NODE_FAILURE: {
-                    $fail[] = $call;
-                    break;
-                }
-                case TypeOfHookMode::NODE_SUCCESS: {
-                    $success[] = $call;
-                    break;
-                }
-                case TypeOfHookMode::NODE_FINALLY: {
-                    $always[] = $call;
-                    break;
+            })->then(function (Batch $batch)  {
+                Log::debug(sprintf("success handler for %s |  %s",$batch->id,$batch->name));
+                $success = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE_SUCCESS);
+                if (count($success)) {
+                    Bus::batch($success)->onConnection('default');
                 }
 
-            }
+            })->catch(function (Batch $batch, \Throwable $e){
+
+                Log::warning(sprintf("failed job for %s |  %s \n",$batch->id,$batch->name).$e);
+                $fail = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE_FAILURE);
+
+                if (count($fail)) {
+                    Bus::batch($fail)->onConnection('default');
+                }
+
+            })->finally(function (Batch $batch)  {
+                Log::debug(sprintf("Finally handler for %s |  %s",$batch->id,$batch->name));
+                $always = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE_FAILURE);
+                if (count($always)) {
+                    Bus::batch($always)->onConnection('default');
+                }
+                $non_blocking_post = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE,blocking: false,after: true);
+                if (count($non_blocking_post)) {
+                    Bus::batch($non_blocking_post)->onConnection('default');
+                }
+            })->onConnection($this->is_async?'default':'sync')
+            ->name($this->ref_uuid);
+
+        if (count($non_blocking_pre)) {
+            $chaining[] = $non_blocking_pre;
         }
 
-        $this->setStartData(); //combine with status change here in the update
-        $this->save();
-        if ($this->is_async) {
-            RunThing::dispatch($this);
-        } else {
-            RunThing::dispatchSync($this);
-        }
+        Bus::chain($chaining)
+            ->onConnection($this->is_async?'default':'sync')
+            ->dispatch();
+
     }
 
 
@@ -578,7 +586,7 @@ class Thing extends Model
      * @throws Exception
      */
     public static function buildFromAction(IThingAction $action, IThingOwner $owner, array $extra_tags = [])
-    : \Illuminate\Database\Eloquent\Collection
+    : Thing
     {
 
         try {
@@ -587,7 +595,7 @@ class Thing extends Model
 
             $root->pushLeavesToJobs();
             DB::commit();
-            return ThingCallback::buildCallback(thing_id: $root->id)->get();
+            return $root;
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;
@@ -653,14 +661,14 @@ class Thing extends Model
             DB::beginTransaction();
             $tree_node = new Thing();
             if ($start_at = $action->getStartAt()) {
-                $tree_node->thing_start_at = Carbon::parse($start_at)->timezone('UTC')->toDateTimeString();
+                $tree_node->thing_start_after = Carbon::parse($start_at)->timezone('UTC')->toDateTimeString();
             } else {
-                $tree_node->thing_start_at = null; //children can start earlier if not defined
+                $tree_node->thing_start_after = null; //children can start earlier if not defined
             }
             if ($invalid_at = $action->getInvalidAt()) {
-                $tree_node->thing_invalid_at = Carbon::parse($invalid_at)->timezone('UTC')->toDateTimeString();
+                $tree_node->thing_invalid_after = Carbon::parse($invalid_at)->timezone('UTC')->toDateTimeString();
             } else {
-                $tree_node->thing_invalid_at = $parent_thing?->thing_invalid_at ?? null;
+                $tree_node->thing_invalid_after = $parent_thing?->thing_invalid_after ?? null;
             }
 
 
@@ -731,6 +739,7 @@ class Thing extends Model
 
     public static function buildThing(
         ?int    $me_id = null,
+        ?string    $ref_uuid = null,
         ?int    $action_type_id = null,
         ?string $action_type = null,
         ?int    $owner_type_id = null,
@@ -739,7 +748,7 @@ class Thing extends Model
         bool    $include_my_descendants = false,
         bool    $eager_load = false,
         array   $owners = [],
-        array   $tags = []
+        ?array   $tags = null
     )
     : Builder
     {
@@ -750,12 +759,16 @@ class Thing extends Model
         $build =  Thing::select('things.*')
             ->selectRaw(" extract(epoch from  things.created_at) as created_at_ts")
             ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
-            ->selectRaw("extract(epoch from  things.thing_start_at) as thing_start_at_ts")
-            ->selectRaw("extract(epoch from  things.thing_invalid_at) as thing_invalid_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_start_after) as thing_start_at_ts")
+            ->selectRaw("extract(epoch from  things.thing_invalid_after) as thing_invalid_at_ts")
         ;
 
         if ($me_id) {
             $build->where('things.id',$me_id);
+        }
+
+        if ($ref_uuid) {
+            $build->where('things.ref_uuid',$ref_uuid);
         }
 
         if ($action_type) {
@@ -831,42 +844,18 @@ class Thing extends Model
     }
 
 
-    /**
-     * Retrieve the model for a bound value.
-     *
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return Model|null
-     */
+
     public function resolveRouteBinding($value, $field = null)
     {
         $ret = null;
-        try {
-            if ($field) {
-                $ret = $this->where($field, $value)->first();
-            } else {
-                if (ctype_digit($value)) {
-                    $ret = $this->where('id', $value)->first();
-                } else {
-                    $ret = $this->where('ref_uuid', $value)->first();
-                }
-            }
-            if ($ret) {
-                $ret = static::buildThing(me_id:$ret->id)->first();
-            }
-        } finally {
-            if (empty($ret)) {
-                throw new \RuntimeException(
-                    "Did not find thing with $field $value"
-                );
-            }
+        if ( Uuid::isValid($value)) {
+            $ret = static::buildThing(ref_uuid: (string)$value)->first();
+        }
+        if (!$ret) {
+            throw new HbcThingException("could not find thing with uuid of $value");
         }
         return $ret;
     }
-
-    /*
-     *
-     */
 
 
 

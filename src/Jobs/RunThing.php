@@ -3,6 +3,7 @@ namespace Hexbatch\Things\Jobs;
 
 
 
+use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Models\Thing;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -14,7 +15,6 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\SkipIfBatchCancelled;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 
 #[DeleteWhenMissingModels]
@@ -41,7 +41,13 @@ class RunThing implements ShouldQueue
             $this->thing->runThing();
         } catch (\Exception $e) {
             Log::error(message: "while running thing: ".$e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
-            throw $e;
+            try {
+                $this->thing->thing_status = TypeOfThingStatus::THING_ERROR;
+                $this->thing->save();
+            } catch (\Exception $f) {
+                Log::error(message: "while in error state and saving : ".$f->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$f->getFile(),'line'=>$f->getLine(),'code'=>$f->getCode()]);
+            }
+            $this->fail($e);
         }
     }
 

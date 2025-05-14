@@ -51,6 +51,15 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->nullOnDelete();
 
+            $table->foreignId('manual_alert_callback_id')
+                ->nullable()
+                ->default(null)
+                ->comment("When this is a notificed manual callback, the notifier has null here, and the manual has its id here")
+                ->index()
+                ->constrained('thing_callbacks')
+                ->cascadeOnUpdate()
+                ->nullOnDelete();
+
 
 
             $table->boolean('is_signalling_when_done')
@@ -108,11 +117,6 @@ return new class extends Migration
 
         DB::statement('ALTER TABLE thing_callbacks ALTER COLUMN ref_uuid SET DEFAULT uuid_generate_v4();');
 
-        Schema::table('thing_callbacks', function (Blueprint $table) {
-            $table->string('batch_string_id', 255)
-                ->nullable()->default(null)
-                ->comment("last batch id");
-        });
 
 
     }

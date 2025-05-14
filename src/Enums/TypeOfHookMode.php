@@ -1,8 +1,10 @@
 <?php
 namespace Hexbatch\Things\Enums;
+use OpenApi\Attributes as OA;
 /**
  * postgres enum type_of_thing_hook_mode
  */
+#[OA\Schema()]
 enum TypeOfHookMode : string {
     case NONE = 'none';
     case NODE = 'node';

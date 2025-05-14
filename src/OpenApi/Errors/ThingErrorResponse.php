@@ -7,12 +7,12 @@ use Hexbatch\Things\Models\ThingError;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 
-#[OA\Schema(schema: 'ErrorResponse',title: "Error")]
+#[OA\Schema(schema: 'ThingErrorResponse',title: "Error")]
 
 /**
  * Show a Hook
  */
-class ErrorResponse  implements  JsonSerializable {
+class ThingErrorResponse  implements  JsonSerializable {
 
     #[OA\Property( title:"Code")]
     protected int $code;

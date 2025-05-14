@@ -5,7 +5,7 @@ namespace Hexbatch\Things\OpenApi\Callbacks;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Models\ThingCallback;
-use Hexbatch\Things\OpenApi\Errors\ErrorResponse;
+use Hexbatch\Things\OpenApi\Errors\ThingErrorResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
 use Hexbatch\Things\OpenApi\Things\ThingResponse;
 use JsonSerializable;
@@ -29,18 +29,21 @@ class CallbackResponse  implements  JsonSerializable
     protected string $thing_uuid;
 
     #[OA\Property( title:"Error",nullable: true)]
-    protected ?ErrorResponse $error;
+    protected ?ThingErrorResponse $error;
 
     #[OA\Property( title:"Code of response")]
     protected int $code;
 
     #[OA\Property( title:"Response of callback",nullable: true)]
+    /** @var mixed[] $response */
     protected ?array $response;
 
-    #[OA\Property( title:"Headers sent",nullable: true)]
+    #[OA\Property( title:"Headers sent",nullable: true )]
+    /** @var mixed[] $headers_sent */
     protected ?array $headers_sent;
 
     #[OA\Property( title:"Data sent",nullable: true)]
+    /** @var mixed[] $data_sent */
     protected ?array $data_sent;
 
 
@@ -71,7 +74,7 @@ class CallbackResponse  implements  JsonSerializable
         $this->error = null;
         /** @uses \Hexbatch\Things\Models\ThingCallback::callback_error() */
         if ($this->callback->callback_error) {
-            $this->error = new ErrorResponse(error: $this->callback->callback_error);
+            $this->error = new ThingErrorResponse(error: $this->callback->callback_error);
         }
         $this->code = $this->callback->callback_http_code;
         $this->response = $this->callback->callback_incoming_data?->getArrayCopy()??null;
