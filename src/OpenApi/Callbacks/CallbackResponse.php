@@ -14,7 +14,7 @@ use OpenApi\Attributes as OA;
 #[OA\Schema(schema: 'CallbackResponse',title: "Callback")]
 
 /**
- * Show a Hook
+ * Show a callback
  */
 class CallbackResponse  implements  JsonSerializable
 {
@@ -30,6 +30,12 @@ class CallbackResponse  implements  JsonSerializable
 
     #[OA\Property( title:"Error",nullable: true)]
     protected ?ThingErrorResponse $error;
+
+    #[OA\Property( title:"Alert target",nullable: true)]
+    protected ?CallbackResponse $alert_target = null;
+
+    #[OA\Property( title:"Alerted by",nullable: true)]
+    protected ?CallbackResponse $alerted_by = null;
 
     #[OA\Property( title:"Code of response")]
     protected int $code;
@@ -88,6 +94,16 @@ class CallbackResponse  implements  JsonSerializable
         if($b_include_hook) {
             $this->thing = new ThingResponse(thing: $this->callback->thing_source);
         }
+
+        /** @uses \Hexbatch\Things\Models\ThingCallback::alert_target() */
+        if($this->callback->alert_target) {
+            $this->alert_target = new CallbackResponse(callback: $this->callback->alert_target);
+        }
+
+        /** @uses \Hexbatch\Things\Models\ThingCallback::alerted_by() */
+        if($this->callback->alerted_by) {
+            $this->alerted_by = new CallbackResponse(callback: $this->callback->alerted_by);
+        }
     }
 
     public function jsonSerialize(): array
@@ -96,7 +112,7 @@ class CallbackResponse  implements  JsonSerializable
         $arr['uuid'] = $this->uuid;
         $arr['hook_uuid'] = $this->hook_uuid;
         $arr['thing_uuid'] = $this->thing_uuid;
-        $arr['error'] = $this->error;
+
         $arr['code'] = $this->code;
         $arr['status'] = $this->status->value;
         $arr['ran_at'] = $this->ran_at;
@@ -109,6 +125,18 @@ class CallbackResponse  implements  JsonSerializable
         if ($this->b_include_thing) {
             $arr['thing'] = $this->thing;
         }
+        if ($this->error) {
+            $arr['error'] = $this->error;
+        }
+
+        if ($this->alert_target) {
+            $arr['alert_target'] = $this->alert_target;
+        }
+
+        if ($this->alerted_by) {
+            $arr['alerted_by'] = $this->alerted_by;
+        }
+
         return $arr;
     }
 }

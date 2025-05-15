@@ -4,7 +4,7 @@ use OpenApi\Attributes as OA;
 /**
  * postgres enum type_of_thing_callback_status
  */
-#[OA\Schema()]
+#[OA\Schema]
 enum TypeOfCallbackStatus : string {
 
     case BUILDING = 'building';

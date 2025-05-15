@@ -10,7 +10,7 @@ class CallResponse implements ICallResponse
     public function __construct(
         protected int $code,
         protected bool $successful,
-        protected ?array $data
+        protected null|object|array $data
     )
     {
     }
@@ -28,6 +28,8 @@ class CallResponse implements ICallResponse
 
     public function getData(): ?array
     {
-        return $this->data;
+        if (!$this->data) { return null;}
+        if (is_array($this->data) ) {return $this->data;}
+        return (array)$this->data;
     }
 }

@@ -124,6 +124,7 @@ Route::prefix('hbc-things')->group(function () {
                         Route::get('show', [ThingController::class, 'thing_show'])->name('hbc-things.things.show');
                         Route::middleware($hbc_thing_editable)->group(function() {
                             Route::put('shortcut', [ThingController::class, 'thing_shortcut'])->name('hbc-things.things.shortcut');
+                            Route::put('resume', [ThingController::class, 'thing_resume'])->name('hbc-things.things.resume');
                         });
                     });
                 });

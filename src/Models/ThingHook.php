@@ -6,7 +6,6 @@ namespace Hexbatch\Things\Models;
 use ArrayObject;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Interfaces\IHookParams;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
@@ -103,10 +102,11 @@ class ThingHook extends Model
         'is_after' => 'boolean',
         'is_sharing' => 'boolean',
         'is_blocking' => 'boolean',
-        'hook_tags' => AsArrayObject::class,
         'hook_mode' => TypeOfHookMode::class,
-        'hook_header_template' => AsArrayObject::class,
         'hook_callback_type' => TypeOfCallback::class,
+        'hook_header_template' => AsArrayObject::class,
+        'hook_tags' => AsArrayObject::class,
+        'hook_data_template' => AsArrayObject::class,
     ];
 
 
@@ -268,7 +268,7 @@ class ThingHook extends Model
 
         if ($tags !== null ) {
             if (count($tags) ) {
-                $tags_json = json_encode($tags);
+                $tags_json = json_encode(array_values($tags));
                 $build->whereRaw("array(select jsonb_array_elements(thing_hooks.hook_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
             } else {
                 $build->whereRaw("jsonb_array_length(thing_hooks.hook_tags) is null OR jsonb_array_length(thing_hooks.hook_tags) = 0");
@@ -280,44 +280,44 @@ class ThingHook extends Model
         return $build;
     }
 
+    public function updateHook(IHookParams $it)
+    {
+        $owner = $it->getHookOwner();
+        $this->owner_type_id = $owner?->getOwnerId() ;
+        $this->owner_type = $owner?->getOwnerType() ;
+
+        $action = $it->getHookAction();
+        $this->action_type_id = $action?->getActionId() ;
+        $this->action_type = $action?->getActionType() ;
+
+
+        if ($it->isHookOn() !== null) { $this->is_on = $it->isHookOn() ;}
+        if ($it->isSharing() !== null) { $this->is_sharing = $it->isSharing() ; }
+        if ($it->isAfter() !== null) { $this->is_after = $it->isAfter() ; }
+        if ($it->isManual() !== null) { $this->is_manual = $it->isManual() ; }
+        if ($it->isBlocking() !== null) { $this->is_blocking = $it->isBlocking() ; }
+        if ($it->isWriting() !== null) { $this->is_writing_data_to_thing = $it->isWriting() ; }
+
+        if ($it->getHookNotes() !== null) { $this->hook_notes = $it->getHookNotes() ; }
+        if ($it->getHookName() !== null) { $this->hook_name = $it->getHookName() ;}
+        if ($it->getHookMode() !== null) {  $this->hook_mode = $it->getHookMode() ;}
+        if ($it->getSharedTtl() !== null) {  $this->ttl_shared = $it->getSharedTtl() ;}
+        if ($it->getPriority() !== null) {  $this->hook_priority = $it->getPriority() ;}
+
+        if ($it->getCallbackType() !== null) {  $this->hook_callback_type = $it->getCallbackType();}
+        if ($it->getAddress() !== null) {  $this->address = $it->getAddress();}
+
+        if ($it->getHookTags() !== null) { $this->hook_tags = $it->getHookTags() ; }
+        if ($it->getDataTemplate() !== null) {   $this->hook_data_template = $it->getDataTemplate();}
+        if ($it->getHeaderTemplate() !== null) {  $this->hook_header_template = $it->getHeaderTemplate();}
+    }
+
     public static function createHook(IHookParams $it)
     : ThingHook
     {
 
         $hook = new ThingHook();
-        $owner = $it->getHookOwner();
-        $hook->owner_type_id = $owner?->getOwnerId() ;
-        $hook->owner_type = $owner?->getOwnerType() ;
-
-        $action = $it->getHookAction();
-        $hook->action_type_id = $action?->getActionId() ;
-        $hook->action_type = $action?->getActionType() ;
-        $hook->is_on = $it->isHookOn() ;
-        $hook->is_sharing = $it->isSharing() ;
-        $hook->is_after = $it->isSharing() ;
-        $hook->is_manual = $it->isManual() ;
-        $hook->is_blocking = $it->isBlocking() ;
-        $hook->is_writing_data_to_thing = $it->isWriting() ;
-        $hook->hook_tags = $it->getHookTags() ;
-        $hook->hook_notes = $it->getHookNotes() ;
-        $hook->hook_name = $it->getHookName() ;
-
-
-        if (!$it->getHookMode()) { throw new HbcThingException("Need hook mode");}
-        $hook->hook_mode = $it->getHookMode() ;
-
-
-        $hook->ttl_shared = $it->getSharedTtl();
-        $hook->hook_data_template = $it->getDataTemplate();
-        $hook->hook_header_template = $it->getHeaderTemplate();
-
-
-        if (!$it->getCallbackType()) { throw new HbcThingException("Need callback type");}
-        $hook->hook_callback_type = $it->getCallbackType();
-
-        if (!$it->getAddress()) { throw new HbcThingException("Need address");}
-        $hook->address = $it->getAddress();
-
+        $hook->updateHook($it);
         $hook->save();
         $hook->refresh();
         return $hook;

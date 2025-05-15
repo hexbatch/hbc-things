@@ -40,7 +40,7 @@ class ThingUtilities {
         return $composer['version']??'';
     }
 
-    public static function  getArray(string|array $source) : ?array {
+    public static function  getArray(string|array|null $source) : ?array {
         if (is_array($source)) {
             return $source;
         } elseif (json_validate($source)) {

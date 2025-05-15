@@ -14,7 +14,9 @@ trait ThingActionHandler
         return static::resolveAction(action_type: $this->action_type,action_id: $this->action_type_id);
     }
 
-    protected static function resolveAction(string $action_type, int $action_id) : ?IThingAction {
+    public static function resolveAction(?string $action_type, ?int $action_id) : ?IThingAction {
+        if (!$action_type) {return null;}
+        if (!$action_id) {return null;}
         $resolver = static::$action_type_lookup[$action_type]??null;
         if (!$resolver) {return null;}
         return $resolver::resolveAction(action_id: $action_id);

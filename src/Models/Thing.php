@@ -282,7 +282,7 @@ class Thing extends Model
         ]);
     }
 
-    protected function setException(Exception $e) {
+    public function setException(Exception $e) {
         $hex = ThingError::createFromException($e);
         $this->update([
             'thing_status' => TypeOfThingStatus::THING_ERROR,
@@ -296,9 +296,11 @@ class Thing extends Model
      * @throws Exception
      */
     public function runThing() :void {
-        if ($this->thing_status !== TypeOfThingStatus::THING_BUILDING) {
+        if ($this->thing_status !== TypeOfThingStatus::THING_PENDING) {
            throw new HbcThingException("Non building thing has started a run : #". $this->id);
         }
+        $this->thing_status = TypeOfThingStatus::THING_RUNNING;
+        $this->save();
         /** @var IThingAction|null $action */
 
         try {
@@ -320,15 +322,17 @@ class Thing extends Model
                 } else {
                     $status  = TypeOfThingStatus::THING_ERROR;
                 }
+            } else {
+                $status  = TypeOfThingStatus::THING_WAITING;
             }
 
-            if ($status) {
+            if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
                 $this->setRunData(status: $status);
                 if ($this->is_signalling_when_done) {
                     //it is done, for better or worse
                     $this->signal_parent();
                 }
-            }
+            } //else the thing will have to be resumed later with continueThing by the outside
 
             DB::commit();
         } catch (Exception $e) {
@@ -482,7 +486,7 @@ class Thing extends Model
 
         $ret = [];
         foreach ($callbacks as $call) {
-            $ret = new  SendCallback(callback:$call);
+            $ret[] = new  SendCallback(callback:$call);
         }
         return $ret;
     }
@@ -526,6 +530,9 @@ class Thing extends Model
             return; //not until they are resolved
         }
         $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: false,after: true);
+        if (count($blocking_post)) {
+            $blocking_post[count($blocking_post)-1]->getCallback()->setSignalWhenDone();
+        }
 
         $this->setStartData(signal_when_done:  !count($blocking_post)); //combine with status change here in the update
         $blocking = array_merge($blocking_pre,[new RunThing(thing: $this)],$blocking_post);
@@ -650,6 +657,10 @@ class Thing extends Model
         }
 
         $root_tags = ($parent_thing?->thing_root?:$parent_thing)?->thing_tags?->getArrayCopy()??[];
+        $thing_tags = array_unique(array_merge($action->getActionTags()??[],$root_tags,$extra_tags));
+        if (empty($thing_tags) ) {
+            $thing_tags = [];
+        }
 
         $calculated_priority = max($parent_thing?->thing_priority??0, $action->getActionPriority());
 
@@ -684,7 +695,7 @@ class Thing extends Model
             $tree_node->owner_type_id = $owner?->getOwnerId();
             $tree_node->thing_priority = $calculated_priority;
             $tree_node->is_async = $async;
-            $tree_node->thing_tags = array_merge($action->getActionTags()??[],$root_tags,$extra_tags);
+            $tree_node->thing_tags = $thing_tags;
             $tree_node->save();
             DB::commit();
             return static::getThing(id: $tree_node->id);
@@ -825,7 +836,7 @@ class Thing extends Model
 
         if ($tags !== null ) {
             if (count($tags) ) {
-                $tags_json = json_encode($tags);
+                $tags_json = json_encode(array_values($tags));
                 $build->whereRaw("array(select jsonb_array_elements(things.thing_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
             } else {
                 $build->whereRaw("jsonb_array_length(things.thing_tags) is null OR jsonb_array_length(things.thing_tags) = 0");

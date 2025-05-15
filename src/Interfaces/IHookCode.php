@@ -2,7 +2,7 @@
 
 namespace Hexbatch\Things\Interfaces;
 
-interface IHookCode
+interface IHookCode extends ICallResponse
 {
-    public static function runHook(array $header,array $body,int &$return_int) : array;
+    public static function runHook(array $header,array $body) : ICallResponse;
 }

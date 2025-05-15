@@ -7,21 +7,25 @@ use ArrayObject;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
-use Hexbatch\Things\Enums\TypeOfThingStatus;
+
 use Hexbatch\Things\Exceptions\HbcThingException;
+
 use Hexbatch\Things\Helpers\CallResponse;
 use Hexbatch\Things\Interfaces\ICallResponse;
 use Hexbatch\Things\Interfaces\IHookCode;
 use Hexbatch\Things\Interfaces\IThingOwner;
+use Hexbatch\Things\OpenApi\Callbacks\CallbackSearchParams;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\Response as CodeOf;
 use TorMorten\Eventy\Facades\Eventy;
 
 
@@ -54,6 +58,8 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property ThingHook owning_hook
  * @property Thing thing_source
  * @property ThingError|null callback_error
+ * @property ThingCallback|null alert_target
+ * @property ThingCallback|null alerted_by
  *
  */
 class ThingCallback extends Model
@@ -102,6 +108,14 @@ class ThingCallback extends Model
         return $this->belongsTo(ThingError::class,'callback_error_id','id');
     }
 
+    public function alert_target() : BelongsTo {
+        return $this->belongsTo(ThingCallback::class,'manual_alert_callback_id','id');
+    }
+
+    public function alerted_by() : HasOne {
+        return $this->hasOne(ThingCallback::class,'manual_alert_callback_id','id');
+    }
+
 
     /**
      * @param IThingOwner[] $owners
@@ -113,7 +127,9 @@ class ThingCallback extends Model
         ?int  $thing_id = null,
         array $owners = [],
         array $status_array = [],
-        ?bool $has_alert = null
+        ?bool $has_alert = null,
+        ?int $alerted_by_callback_id = null,
+        ?CallbackSearchParams $params = null
     )
     : Builder
     {
@@ -130,6 +146,10 @@ class ThingCallback extends Model
 
         if ($hook_id) {
             $build->where('thing_callbacks.owning_hook_id',$hook_id);
+        }
+
+        if ($alerted_by_callback_id) {
+            $build->where('thing_callbacks.manual_alert_callback_id',$alerted_by_callback_id);
         }
 
         if (count($status_array) ) {
@@ -165,6 +185,86 @@ class ThingCallback extends Model
                     ;
                 }
             );
+        }
+
+        if ($params) {
+            if ($params->getUuid()) {
+                $build->where('thing_callbacks.ref_uuid',$params->getUuid());
+            }
+
+            if ($params->getCodeRangeMin() ) {
+                $build->where('thing_callbacks.callback_http_code','>=',$params->getCodeRangeMin());
+            }
+
+            if ($params->getCodeRangeMax() ) {
+                $build->where('thing_callbacks.callback_http_code','<=',$params->getCodeRangeMax());
+            }
+
+            if ($params->getStatus()) {
+                $build->where('thing_callbacks.thing_callback_status',$params->getStatus());
+            }
+
+            if ($params->getRanAtMin() ) {
+                $build->where('thing_callbacks.callback_run_at','>=',$params->getRanAtMin());
+            }
+
+            if ($params->getRanAtMax() ) {
+                $build->where('thing_callbacks.callback_run_at','<=',$params->getRanAtMax());
+            }
+
+            if ($params->getCreatedAtMin() ) {
+                $build->where('thing_callbacks.callback_run_at','>=',$params->getCreatedAtMin());
+            }
+
+            if ($params->getCreatedAtMax() ) {
+                $build->where('thing_callbacks.callback_run_at','<=',$params->getCreatedAtMax());
+            }
+
+            if ($params->getThingUuid() ) {
+                $build->join('things as param_thing','param_thing.id','=','thing_callbacks.source_thing_id');
+                $build->where('param_thing.ref_uuid',$params->getThingUuid());
+            }
+
+            if ($params->getErrorUuid() ) {
+                $build->join('thing_errors as param_error','param_error.id','=','thing_callbacks.callback_error_id');
+                $build->where('param_error.ref_uuid',$params->getErrorUuid());
+            }
+
+            if ($params->getAlertUuid() ) {
+                $build->join('thing_callbacks as param_call','param_call.id','=','thing_callbacks.manual_alert_callback_id');
+                $build->where('thing_callbacks.ref_uuid',$params->getAlertUuid());
+            }
+
+            if ($params->getHookUuid() ||  $params->isManual() ||  $params->isBlocking() ||  $params->isAfter()
+                ||  $params->isSharing()||  $params->getHookCallbackType()
+            )
+            {
+                $build->join('thing_hooks as param_hook','param_hook.id','=','thing_callbacks.owning_hook_id');
+
+                if ($params->getHookUuid() ) {
+                    $build->where('param_hook.ref_uuid', $params->getHookUuid());
+                }
+
+                if ($params->isManual() ) {
+                    $build->where('param_hook.is_manual', $params->isManual());
+                }
+
+                if ($params->isBlocking() ) {
+                    $build->where('param_hook.is_blocking', $params->isBlocking());
+                }
+
+                if ($params->isAfter() ) {
+                    $build->where('param_hook.is_after', $params->isAfter());
+                }
+
+                if ($params->isSharing() ) {
+                    $build->where('param_hook.is_sharing', $params->isSharing());
+                }
+
+                if ($params->getHookCallbackType() ) {
+                    $build->where('param_hook.hook_callback_type', $params->getHookCallbackType());
+                }
+            }
         }
 
 
@@ -253,18 +353,18 @@ class ThingCallback extends Model
             throw new HbcThingException($this->owning_hook->address." is not a class, is this correct namespace?");
         }
 
-        $code = 0;
+
         try {
             /** @var IHookCode|string $callable */
             $callable = $this->owning_hook->address;
-            $ret = $callable::runHook(header: $this->callback_outgoing_header??[],body: $this->callback_outgoing_data??[],return_int: $code  );
+            $ret = $callable::runHook(header: $this->callback_outgoing_header?->getArrayCopy()??[],body: $this->callback_outgoing_data?->getArrayCopy()??[]  );
 
         } catch (\Exception|\Error $e) {
             Log::warning("Got error when calling $callable :".$e->getMessage());
             throw $e;
         }
 
-        return new CallResponse(code: $code,successful: true,data: $ret);
+        return $ret;
     }
 
     /**
@@ -276,15 +376,27 @@ class ThingCallback extends Model
         if (!$this->owning_hook->address) {
             throw new HbcThingException("Callback event name not defined");
         }
-        /** @noinspection PhpUndefinedMethodInspection */
-        $ret = Eventy::filter($this->owning_hook->address, array_values($this->callback_outgoing_data?->getArrayCopy()??[]));
-        $success = true;
-        $code = 200;
-        if (empty($ret) ||(is_array($ret) && count($ret) === 0)) {
-            $success = false;
-            $code = 500;
+        $original_data = array_values($this->callback_outgoing_data?->getArrayCopy()??[]);
+       /** @var ICallResponse|array|null $ret */
+        $ret = Eventy::filter($this->owning_hook->address,$original_data );
+
+        if (is_array($ret) ) {
+            return new CallResponse(code: CodeOf::HTTP_NOT_FOUND,successful: false,data: $ret);
+        } elseif (is_null($ret)) {
+            return new CallResponse(code: CodeOf::HTTP_SERVICE_UNAVAILABLE,successful: false,data: $original_data);
+        } else {
+            if (is_object($ret)) {
+                $interfaces = class_implements($ret);
+
+                if (!isset($interfaces['Hexbatch\Things\Interfaces\ICallResponse'])) {
+                    return new CallResponse(code: CodeOf::HTTP_BAD_GATEWAY,successful: false,data: $original_data);
+                }
+                return $ret;
+            } else {
+                return new CallResponse(code: CodeOf::HTTP_UNPROCESSABLE_ENTITY,successful: false,data: $ret);
+            }
+
         }
-        return new CallResponse(code: $code,successful: $success,data: $ret);
     }
 
 
@@ -460,7 +572,7 @@ class ThingCallback extends Model
 
 
                 $this->callback_http_code = $response->getCode();
-                if ($response->isSuccessful()) {
+                if ($this->callback_http_code >=200 && $this->callback_http_code < 300) {
                     $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_SUCCESSFUL;
                 } else {
                     $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
@@ -469,7 +581,8 @@ class ThingCallback extends Model
             } //end if this callback is waiting
 
 
-            if (!($this->owning_hook->is_manual && $this->owning_hook->address)) {
+            if (!($this->owning_hook->is_manual && $this->owning_hook->address) && $this->owning_hook->is_writing_data_to_thing)
+            {
                 //if not a jump start, then do data and maybe signalling
                 if ($this->owning_hook->is_blocking) {
                     if ($this->owning_hook->is_after) {
@@ -545,20 +658,18 @@ class ThingCallback extends Model
     /**
      * @throws \Exception
      */
-    public function setManualAnswer(array $data, int $code) {
+    public function setManualAnswer(ICallResponse $setter) {
 
         try {
             DB::beginTransaction();
-            if ($code < 0) {
-                $code = 0;
+
+            $this->callback_http_code = $setter->getCode();
+            if ($setter->getData() !== null) {
+                $this->callback_incoming_data = $setter->getData();
             }
-            if ($code >= 600) {
-                $code = 599;
-            }
-            $this->callback_http_code = $code;
-            $this->callback_incoming_data = $data;
+
             $this->save();
-            //see if any remaining manual callbacks waiting for thing, and if its status is waiting. If not more then set status
+            //see if any remaining manual callbacks waiting for thing, and if its status is waiting. If not more, set status
             /** @var static[] $brothers */
             $brothers = static::buildCallback(thing_id: $this->source_thing_id, has_alert: true)->get();
             foreach ($brothers as $patter) {
@@ -576,6 +687,10 @@ class ThingCallback extends Model
             DB::rollback();
             throw $e;
         }
+    }
+
+    public function setSignalWhenDone() {
+        $this->update(['is_signalling_when_done'=>true]);
     }
 
 

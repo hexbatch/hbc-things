@@ -29,6 +29,11 @@ class SendCallback implements ShouldQueue
         public ThingCallback $callback
     ) {}
 
+    public function getCallback(): ThingCallback
+    {
+        return $this->callback;
+    }
+
 
     public function handle(): void
     {

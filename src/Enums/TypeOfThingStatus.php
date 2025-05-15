@@ -4,7 +4,7 @@ use OpenApi\Attributes as OA;
 /**
  * postgres enum type_of_thing_status
  */
-#[OA\Schema()]
+#[OA\Schema]
 enum TypeOfThingStatus : string {
 
   case THING_BUILDING = 'thing_building';

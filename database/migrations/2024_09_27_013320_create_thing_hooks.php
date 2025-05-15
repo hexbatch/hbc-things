@@ -112,9 +112,9 @@ return new class extends Migration
             'http_patch',
             'http_patch_form',
             'http_patch_json',
-            'http_delete'
-            'http_delete_form'
-            'http_delete_json'
+            'http_delete',
+            'http_delete_form',
+            'http_delete_json',
             'code',
             'event_call'
             );");

@@ -42,8 +42,7 @@ class RunThing implements ShouldQueue
         } catch (\Exception $e) {
             Log::error(message: "while running thing: ".$e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
             try {
-                $this->thing->thing_status = TypeOfThingStatus::THING_ERROR;
-                $this->thing->save();
+                $this->thing->setException($e) ;
             } catch (\Exception $f) {
                 Log::error(message: "while in error state and saving : ".$f->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$f->getFile(),'line'=>$f->getLine(),'code'=>$f->getCode()]);
             }

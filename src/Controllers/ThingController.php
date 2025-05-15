@@ -5,6 +5,7 @@ namespace Hexbatch\Things\Controllers;
 use App\OpenApi\ErrorResponse;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
+use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Helpers\OwnerHelper;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Interfaces\ThingOwnerGroup;
@@ -13,12 +14,16 @@ use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingHook;
 use Hexbatch\Things\OpenApi\Callbacks\CallbackCollectionResponse;
 use Hexbatch\Things\OpenApi\Callbacks\CallbackResponse;
+use Hexbatch\Things\OpenApi\Callbacks\CallbackSearchParams;
+use Hexbatch\Things\OpenApi\Callbacks\ManualParams;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
 use Hexbatch\Things\OpenApi\Things\ThingCollectionResponse;
 use Hexbatch\Things\OpenApi\Things\ThingResponse;
+use Hexbatch\Things\Requests\CallbackSearchRequest;
 use Hexbatch\Things\Requests\HookRequest;
+use Hexbatch\Things\Requests\ManualFillRequest;
 use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
 use OpenApi\Attributes\JsonContent;
@@ -92,7 +97,7 @@ class ThingController  {
         summary: 'Removes a hook',
         security: [['bearerAuth' => []]],
         tags: ['hook','admin'],
-        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
@@ -113,7 +118,7 @@ class ThingController  {
         summary: 'Shows information about a hook',
         security: [['bearerAuth' => []]],
         tags: ['hook','admin'],
-        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
 
@@ -136,6 +141,7 @@ class ThingController  {
         summary: 'Create a new hook',
         security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody( content: [
+            new OA\MediaType(mediaType: "application/json",schema: new  OA\Schema(ref: HookParams::class)),
             new OA\MediaType(mediaType: "multipart/form-data",schema: new  OA\Schema(ref: HookParams::class))
         ] ),
         tags: ['hook'],
@@ -162,7 +168,7 @@ class ThingController  {
         summary: 'Shows information about a hook',
         security: [['bearerAuth' => []]],
         tags: ['hook'],
-        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
 
@@ -181,10 +187,11 @@ class ThingController  {
         summary: 'Edits a hook',
         security: [['bearerAuth' => []]],
         requestBody: new OA\RequestBody( content: [
-            new OA\MediaType(mediaType: "multipart/form-data",schema: new  OA\Schema(ref: HookParams::class))
+            new OA\MediaType(mediaType: "application/json",schema: new  OA\Schema(ref: HookParams::class)),
+            new OA\MediaType(mediaType: "multipart/form-data",schema: new  OA\Schema(ref: HookParams::class)),
         ] ),
         tags: ['hook'],
-        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The edited hook',content: new JsonContent(ref: HookResponse::class)),
 
@@ -194,7 +201,8 @@ class ThingController  {
     )]
     public function thing_hook_edit(ThingHook $hook,HookRequest $request) {
         $request->offsetUnset('is_manual'); //cannot change after creation
-        $hook->fill($request->validated());
+        $data = HookParams::fromRequest(request: $request);
+        $hook->updateHook($data);
         $hook->save();
         return response()->json(new HookResponse(hook: $hook), CodeOf::HTTP_OK);
     }
@@ -207,7 +215,7 @@ class ThingController  {
         summary: 'Deletes a hook',
         security: [['bearerAuth' => []]],
         tags: ['hook'],
-        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
@@ -304,7 +312,7 @@ class ThingController  {
         summary: 'Shows a thing and its descendants',
         security: [['bearerAuth' => []]],
         tags: ['thing'],
-        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
@@ -325,7 +333,7 @@ class ThingController  {
         summary: 'Shows a thing and its descendants',
         security: [['bearerAuth' => []]],
         tags: ['thing','admin'],
-        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
@@ -352,7 +360,7 @@ class ThingController  {
         summary: 'Shortcuts a thing',
         security: [['bearerAuth' => []]],
         tags: ['thing'],
-        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
@@ -367,6 +375,34 @@ class ThingController  {
         return response()->json(new ThingResponse(thing: $refreshed, b_include_hooks: true, b_include_children: true), CodeOf::HTTP_ACCEPTED);
     }
 
+    /**
+     * @throws \Exception
+     */
+    #[OA\Put(
+        path: '/api/hbc-things/v1/things/{thing}/resume',
+        operationId: 'hbc-things.things.resume',
+        description: "If a thing is waiting, it is dispatched again",
+        summary: 'Wakes up a thing if its waiting',
+        security: [['bearerAuth' => []]],
+        tags: ['thing'],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The thing was resumed, here is the thing info',content: new JsonContent(ref: ThingResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_NOT_FOUND, description: 'The thing was not waiting',content: new JsonContent(ref: ErrorResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+        ]
+    )]
+    public function thing_resume(Thing $thing) {
+        if ($thing->thing_status !== TypeOfThingStatus::THING_WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
+        $thing->continueThing();
+        /** @var Thing $refreshed */
+        $refreshed = Thing::buildThing(me_id: $thing->id)->first();
+        return response()->json(new ThingResponse(thing: $refreshed, b_include_hooks: true, b_include_children: true), CodeOf::HTTP_ACCEPTED);
+    }
+
 
     /**
      * @throws \Exception
@@ -376,9 +412,15 @@ class ThingController  {
         operationId: 'hbc-things.callbacks.manual_answer',
         description: "Manual callbacks can be filled in without auth, if they are waiting",
         summary: 'Fill in a manual callback',
+        requestBody: new OA\RequestBody( content: [
+            new OA\MediaType(mediaType: "application/json",schema: new  OA\Schema(ref: ManualParams::class)),
+            new OA\MediaType(mediaType: "multipart/form-data",schema: new  OA\Schema(ref: ManualParams::class))
+        ] ),
         tags: ['callback','manual'],
         parameters: [
-            new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+            new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true,
+                schema: new OA\Schema( type: 'string',format: 'uuid') )
+        ],
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
@@ -386,27 +428,35 @@ class ThingController  {
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function manual_answer(ThingCallback $callback,Request $request) {
-        if ($callback->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
+    public function manual_answer(ThingCallback $callback,ManualFillRequest $request) {
         if (!$callback->owning_hook->is_manual) { abort(CodeOf::HTTP_BAD_REQUEST);}
-        if (!$callback->manual_alert_callback_id) { abort(CodeOf::HTTP_BAD_REQUEST);}
 
+        if (!$callback->manual_alert_callback_id) {
+            /** @var ThingCallback|null $working */
+            $working = ThingCallback::buildCallback(alerted_by_callback_id: $callback->id)->first();
+            if (!$working) {
+                throw new HbcThingException("Could not find paired manual callback by alert id ". $callback->ref_uuid);
+            }
+        } else {
+            $working = $callback;
+        }
 
-        $code = $request->request->getInt('code',200);
-        $data = $request->get('data');
-        $callback->setManualAnswer(data: $data,code: $code);
-        $callback->refresh();
+        if ($working->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
+
+        $params = ManualParams::fromRequest(request: $request);
+        $working->setManualAnswer($params);
+        $working->refresh();
         return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
     }
 
-    #[OA\Post(
+    #[OA\Get(
         path: '/api/hbc-things/v1/callbacks/manual/{thing_callback}/question',
         operationId: 'hbc-things.callbacks.manual_question',
         description: "Manual callbacks can be shown without auth, if they are waiting",
         summary: 'Show a waiting manual callback',
         tags: ['callback','manual'],
         parameters: [
-            new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+            new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
@@ -415,10 +465,20 @@ class ThingController  {
         ]
     )]
     public function manual_question(ThingCallback $callback) {
-        if ($callback->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
         if (!$callback->owning_hook->is_manual) { abort(CodeOf::HTTP_BAD_REQUEST);}
-        if (!$callback->manual_alert_callback_id) { abort(CodeOf::HTTP_BAD_REQUEST);}
-        return response()->json(new CallbackResponse(callback: $callback, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
+
+        if (!$callback->manual_alert_callback_id) {
+            /** @var ThingCallback|null $working */
+            $working = ThingCallback::buildCallback(alerted_by_callback_id: $callback->id)->first();
+            if (!$working) {
+                throw new HbcThingException("Could not find manual callback by alert id ". $callback->ref_uuid);
+            }
+        } else {
+            $working = $callback;
+        }
+
+        if ($working->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
+        return response()->json(new CallbackResponse(callback: $working, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
     }
 
     #[OA\Get(
@@ -428,7 +488,7 @@ class ThingController  {
         summary: 'Show a callback',
         security: [['bearerAuth' => []]],
         tags: ['callback'],
-        parameters: [new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
@@ -447,6 +507,8 @@ class ThingController  {
         summary: 'Show a list of callbacks',
         security: [['bearerAuth' => []]],
         tags: ['callback'],
+        parameters: [new OA\QueryParameter( name: 'Search params', description: "Optionally search", in: 'query',
+            allowEmptyValue: true, schema: new OA\Schema( ref: CallbackSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback list',content: new JsonContent(ref: CallbackCollectionResponse::class)),
 
@@ -454,12 +516,13 @@ class ThingController  {
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function list_callbacks( IThingOwner $owner,ThingOwnerGroup $group) {
+    public function list_callbacks( IThingOwner $owner,ThingOwnerGroup $group,CallbackSearchRequest $request) {
 
         $owners = $group->getOwners();
         $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
+        $search = CallbackSearchParams::fromRequest(request:$request);
         $callbacks = ThingCallback::buildCallback(
-             owners: $combined_owners
+             owners: $combined_owners,params: $search
         )->orderBy('id','desc')->cursorPaginate();
         return response()->json(new CallbackCollectionResponse(given_callbacks: $callbacks,), CodeOf::HTTP_OK);
     }
@@ -472,7 +535,7 @@ class ThingController  {
         summary: 'Show a callback',
         security: [['bearerAuth' => []]],
         tags: ['callback','admin'],
-        parameters: [new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true, allowEmptyValue: false, schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        parameters: [new OA\PathParameter( name: 'thing_callback', description: "uuid of the callback", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 

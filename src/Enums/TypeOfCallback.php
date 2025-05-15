@@ -4,7 +4,7 @@ use OpenApi\Attributes as OA;
 /**
  * postgres enum type_of_thing_callback
  */
-#[OA\Schema()]
+#[OA\Schema]
 enum TypeOfCallback : string {
 
     case DISABLED = 'disabled';

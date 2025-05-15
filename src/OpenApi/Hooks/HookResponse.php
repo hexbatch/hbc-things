@@ -26,7 +26,7 @@ class HookResponse extends HookParams implements  JsonSerializable
     #[OA\Property( title: 'Owner id',description: 'Hook owner id',nullable: true)]
     protected ?string  $owner_id = null;
 
-    #[OA\Property( title: 'Callbacks',description: 'Callbacks generated',nullable: true)]
+    #[OA\Property( title: 'Callbacks', description: 'Callbacks generated', nullable: true)]
     protected ?CallbackCollectionResponse  $callbacks = null;
 
 
@@ -42,7 +42,7 @@ class HookResponse extends HookParams implements  JsonSerializable
             notes: $hook->hook_notes,
             action_type: $hook->getAction()?->getActionType(),
             action_id: $hook->getAction()?->getActionId(),
-            tags: $hook->hook_tags?->getArrayCopy()??[],
+            tags: array_values($hook->hook_tags?->getArrayCopy()??[]),
             hook_on: $hook->is_on,
             is_blocking: $hook->is_blocking,
             is_writing: $hook->is_writing_data_to_thing,
@@ -75,10 +75,13 @@ class HookResponse extends HookParams implements  JsonSerializable
     public function jsonSerialize(): array
     {
         $arr = parent::jsonSerialize();
-        unset($arr['callplate_setup']);
         $arr['uuid'] = $this->uuid;
         $arr['owner_id'] = $this->owner_id;
         $arr['owner_type'] = $this->owner_type;
+
+        if ($this->b_include_callbacks) {
+            $arr['callbacks'] = $this->callbacks;
+        }
         return $arr;
     }
 }

@@ -25,7 +25,7 @@ class ThingResponse  implements  JsonSerializable
     protected ?string $parent_uuid;
 
 
-    #[OA\Property( title:"Error",nullable: true)]
+    #[OA\Property( title: "Error", nullable: true)]
     protected ?ThingErrorResponse $error;
 
     #[OA\Property( title:"Priority")]
@@ -34,6 +34,10 @@ class ThingResponse  implements  JsonSerializable
     #[OA\Property( title:"Tags",nullable: true)]
     /** @var string[] $tags */
     protected ?array $tags;
+
+    #[OA\Property( title:"Action data",nullable: true)]
+    /** @var mixed[] $action_data */
+    protected ?array $action_data;
 
     #[OA\Property( title:"Status")]
     protected TypeOfThingStatus $status;
@@ -78,9 +82,10 @@ class ThingResponse  implements  JsonSerializable
         }
         $this->priority = $this->thing->thing_priority;
         $this->status = $this->thing->thing_status;
-        $this->action_name = $this->thing->getAction()->getActionType();
-        $this->action_ref = $this->thing->getAction()->getActionRef();
-
+        $action = $this->thing->getAction();
+        $this->action_name = $action?->getActionType();
+        $this->action_ref = $action?->getActionRef();
+        $this->action_data = $action?->getDataSnapshot();
         $this->tags = $this->thing->thing_tags?->getArrayCopy()??[];
 
         if($this->thing->thing_started_at) {
@@ -88,7 +93,7 @@ class ThingResponse  implements  JsonSerializable
         }
 
         if($this->thing->thing_ran_at) {
-            $this->started_at = Carbon::parse($this->thing->thing_ran_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
+            $this->ran_at = Carbon::parse($this->thing->thing_ran_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
         }
 
         if ($this->b_include_hooks) {
@@ -102,6 +107,7 @@ class ThingResponse  implements  JsonSerializable
         }
 
         $this->action_html = $this->thing->getAction()->getRenderHtml();
+
     }
 
     public function jsonSerialize(): array
@@ -110,13 +116,17 @@ class ThingResponse  implements  JsonSerializable
         $arr['uuid'] = $this->uuid;
         $arr['parent_uuid'] = $this->parent_uuid;
         $arr['started_at'] = $this->started_at;
+        $arr['ran_at'] = $this->ran_at;
         $arr['error'] = $this->error;
         $arr['priority'] = $this->priority;
         $arr['status'] = $this->status->value;
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;
+        if($this->action_data) {
+            $arr['action_data'] = $this->action_data;
+        }
         $arr['action_html'] = $this->action_html;
-        $arr['tags'] = $this->tags;
+        $arr['tags'] = array_values($this->tags);
         if ($this->b_include_hooks) {
             $arr['hooks'] = $this->hooks;
         }
