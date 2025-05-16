@@ -1,0 +1,52 @@
+{
+    "name": "hexbatch/hbc-things",
+    "type": "hexbatch-library",
+    "description": "The things data structure and api to work with it",
+    "keywords": ["laravel","core-api", "api","things","hexbatch"],
+    "homepage": "https://github.com/hexbatch/hbc-things",
+    "authors": [
+        {
+            "name": "Will Woodlief",
+            "homepage": "https://badgreenwolf.com",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hexbatch/hbc-things/issues"
+    },
+    "license": "Apache-2.0",
+    "version": "1.0",
+
+    "require": {
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-pgsql": "*",
+        "ext-dom": "*",
+        "php": "^8.3",
+        "bluem/tree": "^3.2",
+        "spatie/laravel-package-tools": "^1.19",
+        "staudenmeir/laravel-cte": "^1.0",
+        "zircote/swagger-php": "^5.0"
+    },
+
+    "autoload": {
+        "psr-4": {
+            "Hexbatch\\Things\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@composer run prepare"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Hexbatch\\Things\\HexbatchThingsProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

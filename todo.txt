@@ -1,0 +1,36 @@
+
+
+    if the hook is manual, it makes one callback only, unless there is an address, then it makes two callbacks,
+    where the second one has parent_callback_id set address one
+    manual callbacks have no outgoing data or outgoing header , and those will not be copied to the callback if no address
+
+   the address callback does regular call, and if success, will update the manual callback from building to waiting
+
+When the manual is entered, put in code to put the thing into the bus again
+The manual has success handling code where it puts the thing on the bus if that hook not after,
+and will put the manual on the bus, with the ones priority lower after that, the callback success fail will update the parent,
+and ultimately set the child thing status
+
+
+So, if the manual a blocking precondition, mark thing as pending (as opposed to running)
+run a bus with the blocking pre-callbacks of the hooks (if any) that have higher priority, until the manual,
+unless  also an address,
+then wait for the manual to be finished before putting any other blocking preconditions and the thing and all post conditions until manual.
+(non-blocking pre stuff runs regularly)
+
+if post conditions, put blocking on the bus those that are called before the thing (non-blocking runs anyway),
+unless it also an address,
+then after manual completed, put the completed manual
+and any other blocking that run after that on the bus again to complete the thing and start the parent.
+
+The thing status is still running (not changed) until all the blocking callbacks complete.
+There may be multiple manual with optional regular callbacks between them.
+Do a partial bus for each group of them.
+(non-blocking post stuff runs regularly)
+
+A thing stops running when all the blocking callbacks are finished for it. Non-blocking callbacks, when finished, do not change thing state or condition.
+
+if a manual is non-blocking, then the address part is put in the non-blocking and has no special handling, and it does not matter if the manual is filled in
+
+-----------------
+testing
