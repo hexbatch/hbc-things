@@ -101,7 +101,7 @@ class HookRequest extends FormRequest
             "notes" => ['nullable','string'],
 
             /** @uses ThingHook::hook_name */
-            "name" => ['nullable','string',Rule::exists(ThingHook::class,'hook_name')->whereNot('hook_name',$this->name)],
+            "name" => ['nullable','string'],
 
             /** @uses ThingHook::address */
             "address" => ['nullable','string'],

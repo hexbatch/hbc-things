@@ -253,8 +253,17 @@ class ThingCallback extends Model
                     $build->where('param_hook.ref_uuid', $params->getHookUuid());
                 }
 
-                if ($params->isManual() ) {
+                if ($params->isManual() || $params->getIsManualNotice() ) {
                     $build->where('param_hook.is_manual', $params->isManual());
+                }
+
+                if ($params->getIsManualNotice() !== null) {
+                    if ($params->getIsManualNotice()) {
+                        $build->whereNull('thing_callbacks.manual_alert_callback_id');
+                    } else {
+                        $build->whereNotNull('thing_callbacks.manual_alert_callback_id');
+                    }
+
                 }
 
                 if ($params->isBlocking() ) {
@@ -674,6 +683,11 @@ class ThingCallback extends Model
             DB::beginTransaction();
 
             $this->callback_http_code = $setter->getCode();
+            if ($this->callback_http_code >=200 && $this->callback_http_code < 300) {
+                $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_SUCCESSFUL;
+            } else {
+                $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
+            }
             if ($setter->getData() !== null) {
                 $this->callback_incoming_data = $setter->getData();
             }

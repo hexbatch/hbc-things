@@ -419,7 +419,12 @@ class Thing extends Model
 
         $callbacks = [];
         foreach ($hooks as $hook) {
-            if ($hook->is_manual && $blocking && !$after) { //we only do manual for pre blocking
+            if ($hook->is_manual  ) { //we only do manual for pre blocking
+
+                if ($hook->is_sharing) {continue;}
+                if (!$blocking) {continue;}
+                if ($after) {continue;}
+                if ($which !== TypeOfHookMode::NODE) {continue;}
                 //see if filled in for thing already
                 /**
                  * @var ThingCallback[] $maybe_existing
@@ -454,11 +459,11 @@ class Thing extends Model
                     }
                 } elseif (count($maybe_existing) >= 2) {
                     foreach ($maybe_existing as $maybe) {
-                        if ($maybe->manual_alert_callback_id && !$maybe->isCompleted()) {
-                            $unresolved_manual[] = $maybe;
-                        }
-                        if ($maybe->manual_alert_callback_id && $maybe->isCompleted()) {
+                        if (!$maybe->manual_alert_callback_id) { continue;}
+                        if ($maybe->isCompleted()) {
                             $callbacks[] = $maybe;
+                        } else {
+                            $unresolved_manual[] = $maybe;
                         }
                     }
                 }

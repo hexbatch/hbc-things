@@ -450,7 +450,7 @@ class ThingController  {
         }
 
         if ($working->thing_callback_status !== TypeOfCallbackStatus::WAITING) { abort(CodeOf::HTTP_NOT_FOUND);}
-        return response()->json(new CallbackResponse(callback: $working, b_include_hook:  true,b_include_thing: true), CodeOf::HTTP_ACCEPTED);
+        return response()->json(new CallbackResponse(callback: $working, b_include_hook:  false,b_include_thing: false), CodeOf::HTTP_ACCEPTED);
     }
 
     #[OA\Get(

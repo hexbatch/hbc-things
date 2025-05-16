@@ -45,6 +45,9 @@ class CallbackSearchParams  implements  JsonSerializable
         #[OA\Property( title:"Manual", nullable: true)]
         protected ?bool $is_manual = null,
 
+        #[OA\Property( title:"Manual notice", nullable: true)]
+        protected ?bool $is_manual_notice = null,
+
         #[OA\Property( title:"Blocking", nullable: true)]
         protected ?bool $is_blocking = null,
 
@@ -98,6 +101,7 @@ class CallbackSearchParams  implements  JsonSerializable
         $arr['is_blocking'] = $this->is_blocking;
         $arr['is_after'] = $this->is_after;
         $arr['is_sharing'] = $this->is_sharing;
+        $arr['is_manual_notice'] = $this->is_manual_notice;
         $arr['hook_callback_type'] = $this->hook_callback_type->value;
         $arr['status'] = $this->status->value;
         $arr['ran_at_min'] = $this->ran_at_min;
@@ -155,6 +159,10 @@ class CallbackSearchParams  implements  JsonSerializable
 
         if (array_key_exists('is_after',$source)) {
             $this->is_after =  filter_var($source['is_after']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
+        }
+
+        if (array_key_exists('is_manual_notice',$source)) {
+            $this->is_manual_notice =  filter_var($source['is_manual_notice']??false, FILTER_VALIDATE_BOOL, FILTER_REQUIRE_SCALAR);
         }
 
         if (array_key_exists('is_sharing',$source)) {
@@ -315,6 +323,11 @@ class CallbackSearchParams  implements  JsonSerializable
     public function getOwnerId(): ?string
     {
         return $this->owner_id;
+    }
+
+    public function getIsManualNotice(): ?bool
+    {
+        return $this->is_manual_notice;
     }
 
 

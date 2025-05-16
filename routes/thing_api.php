@@ -63,7 +63,7 @@ Route::prefix('hbc-things')->group(function () {
         $hbc_callback_viewable[] =  $my_thing_callback_view;
     }
 
-
+//v1/callbacks/manual/8cd6e99a-ca46-4c2a-82d3-db8cdd780dab/question
     Route::prefix('v1')->group(function ()
         use($hbc_middleware,$hbc_admin,
             $hbc_thing_viewable,$hbc_thing_editable,

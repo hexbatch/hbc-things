@@ -16,6 +16,7 @@ use Illuminate\Validation\Rule;
  * @property null|bool is_sharing
  * @property null|bool is_after
  * @property null|bool is_manual
+ * @property null|bool is_manual_notice
  */
 class CallbackSearchRequest extends FormRequest
 {
@@ -35,6 +36,7 @@ class CallbackSearchRequest extends FormRequest
         if($this->is_manual && $this->is_manual !== '') { $this->merge(['is_manual' => ThingUtilities::boolishToBool(val: $this->is_manual)]);}
         if($this->is_blocking && $this->is_blocking !== '') { $this->merge(['is_blocking' => ThingUtilities::boolishToBool(val: $this->is_blocking)]);}
         if($this->is_sharing && $this->is_sharing !== '') { $this->merge(['is_sharing' => ThingUtilities::boolishToBool(val: $this->is_sharing)]);}
+        if($this->is_manual_notice && $this->is_manual_notice !== '') { $this->merge(['is_manual_notice' => ThingUtilities::boolishToBool(val: $this->is_manual_notice)]);}
     }
     /**
      *
@@ -57,6 +59,7 @@ class CallbackSearchRequest extends FormRequest
             'is_manual' => ['nullable', 'boolean'],
             'is_blocking' => ['nullable', 'boolean'],
             'is_after' => ['nullable', 'boolean'],
+            'is_manual_notice' => ['nullable', 'boolean'],
             'is_sharing' => ['nullable', 'boolean'],
             'status' => ['nullable',Rule::enum(TypeOfCallbackStatus::class)],
             'hook_callback_type' => ['nullable',Rule::enum(TypeOfCallback::class)],

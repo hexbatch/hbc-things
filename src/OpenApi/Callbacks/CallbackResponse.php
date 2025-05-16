@@ -77,6 +77,7 @@ class CallbackResponse  implements  JsonSerializable
         protected ThingCallback $callback,
         protected bool $b_include_hook = false,
         protected bool $b_include_thing = false,
+        protected bool $b_alerted_by = false
     ) {
 
         $this->uuid = $this->callback->ref_uuid;
@@ -100,15 +101,19 @@ class CallbackResponse  implements  JsonSerializable
             $this->thing = new ThingResponse(thing: $this->callback->thing_source,b_include_hooks: false,b_include_children: false);
         }
 
-        /** @uses \Hexbatch\Things\Models\ThingCallback::alert_target() */
-        if($this->callback->alert_target) {
-            $this->alert_target = new CallbackResponse(callback: $this->callback->alert_target);
+
+        if ($this->b_alerted_by) {
+            /** @uses \Hexbatch\Things\Models\ThingCallback::alerted_by() */
+            if($this->callback->alerted_by) {
+                $this->alerted_by = new CallbackResponse(callback: $this->callback->alerted_by);
+            }
+        } else {
+            /** @uses \Hexbatch\Things\Models\ThingCallback::alert_target() */
+            if($this->callback->alert_target) {
+                $this->alert_target = new CallbackResponse(callback: $this->callback->alert_target);
+            }
         }
 
-        /** @uses \Hexbatch\Things\Models\ThingCallback::alerted_by() */
-        if($this->callback->alerted_by) {
-            $this->alerted_by = new CallbackResponse(callback: $this->callback->alerted_by);
-        }
 
         /** @uses \Hexbatch\Things\Models\ThingCallback::shared_callback_source() */
         if($this->callback->shared_callback_source) {
