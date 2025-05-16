@@ -3,11 +3,16 @@
 namespace Hexbatch\Things\Helpers;
 
 
-use Hexbatch\Things\Exceptions\HbcThingException;
 
 class ThingUtilities {
 
 
+    public static function boolishToBool($val) : ?bool {
+        if (is_null($val)) {return null;}
+        if (empty($val)) {return false;}
+        $boolval = ( is_string($val) ? filter_var($val, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) : (bool) $val );
+        return ( $boolval===null  ? false : $boolval );
+    }
 
     public static function getComposerPath(bool $for_lib) : string {
         if ($for_lib) {
@@ -47,26 +52,6 @@ class ThingUtilities {
             return static::getArray(source: json_decode($source,true));
         } else {
            return null;
-        }
-    }
-
-    public static function  isValidArray(string|array $source,bool $b_only_list_of_strings = false) : true {
-        if (is_array($source)) {
-            if (empty($source)) {return true;}
-            if ($b_only_list_of_strings) {
-                if (array_is_list($source)) {
-                    foreach ($source as $what) {
-                        if (is_numeric($what)) {
-                            throw new HbcThingException("array is not a list of strings with an element of $what");
-                        }
-                    }
-                }
-            }
-            return true;
-        } elseif (json_validate($source)) {
-            return static::isValidArray(source: json_decode($source,true),b_only_list_of_strings: $b_only_list_of_strings);
-        } else {
-            throw new HbcThingException("not an array or json");
         }
     }
 

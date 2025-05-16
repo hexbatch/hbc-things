@@ -39,6 +39,9 @@ class RunThing implements ShouldQueue
     {
         try {
             $this->thing->runThing();
+            if ($this->thing->thing_status === TypeOfThingStatus::THING_ERROR) {
+                $this->fail();
+            }
         } catch (\Exception $e) {
             Log::error(message: "while running thing: ".$e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
             try {

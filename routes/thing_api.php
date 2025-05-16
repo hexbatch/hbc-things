@@ -36,49 +36,39 @@ Route::prefix('hbc-things')->group(function () {
         $hbc_thing_editable[] =  $my_thing_editable;
     }
 
-    $hbc_thing_listing = [];
-    $my_thing_listing = config('hbc-things.middleware.thing_listing_alias'); //edit thing
-    if ($my_thing_listing) {
-        $hbc_thing_listing[] =  $my_thing_listing;
-    }
 
-    $hbc_setting_viewable = [];
-    $my_setting_viewable = config('hbc-things.middleware.setting_viewable_alias'); //view setting?
-    if ($my_setting_viewable) {
-        $hbc_setting_viewable[] =  $my_setting_viewable;
-    }
 
-    $hbc_setting_listing = [];
-    $my_setting_listing = config('hbc-things.middleware.setting_listing_alias'); //view setting?
-    if ($my_setting_listing) {
-        $hbc_setting_listing[] =  $my_setting_listing;
-    }
+
+
 
 
 
     $hbc_hook_viewable = [];
-    $my_hook_viewable = config('hbc-things.middleware.hook_viewable_alias'); //see hook?
+    $my_hook_viewable = config('hbc-things.middleware.hook_viewable_alias');
     if ($my_hook_viewable) {
         $hbc_hook_viewable[] =  $my_hook_viewable;
     }
 
-    $hbc_hook_list = [];
-    $my_hook_listing = config('hbc-things.middleware.hook_listing_alias'); //see hook?
-    if ($my_hook_listing) {
-        $hbc_hook_list[] =  $my_hook_listing;
-    }
 
     $hbc_hook_editable = [];
-    $my_hook_editable = config('hbc-things.middleware.hook_editable_alias'); //edit hook?
+    $my_hook_editable = config('hbc-things.middleware.hook_editable_alias');
     if ($my_hook_editable) {
         $hbc_hook_editable[] =  $my_hook_editable;
     }
 
+
+    $hbc_callback_viewable = [];
+    $my_thing_callback_view = config('hbc-things.middleware.callback_viewable_alias'); //callback viewable
+    if ($my_thing_callback_view) {
+        $hbc_callback_viewable[] =  $my_thing_callback_view;
+    }
+
+
     Route::prefix('v1')->group(function ()
         use($hbc_middleware,$hbc_admin,
-            $hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable,
-            $hbc_setting_viewable,$hbc_setting_listing,
-            $hbc_hook_viewable,$hbc_hook_list,$hbc_hook_editable)
+            $hbc_thing_viewable,$hbc_thing_editable,
+            $hbc_callback_viewable,
+            $hbc_hook_viewable,$hbc_hook_editable)
     {
         Route::prefix('callbacks')->group(function () {
             Route::prefix('manual/{thing_callback}')->group(function () {
@@ -89,14 +79,14 @@ Route::prefix('hbc-things')->group(function () {
 
         Route::middleware($hbc_middleware)->group(function ()
             use($hbc_middleware,$hbc_admin,
-                $hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable,
-                $hbc_setting_viewable,$hbc_setting_listing,
-                $hbc_hook_viewable,$hbc_hook_list,$hbc_hook_editable)
+                $hbc_thing_viewable,$hbc_thing_editable,
+                $hbc_callback_viewable,
+                $hbc_hook_viewable,$hbc_hook_editable)
         {
 
 
             Route::prefix('things')->group(function ()
-                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_listing,$hbc_thing_editable)
+                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_editable)
             {
 
 
@@ -109,7 +99,7 @@ Route::prefix('hbc-things')->group(function () {
                     });
                 });
 
-                Route::middleware($hbc_thing_listing)->group(function() {
+                Route::middleware([] )->group(function() {
                     Route::get('list', [ThingController::class, 'thing_list'])->name('hbc-things.things.list');
                 });
 
@@ -137,22 +127,23 @@ Route::prefix('hbc-things')->group(function () {
 
 
             Route::prefix('callbacks')->group(function ()
-                use($hbc_admin,$hbc_thing_viewable,$hbc_thing_listing)
+                use($hbc_admin,$hbc_callback_viewable)
             {
-                Route::middleware($hbc_thing_listing)->group(function () {
+                Route::middleware([])->group(function () {
                     Route::get('list', [ThingController::class, 'list_callbacks'])->name('hbc-things.callbacks.list');
                 });
 
                 Route::prefix('{thing_callback}')->group(function ()
-                    use($hbc_thing_viewable)
+                    use($hbc_callback_viewable)
                 {
-                    Route::middleware($hbc_thing_viewable)->group(function()
+                    Route::middleware($hbc_callback_viewable)->group(function()
                     {
                         Route::get('show', [ThingController::class, 'callback_show'])->name('hbc-things.callbacks.show');
                     });
                 });
 
                 Route::middleware($hbc_admin)->prefix('admin')->group(function() {
+                    Route::get('list', [ThingController::class, 'admin_list_callbacks'])->name('hbc-things.callbacks.admin.list');
                     Route::prefix('{thing_callback}')->group(function () {
                         Route::get('show', [ThingController::class, 'admin_callback_show'])->name('hbc-things.callbacks.admin.show');
                     });
@@ -162,9 +153,9 @@ Route::prefix('hbc-things')->group(function () {
 
 
             Route::prefix('hooks')->group(function ()
-                use($hbc_admin,$hbc_hook_viewable,$hbc_hook_editable,$hbc_hook_list)
+                use($hbc_admin,$hbc_hook_viewable,$hbc_hook_editable)
             {
-                Route::middleware($hbc_hook_list)->group(function () {
+                Route::middleware([])->group(function () {
                     Route::get('list', [ThingController::class, 'hook_list'])->name('hbc-things.hooks.list');
                 });
                 Route::post('create', [ThingController::class, 'thing_hook_create'])->name('hbc-things.hooks.create');

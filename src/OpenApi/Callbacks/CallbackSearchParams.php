@@ -5,12 +5,12 @@ namespace Hexbatch\Things\OpenApi\Callbacks;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Illuminate\Http\Request;
+use Hexbatch\Things\Requests\CallbackSearchRequest;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 use Ramsey\Uuid\Uuid;
 
-#[OA\Schema(schema: 'CallbackSearchParams',title: "Callback")]
+#[OA\Schema(schema: 'CallbackSearchParams',title: "Callback search")]
 
 /**
  * Search callbacks
@@ -61,6 +61,12 @@ class CallbackSearchParams  implements  JsonSerializable
         #[OA\Property( title:"Callback type", nullable: true)]
         protected ?TypeOfHookMode $hook_callback_type = null,
 
+        #[OA\Property( title: 'Owner type filter',description: 'Optional type of owner used to filter. Type must exist when set',nullable: true)]
+        protected ?string  $owner_type = null,
+
+        #[OA\Property( title: 'Owner id filter',description: 'Optional owner used to filter.',nullable: true)]
+        protected ?string  $owner_id = null,
+
 
         #[OA\Property( title: 'Ran at range min', description: "Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
         public ?string $ran_at_min = null,
@@ -98,6 +104,8 @@ class CallbackSearchParams  implements  JsonSerializable
         $arr['ran_at_max'] = $this->ran_at_max;
         $arr['created_at_min'] = $this->ran_at_max;
         $arr['created_at_max'] = $this->ran_at_max;
+        $arr['owner_type'] = $this->owner_type;
+        $arr['owner_id'] = $this->owner_id;
 
         return $arr;
     }
@@ -171,6 +179,32 @@ class CallbackSearchParams  implements  JsonSerializable
                 $this->ran_at_min = Carbon::parse($time_string)->timezone('UTC')->toIso8601String();
             }
         }
+
+        if (array_key_exists('ran_at_max',$source)) {
+            if ($time_string = (string)$source['ran_at_max'] ?? null) {
+                $this->ran_at_max = Carbon::parse($time_string)->timezone('UTC')->toIso8601String();
+            }
+        }
+
+        if (array_key_exists('created_at_min',$source)) {
+            if ($time_string = (string)$source['created_at_min'] ?? null) {
+                $this->created_at_min = Carbon::parse($time_string)->timezone('UTC')->toIso8601String();
+            }
+        }
+
+        if (array_key_exists('created_at_max',$source)) {
+            if ($time_string = (string)$source['created_at_max'] ?? null) {
+                $this->created_at_max = Carbon::parse($time_string)->timezone('UTC')->toIso8601String();
+            }
+        }
+
+        if ($owner_type = (string)($source['owner_type']??null)) {
+            $this->owner_type = $owner_type;
+        }
+
+        if ($owner_id = (int)($source['owner_id']??null) ) {
+            $this->owner_id = $owner_id;
+        }
     }
 
 
@@ -181,10 +215,10 @@ class CallbackSearchParams  implements  JsonSerializable
         return $node;
     }
 
-    public static function fromRequest(Request $request) : static {
+    public static function fromRequest(CallbackSearchRequest $request) : static {
 
         $node = new static();
-        $node->fillFromArray(source: $request->all());
+        $node->fillFromArray(source: $request->validated());
         return $node;
     }
 
@@ -271,6 +305,16 @@ class CallbackSearchParams  implements  JsonSerializable
     public function getCreatedAtMax(): ?string
     {
         return $this->created_at_max;
+    }
+
+    public function getOwnerType(): ?string
+    {
+        return $this->owner_type;
+    }
+
+    public function getOwnerId(): ?string
+    {
+        return $this->owner_id;
     }
 
 

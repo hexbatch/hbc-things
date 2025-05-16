@@ -6,14 +6,36 @@ namespace Hexbatch\Things\Requests;
 
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfCallback;
+use Hexbatch\Things\Helpers\ThingUtilities;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 
+/**
+ * @property null|bool is_blocking
+ * @property null|bool is_sharing
+ * @property null|bool is_after
+ * @property null|bool is_manual
+ */
 class CallbackSearchRequest extends FormRequest
 {
 
 
+    /**
+     * Prepare the data for validation.
+     *
+     * @return void
+     */
+    protected function prepareForValidation()
+    {
+
+
+
+        if($this->is_after && $this->is_after !== '') { $this->merge(['is_after' => ThingUtilities::boolishToBool(val: $this->is_after)]);}
+        if($this->is_manual && $this->is_manual !== '') { $this->merge(['is_manual' => ThingUtilities::boolishToBool(val: $this->is_manual)]);}
+        if($this->is_blocking && $this->is_blocking !== '') { $this->merge(['is_blocking' => ThingUtilities::boolishToBool(val: $this->is_blocking)]);}
+        if($this->is_sharing && $this->is_sharing !== '') { $this->merge(['is_sharing' => ThingUtilities::boolishToBool(val: $this->is_sharing)]);}
+    }
     /**
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>

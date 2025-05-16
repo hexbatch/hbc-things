@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 
+use Hexbatch\Things\Enums\TypeOfOwnerGroup;
 use Hexbatch\Things\Exceptions\HbcThingException;
 
 use Hexbatch\Things\Helpers\CallResponse;
@@ -20,7 +21,6 @@ use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -60,6 +60,7 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property ThingError|null callback_error
  * @property ThingCallback|null alert_target
  * @property ThingCallback|null alerted_by
+ * @property ThingCallback|null shared_callback_source
  *
  */
 class ThingCallback extends Model
@@ -74,7 +75,9 @@ class ThingCallback extends Model
      *
      * @var array<int, string>
      */
-    protected $fillable = [];
+    protected $fillable = [
+        'is_signalling_when_done'
+    ];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -112,23 +115,27 @@ class ThingCallback extends Model
         return $this->belongsTo(ThingCallback::class,'manual_alert_callback_id','id');
     }
 
+    public function shared_callback_source() : BelongsTo {
+        return $this->belongsTo(ThingCallback::class,'source_shared_callback_id','id');
+    }
+
     public function alerted_by() : HasOne {
         return $this->hasOne(ThingCallback::class,'manual_alert_callback_id','id');
     }
 
 
     /**
-     * @param IThingOwner[] $owners
      * @param TypeOfCallbackStatus[] $status_array
      */
     public static function buildCallback(
-        ?int  $me_id = null,
-        ?int  $hook_id = null,
-        ?int  $thing_id = null,
-        array $owners = [],
-        array $status_array = [],
-        ?bool $has_alert = null,
-        ?int $alerted_by_callback_id = null,
+        ?int                  $me_id = null,
+        ?int                  $hook_id = null,
+        ?int                  $thing_id = null,
+        ?IThingOwner          $owner_group = null,
+        ?TypeOfOwnerGroup     $group_hint = null,
+        array                 $status_array = [],
+        ?bool                 $has_alert = null,
+        ?int                  $alerted_by_callback_id = null,
         ?CallbackSearchParams $params = null
     )
     : Builder
@@ -168,24 +175,14 @@ class ThingCallback extends Model
             }
         }
 
-        if (count($owners)) {
-            $build->join('thing_hooks as hook',
-                /** @param JoinClause $join */
-                function ($join) use($owners) {
-                    $join
-                        ->on('thing_callbacks.owning_hook_id','=','hook.id')
-                        ->where(function (Builder $q) use($owners) {
-                            foreach ($owners as $some_owner) {
-                                $q->orWhere(function (Builder $q) use($some_owner) {
-                                    $q->where('hook.owner_type',$some_owner->getOwnerType());
-                                    $q->where('hook.owner_type_id',$some_owner->getOwnerId());
-                                });
-                            }
-                        })
-                    ;
-                }
-            );
+
+        if($owner_group && $group_hint) {
+            $build->join('thing_hooks as my_hook','thing_callbacks.owning_hook_id','=','my_hook.id');
+
+            $owner_group->setReadGroupBuilding(builder: $build,connecting_table_name: 'my_hook',
+                connecting_owner_type_column: 'owner_type',connecting_owner_id_column: 'owner_type_id',hint: $group_hint);
         }
+
 
         if ($params) {
             if ($params->getUuid()) {
@@ -213,16 +210,27 @@ class ThingCallback extends Model
             }
 
             if ($params->getCreatedAtMin() ) {
-                $build->where('thing_callbacks.callback_run_at','>=',$params->getCreatedAtMin());
+                $build->where('thing_callbacks.created_at','>=',$params->getCreatedAtMin());
             }
 
             if ($params->getCreatedAtMax() ) {
-                $build->where('thing_callbacks.callback_run_at','<=',$params->getCreatedAtMax());
+                $build->where('thing_callbacks.created_at','<=',$params->getCreatedAtMax());
+            }
+
+            if ($params->getHookUuid() || $params->getOwnerId() || $params->getOwnerType()) {
+                $build->join('things as param_thing','param_thing.id','=','thing_callbacks.source_thing_id');
             }
 
             if ($params->getThingUuid() ) {
-                $build->join('things as param_thing','param_thing.id','=','thing_callbacks.source_thing_id');
                 $build->where('param_thing.ref_uuid',$params->getThingUuid());
+            }
+
+            if ($params->getOwnerId() ) {
+                $build->where('param_thing.owner_type_id',$params->getOwnerId());
+            }
+
+            if ($params->getOwnerType() ) {
+                $build->where('param_thing.owner_type',$params->getOwnerType());
             }
 
             if ($params->getErrorUuid() ) {
@@ -266,6 +274,8 @@ class ThingCallback extends Model
                 }
             }
         }
+
+
 
 
         /** @uses ThingCallback::owning_hook() */

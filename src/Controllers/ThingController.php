@@ -4,11 +4,10 @@ namespace Hexbatch\Things\Controllers;
 
 use App\OpenApi\ErrorResponse;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
+use Hexbatch\Things\Enums\TypeOfOwnerGroup;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
-use Hexbatch\Things\Helpers\OwnerHelper;
 use Hexbatch\Things\Interfaces\IThingOwner;
-use Hexbatch\Things\Interfaces\ThingOwnerGroup;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\Models\ThingCallback;
 use Hexbatch\Things\Models\ThingHook;
@@ -19,12 +18,15 @@ use Hexbatch\Things\OpenApi\Callbacks\ManualParams;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
+use Hexbatch\Things\OpenApi\Hooks\HookSearchParams;
 use Hexbatch\Things\OpenApi\Things\ThingCollectionResponse;
 use Hexbatch\Things\OpenApi\Things\ThingResponse;
+use Hexbatch\Things\OpenApi\Things\ThingSearchParams;
 use Hexbatch\Things\Requests\CallbackSearchRequest;
 use Hexbatch\Things\Requests\HookRequest;
+use Hexbatch\Things\Requests\HookSearchRequest;
 use Hexbatch\Things\Requests\ManualFillRequest;
-use Illuminate\Http\Request;
+use Hexbatch\Things\Requests\ThingSearchRequest;
 use OpenApi\Attributes as OA;
 use OpenApi\Attributes\JsonContent;
 use Symfony\Component\HttpFoundation\Response as CodeOf;
@@ -38,23 +40,20 @@ class ThingController  {
         summary: 'List all the hooks registered to this owner',
         security: [['bearerAuth' => []]],
         tags: ['hook'],
+        parameters: [new OA\QueryParameter( name: 'Search params', description: "Optionally search", in: 'query',
+            allowEmptyValue: true, schema: new OA\Schema( ref: HookSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
-    public function hook_list(IThingOwner $owner,ThingOwnerGroup $group,Request $request) {
+    public function hook_list(IThingOwner $owner,HookSearchRequest $request) {
 
-        $owners = $group->getOwners();
-        $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
-        $action_type = $request->query->getString('action_type');
-        $action_id =   $request->query->getInt('action_id');
-        $tags =        $request->get('tags');
-
-        $hooks = ThingHook::buildHook(
-            action_type: $action_type?:null, action_id: $action_id?:null, owners: $combined_owners, tags: is_array($tags)?:[]
-        )->orderBy('id','desc')
+        $search = HookSearchParams::fromRequest(request:$request);
+        $hooks = ThingHook::buildHook(hook_owner_group: $owner, hook_group_hint: TypeOfOwnerGroup::HOOK_LIST,params: $search)
+            ->orderBy('id','desc')
             ->cursorPaginate();
         return response()->json(new HookCollectionResponse(given_hooks: $hooks), CodeOf::HTTP_OK);
     }
@@ -67,26 +66,22 @@ class ThingController  {
         summary: 'List all the hooks',
         security: [['bearerAuth' => []]],
         tags: ['hook','admin'],
+        parameters: [new OA\QueryParameter( name: 'Search params', description: "Optionally search", in: 'query',
+            allowEmptyValue: true, schema: new OA\Schema( ref: HookSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
-    public function admin_hook_list(Request $request) {
-        $action_type = $request->query->getString('action_type');
-        $action_id =   $request->query->getInt('action_id');
-        $owner_type =  $request->query->getString('owner_type');
-        $owner_id =    $request->query->getInt('owner_id');
-        $tags =        $request->get('tags');
+    public function admin_hook_list(HookSearchRequest $request) {
 
+        $search = HookSearchParams::fromRequest(request:$request);
         /** @var ThingHook[] $hooks */
-        $hooks = ThingHook::buildHook(
-            action_type: $action_type?:null, action_id: $action_id?:null, owner_type: $owner_type?:null, owner_id: $owner_id?:null, tags: is_array($tags)?:[]
-        )->orderBy('id','desc')
-            ->cursorPaginate();
+        $hooks = ThingHook::buildHook(params: $search)->orderBy('id','desc')->cursorPaginate();
         return response()->json(new HookCollectionResponse(given_hooks: $hooks), CodeOf::HTTP_OK);
     }
 
@@ -147,7 +142,7 @@ class ThingController  {
         tags: ['hook'],
         responses: [
             new OA\Response( response: CodeOf::HTTP_CREATED, description: 'The created hook',content: new JsonContent(ref: HookResponse::class)),
-
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
@@ -194,7 +189,7 @@ class ThingController  {
         parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The edited hook',content: new JsonContent(ref: HookResponse::class)),
-
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
@@ -231,20 +226,6 @@ class ThingController  {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     #[OA\Get(
         path: '/api/hbc-things/v1/things/list',
         operationId: 'hbc-things.things.list',
@@ -252,25 +233,19 @@ class ThingController  {
         summary: 'Lists top things that are owned by user',
         security: [['bearerAuth' => []]],
         tags: ['thing'],
+        parameters: [new OA\QueryParameter( name: 'Search things', description: "Optionally search", in: 'query',
+            allowEmptyValue: true, schema: new OA\Schema( ref: ThingSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
-    public function thing_list(IThingOwner $owner, ThingOwnerGroup $group,Request $request) {
-        $owners = $group->getOwners();
-        $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
-
-        $action_type = $request->query->getString('action_type');
-        $action_id = $request->query->getInt('action_id');
-        $tags = $request->get('tags');
-        if (empty($tags)) { $tags = [];}
-        elseif (is_scalar($tags)) {
-            $tags = [];
-        }
-
-        $things = Thing::buildThing(action_type_id: $action_id, action_type: $action_type, is_root: true, owners: $combined_owners, tags: $tags)
+    public function thing_list(IThingOwner $owner, ThingSearchRequest $request) {
+        $search = ThingSearchParams::fromRequest(request:$request);
+        if ($search->getIsRoot() === null) { $search->setIsRoot(true);}
+        $things = Thing::buildThing( owner_group: $owner,group_hint: TypeOfOwnerGroup::THING_LIST, params: $search)
             ->orderBy('id','desc')->cursorPaginate();
         return response()->json(new ThingCollectionResponse(given_things: $things), CodeOf::HTTP_OK);
     }
@@ -282,25 +257,22 @@ class ThingController  {
         description: "Shows tree status, times, progress",
         summary: 'Lists top things that are owned by user',
         security: [['bearerAuth' => []]],
-        tags: ['thing'],
+        tags: ['thing','admin'],
+        parameters: [new OA\QueryParameter( name: 'Search things', description: "Optionally search", in: 'query',
+            allowEmptyValue: true, schema: new OA\Schema( ref: ThingSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
-    public function thing_admin_list(Request $request) {
-        $action_type = $request->query->getString('action_type');
-        $action_id = $request->query->getInt('action_id');
-        $tags = $request->get('tags');
-        if (empty($tags)) { $tags = [];}
-        elseif (is_scalar($tags)) {
-            $tags = [];
-        }
-
-        $things = Thing::buildThing(action_type_id: $action_id, action_type: $action_type, is_root: true,tags: $tags)
+    public function thing_admin_list(ThingSearchRequest $request) {
+        $search = ThingSearchParams::fromRequest(request:$request);
+        if ($search->getIsRoot() === null) { $search->setIsRoot(true);}
+        $things = Thing::buildThing( is_root: true,params: $search)
             ->orderBy('id','desc')->cursorPaginate();
         return response()->json(new ThingCollectionResponse(given_things: $things), CodeOf::HTTP_OK);
     }
@@ -511,19 +483,40 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: CallbackSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback list',content: new JsonContent(ref: CallbackCollectionResponse::class)),
-
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
                 content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
-    public function list_callbacks( IThingOwner $owner,ThingOwnerGroup $group,CallbackSearchRequest $request) {
-
-        $owners = $group->getOwners();
-        $combined_owners = OwnerHelper::addToOwnerArray($owner,$owners);
+    public function list_callbacks( IThingOwner $owner,CallbackSearchRequest $request) {
         $search = CallbackSearchParams::fromRequest(request:$request);
         $callbacks = ThingCallback::buildCallback(
-             owners: $combined_owners,params: $search
+             owner_group: $owner,group_hint: TypeOfOwnerGroup::CALLBACK_LIST,params: $search
         )->orderBy('id','desc')->cursorPaginate();
+        return response()->json(new CallbackCollectionResponse(given_callbacks: $callbacks,), CodeOf::HTTP_OK);
+    }
+
+
+    #[OA\Get(
+        path: '/api/hbc-things/v1/callbacks/admin/list',
+        operationId: 'hbc-things.callbacks.admin.list',
+        description: "",
+        summary: 'Show a list of callbacks',
+        security: [['bearerAuth' => []]],
+        tags: ['callback','admin'],
+        parameters: [new OA\QueryParameter( name: 'Search params', description: "Optionally search", in: 'query',
+            allowEmptyValue: true, schema: new OA\Schema( ref: CallbackSearchParams::class) )],
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback list',content: new JsonContent(ref: CallbackCollectionResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+        ]
+    )]
+    public function admin_list_callbacks( CallbackSearchRequest $request) {
+        $search = CallbackSearchParams::fromRequest(request:$request);
+        $callbacks = ThingCallback::buildCallback(params: $search)
+            ->orderBy('id','desc')->cursorPaginate();
         return response()->json(new CallbackCollectionResponse(given_callbacks: $callbacks,), CodeOf::HTTP_OK);
     }
 

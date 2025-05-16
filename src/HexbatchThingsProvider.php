@@ -36,7 +36,6 @@ class HexbatchThingsProvider extends PackageServiceProvider
                     ->copyAndRegisterServiceProviderInApp()
                     ;
             });
-        ;
 
     }
 

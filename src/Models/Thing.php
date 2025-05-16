@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Exception;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfHookMode;
+use Hexbatch\Things\Enums\TypeOfOwnerGroup;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
 use Hexbatch\Things\Interfaces\IThingAction;
@@ -18,6 +19,7 @@ use Hexbatch\Things\Jobs\RunThing;
 use Hexbatch\Things\Jobs\SendCallback;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
+use Hexbatch\Things\OpenApi\Things\ThingSearchParams;
 use Illuminate\Bus\Batch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
@@ -29,7 +31,6 @@ use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use LogicException;
 use Ramsey\Uuid\Uuid;
 
 /**
@@ -164,13 +165,7 @@ class Thing extends Model
 
         /** @noinspection PhpUndefinedMethodInspection */
         $query_shared_callback = DB::table("things as node_a")
-            ->selectRaw("node_a.id, thing_self_descendants.level, thing_self_descendants.max_priority,thing_callbacks.id as callback_id")
-            ->where('node_a.id', $this->id)
-
-
-            ->join('thing_callbacks', 'thing_callbacks.owning_hook_id', '=', 'node_a.id')
-            ->join('thing_hooks', 'thing_descendants.id', '=', 'node_a.id')
-
+            ->selectRaw("node_a.id, thing_self_descendants.level, shared.id as callback_id")
             ->join('thing_self_descendants', 'thing_self_descendants.id', '=', 'node_a.id')
             ->join('thing_callbacks as shared',
                 /** @param JoinClause $join */
@@ -179,17 +174,19 @@ class Thing extends Model
                         ->on('shared.source_thing_id','=','node_a.id')
                         ->where('shared.owning_hook_id',$hook->id)
                         ->whereIn('shared.thing_callback_status',[TypeOfCallbackStatus::CALLBACK_ERROR,TypeOfCallbackStatus::CALLBACK_SUCCESSFUL])
-                        ->whereRaw('(shared.callback_run_at + make_interval(secs => ?) ) <= NOW()',[$hook->ttl_shared])
+                        ->whereRaw('(shared.callback_run_at + make_interval(secs => ?) ) >= NOW()',[$hook->ttl_shared])
                     ;
                 }
             ) ->orderBy('level','desc')->limit(1)
             ->withRecursiveExpression('thing_self_descendants',$query_self_descandants);
 
         /** @noinspection PhpUndefinedMethodInspection */
-        return ThingCallback::where('thing_callbacks.id','callback_id')
-            ->join('shared_callbacks','shared_callbacks.callback_id')
+        $laravel =  ThingCallback::select('thing_callbacks.*')->whereRaw('thing_callbacks.id = shared_callbacks.callback_id')
+            ->join('shared_callbacks','shared_callbacks.callback_id','thing_callbacks.id')
             ->withExpression('shared_callbacks',$query_shared_callback)
-            ->first();
+            ;
+        /** @type ThingCallback|null */
+        return $laravel->first();
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection|Thing[] */
@@ -306,8 +303,6 @@ class Thing extends Model
         try {
             DB::beginTransaction();
 
-
-            $status = null;
             $action = $this->getAction();
             $action->runAction();
             if($this->thing_invalid_after && Carbon::parse($this->thing_start_after)->isAfter($this->thing_invalid_after)) {
@@ -317,6 +312,8 @@ class Thing extends Model
             {
                 if ($action->isActionSuccess()) {
                     $status  = TypeOfThingStatus::THING_SUCCESS;
+                } else if ($action->isActionError()) {
+                    $status  = TypeOfThingStatus::THING_ERROR;
                 } else if ($action->isActionFail()) {
                     $status  = TypeOfThingStatus::THING_FAIL;
                 } else {
@@ -413,10 +410,11 @@ class Thing extends Model
     /**
      * @return SendCallback[]
      */
-    protected function getCallbacksOfType(TypeOfHookMode $which,?bool $blocking = null,?bool $after = null,&$unresolved_manual = []) : array {
+    public function getCallbacksOfType(TypeOfHookMode $which,?bool $blocking = null,?bool $after = null,&$unresolved_manual = []) : array {
 
         /** @var ThingHook[] $hooks */
-        $hooks = ThingHook::buildHook( mode:$which,action: $this->getAction(), owner: $this->getOwner(),
+        $hooks = ThingHook::buildHook( mode:$which,action: $this->getAction(), hook_owner_group: $this->getOwner(),
+            hook_group_hint: TypeOfOwnerGroup::HOOK_CALLBACK_CREATION,
             tags: $this->thing_tags->getArrayCopy(),is_on: true,is_after: $after,is_blocking: $blocking)->get();
 
         $callbacks = [];
@@ -492,19 +490,6 @@ class Thing extends Model
     }
 
     /**
-     * @return SendCallback[]
-     */
-    public static function getCallbacks(string $ref,TypeOfHookMode $which,?bool $blocking = null,?bool $after = null) {
-        /** @var Thing|null $thung */
-        $thung = Thing::where('ref_uuid',$ref)->first();
-        if (!$thung) {
-            Log::warning("could not get thing by uuid of $ref");
-            return [];
-        }
-        return $thung->getCallbacksOfType(which: $which,blocking: $blocking,after: $after);
-    }
-
-    /**
      * @throws Exception
      */
     protected function dispatchThing() {
@@ -529,7 +514,7 @@ class Thing extends Model
             $this->setRunData(status: TypeOfThingStatus::THING_WAITING);
             return; //not until they are resolved
         }
-        $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: false,after: true);
+        $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: true,after: true);
         if (count($blocking_post)) {
             $blocking_post[count($blocking_post)-1]->getCallback()->setSignalWhenDone();
         }
@@ -552,39 +537,55 @@ class Thing extends Model
 
             })->then(function (Batch $batch)  {
                 Log::debug(sprintf("success handler for %s |  %s",$batch->id,$batch->name));
-                $success = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE_SUCCESS);
-                if (count($success)) {
-                    Bus::batch($success)->onConnection('default');
+                try {
+                    $thing = Thing::getThing(ref_uuid: $batch->name);
+                    $success = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_SUCCESS);
+                    if (count($success)) {
+                        Log::debug(sprintf("success handler found %s callbacks to run", count($success)));
+                        Bus::batch($success)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                    }
+                } catch (Exception|\Error $e) {
+                    Log::error("then had issue: \n". $e);
                 }
 
             })->catch(function (Batch $batch, \Throwable $e){
 
                 Log::warning(sprintf("failed job for %s |  %s \n",$batch->id,$batch->name).$e);
-                $fail = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE_FAILURE);
+                try {
+                    $thing = Thing::getThing(ref_uuid: $batch->name);
+                    $fails = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FAILURE);
 
-                if (count($fail)) {
-                    Bus::batch($fail)->onConnection('default');
+                    if (count($fails)) {
+                        Log::debug(sprintf("failed handler found %s callbacks to run", count($fails)));
+                        Bus::batch($fails)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                    }
+                } catch (Exception|\Error $e) {
+                    Log::error("batch catch had issue: \n". $e);
                 }
 
             })->finally(function (Batch $batch)  {
                 Log::debug(sprintf("Finally handler for %s |  %s",$batch->id,$batch->name));
-                $always = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE_FAILURE);
-                if (count($always)) {
-                    Bus::batch($always)->onConnection('default');
+                try {
+                    $thing = Thing::getThing(ref_uuid: $batch->name);
+                    $always = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FINALLY);
+                    if (count($always)) {
+                        Log::debug(sprintf("finally handler found %s callbacks to run", count($always)));
+                        Bus::batch($always)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                    } else {
+                        Log::debug(("finally handler found no callbacks for thing id ".$thing->id));
+                    }
+                } catch (Exception|\Error $e) {
+                    Log::error("Finally had issue: \n". $e);
                 }
-                $non_blocking_post = Thing::getCallbacks(ref: $batch->name,which: TypeOfHookMode::NODE,blocking: false,after: true);
-                if (count($non_blocking_post)) {
-                    Bus::batch($non_blocking_post)->onConnection('default');
-                }
-            })->onConnection($this->is_async?'default':'sync')
+            })->onConnection($this->is_async?config('hbc-things.queues.default_connection'):'sync')
             ->name($this->ref_uuid);
 
-        if (count($non_blocking_pre)) {
-            $chaining[] = $non_blocking_pre;
+        foreach ($non_blocking_pre as $pre_what) {
+            $chaining[] = $pre_what;
         }
 
         Bus::chain($chaining)
-            ->onConnection($this->is_async?'default':'sync')
+            ->onConnection($this->is_async?config('hbc-things.queues.default_connection'):'sync')
             ->dispatch();
 
     }
@@ -656,8 +657,8 @@ class Thing extends Model
             }
         }
 
-        $root_tags = ($parent_thing?->thing_root?:$parent_thing)?->thing_tags?->getArrayCopy()??[];
-        $thing_tags = array_unique(array_merge($action->getActionTags()??[],$root_tags,$extra_tags));
+        $root_tags = array_values( ($parent_thing?->thing_root?:$parent_thing)?->thing_tags?->getArrayCopy()??[]);
+        $thing_tags = array_values(array_unique(array_merge($action->getActionTags()??[],$root_tags,array_values($extra_tags))));
         if (empty($thing_tags) ) {
             $thing_tags = [];
         }
@@ -731,10 +732,11 @@ class Thing extends Model
         ?int $id = null,
         ?int    $action_type_id = null,
         ?string $action_type = null,
+        ?string $ref_uuid = null,
     )
     : Thing
     {
-        $ret = static::buildThing(me_id:$id, action_type_id: $action_type_id,action_type: $action_type)->first();
+        $ret = static::buildThing(me_id: $id, ref_uuid: $ref_uuid, action_type_id: $action_type_id, action_type: $action_type)->first();
 
         if (!$ret) {
             $arg_types = [];
@@ -742,25 +744,28 @@ class Thing extends Model
             if ($id) { $arg_types[] = 'id'; $arg_vals[] = $id;}
             if ($action_type) { $arg_types[] = 'Action type'; $arg_vals[] = $action_type;}
             if ($action_type_id) { $arg_types[] = 'Action id'; $arg_vals[] = $action_type_id;}
+            if ($ref_uuid) { $arg_types[] = 'Ref uuid'; $arg_vals[] = $ref_uuid;}
             $arg_val = implode('|',$arg_vals);
             $arg_type = implode('|',$arg_types);
-            throw new LogicException("Could not find thing via $arg_type : $arg_val");
+            throw new \InvalidArgumentException("Could not find thing via $arg_type : $arg_val");
         }
         return $ret;
     }
 
     public static function buildThing(
-        ?int    $me_id = null,
-        ?string    $ref_uuid = null,
-        ?int    $action_type_id = null,
-        ?string $action_type = null,
-        ?int    $owner_type_id = null,
-        ?string $owner_type = null,
-        ?bool   $is_root = null,
-        bool    $include_my_descendants = false,
-        bool    $eager_load = false,
-        array   $owners = [],
-        ?array   $tags = null
+        ?int               $me_id = null,
+        ?string            $ref_uuid = null,
+        ?int               $action_type_id = null,
+        ?string            $action_type = null,
+        ?int               $owner_type_id = null,
+        ?string            $owner_type = null,
+        ?bool              $is_root = null,
+        bool               $include_my_descendants = false,
+        bool               $eager_load = false,
+        ?IThingOwner       $owner_group = null,
+        ?TypeOfOwnerGroup  $group_hint = null,
+        ?array             $tags = null,
+        ?ThingSearchParams $params = null
     )
     : Builder
     {
@@ -779,28 +784,28 @@ class Thing extends Model
             $build->where('things.id',$me_id);
         }
 
-        if ($ref_uuid) {
-            $build->where('things.ref_uuid',$ref_uuid);
+        if ($ref_uuid || $params?->getUuid()) {
+            $build->where('things.ref_uuid',$ref_uuid?: $params->getUuid());
         }
 
-        if ($action_type) {
-            $build->where('things.action_type',$action_type);
+        if ($action_type || $params?->getActionType() ) {
+            $build->where('things.action_type',$action_type?: $params->getActionType());
         }
 
-        if ($action_type_id) {
-            $build->where('things.action_type_id',$action_type_id);
+        if ($action_type_id || $params?->getActionId()) {
+            $build->where('things.action_type_id',$action_type_id?: $params->getActionId());
         }
 
-        if ($owner_type) {
-            $build->where('things.owner_type',$owner_type);
+        if ($owner_type || $params?->getOwnerType() ) {
+            $build->where('things.owner_type',$owner_type?: $params->getOwnerType());
         }
 
-        if ($owner_type_id) {
-            $build->where('things.owner_type_id',$owner_type_id);
+        if ($owner_type_id || $params?->getOwnerId()) {
+            $build->where('things.owner_type_id',$owner_type_id?: $params->getOwnerId());
         }
 
-        if ($is_root !== null) {
-            if($is_root) {
+        if ($is_root !== null || ($params?->getIsRoot() !== null)) {
+            if($is_root || $params?->getIsRoot()) {
                 $build->whereNull('things.parent_thing_id');
             } else {
                 $build->whereNotNull('things.parent_thing_id');
@@ -823,23 +828,57 @@ class Thing extends Model
                 ->join('my_thing_descendants', 'my_thing_descendants.id', '=', 'things.id');
         }
 
-        if (count($owners)) {
-            $build->where(function (Builder $q) use($owners) {
-                foreach ($owners as $some_owner) {
-                    $q->orWhere(function (Builder $q) use($some_owner) {
-                        $q->where('things.owner_type',$some_owner->getOwnerType());
-                        $q->where('things.owner_type_id',$some_owner->getOwnerId());
-                    });
-                }
-            });
+        if($group_hint) {
+            $owner_group?->setReadGroupBuilding(builder: $build, connecting_table_name: 'things',
+                connecting_owner_type_column: 'owner_type', connecting_owner_id_column: 'owner_type_id', hint: $group_hint);
         }
 
-        if ($tags !== null ) {
-            if (count($tags) ) {
-                $tags_json = json_encode(array_values($tags));
+        if ($tags !== null || $params?->getTags()) {
+            $use_tags = $tags?: $params->getTags();
+            if (count($use_tags) ) {
+                $tags_json = json_encode(array_values($use_tags));
                 $build->whereRaw("array(select jsonb_array_elements(things.thing_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
             } else {
-                $build->whereRaw("jsonb_array_length(things.thing_tags) is null OR jsonb_array_length(things.thing_tags) = 0");
+                $build->whereRaw("(jsonb_array_length(things.thing_tags) is null OR jsonb_array_length(things.thing_tags) = 0)");
+            }
+        }
+
+        if ($params) {
+            if($params->getAsync() !== null) {
+                $build->where('things.is_async',$params->getAsync());
+            }
+
+            if($params->getStatus() ) {
+                $build->where('things.thing_status',$params->getStatus());
+            }
+
+            if ($params->getRanAtMin() ) {
+                $build->where('things.thing_ran_at','>=',$params->getRanAtMin());
+            }
+
+            if ($params->getRanAtMax() ) {
+                $build->where('things.thing_ran_at','<=',$params->getRanAtMax());
+            }
+
+            if ($params->getCreatedAtMin() ) {
+                $build->where('things.created_at','>=',$params->getCreatedAtMin());
+            }
+
+            if ($params->getCreatedAtMax() ) {
+                $build->where('things.created_at','<=',$params->getCreatedAtMax());
+            }
+
+            if ($params->getStartedAtMin() ) {
+                $build->where('things.thing_started_at','>=',$params->getCreatedAtMin());
+            }
+
+            if ($params->getStartedAtMax() ) {
+                $build->where('things.thing_started_at','<=',$params->getCreatedAtMax());
+            }
+
+            if ($params->getErrorUuid() ) {
+                $build->join('thing_errors as param_error','param_error.id','=','things.thing_error_id');
+                $build->where('param_error.ref_uuid',$params->getErrorUuid());
             }
         }
 

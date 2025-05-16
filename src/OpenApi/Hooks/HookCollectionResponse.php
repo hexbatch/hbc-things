@@ -33,7 +33,7 @@ class HookCollectionResponse implements  JsonSerializable
      */
     public function __construct($given_hooks,
                                 protected bool $b_include_callbacks = false,
-                                protected ?Thing $callbacks_scoped_to_thing = null,)
+                                protected ?Thing $callbacks_scoped_to_thing = null)
     {
         $this->hooks = [];
         foreach ($given_hooks as $hook) {

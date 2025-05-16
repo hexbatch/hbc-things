@@ -4,28 +4,27 @@
 namespace Hexbatch\Things\Requests;
 
 
-use Hexbatch\Things\Models\ThingHook;
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Helpers\ThingUtilities;
 use Hexbatch\Things\Rules\ValidateAction;
+use Hexbatch\Things\Rules\ValidateOwner;
 use Hexbatch\Things\Rules\ValidateOwnerFilter;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
+
 /**
- * @property null|string|array tags
- * @property null|string|array data_template
- * @property null|string|array header_template
- * @property null|bool hook_on
- * @property null|bool is_writing
  * @property null|bool is_blocking
  * @property null|bool is_sharing
  * @property null|bool is_after
  * @property null|bool is_manual
- * @property string name
+ * @property null|bool is_writing
+ * @property null|bool hook_on
+ * @property null|string|array tags
  */
-class HookRequest extends FormRequest
+class HookSearchRequest extends FormRequest
 {
 
 
@@ -37,22 +36,20 @@ class HookRequest extends FormRequest
     protected function prepareForValidation()
     {
 
-        $this->merge([
-            'tags' => ThingUtilities::getArray(source: $this->tags),
-            'data_template' => ThingUtilities::getArray(source: $this->data_template),
-            'header_template' => ThingUtilities::getArray(source: $this->header_template)
-        ]);
 
-        if($this->hook_on && $this->hook_on !== '') { $this->merge(['hook_on' => ThingUtilities::boolishToBool(val: $this->hook_on)]);}
+
+        if($this->is_sharing && $this->is_sharing !== '') { $this->merge(['is_sharing' => ThingUtilities::boolishToBool(val: $this->is_sharing)]);}
+        if($this->is_manual && $this->is_manual !== '') { $this->merge(['is_manual' => ThingUtilities::boolishToBool(val: $this->is_manual)]);}
         if($this->is_writing && $this->is_writing !== '') { $this->merge(['is_writing' => ThingUtilities::boolishToBool(val: $this->is_writing)]);}
         if($this->is_blocking && $this->is_blocking !== '') { $this->merge(['is_blocking' => ThingUtilities::boolishToBool(val: $this->is_blocking)]);}
-        if($this->is_sharing && $this->is_sharing !== '') { $this->merge(['is_sharing' => ThingUtilities::boolishToBool(val: $this->is_sharing)]);}
+        if($this->hook_on && $this->hook_on !== '') { $this->merge(['hook_on' => ThingUtilities::boolishToBool(val: $this->hook_on)]);}
         if($this->is_after && $this->is_after !== '') { $this->merge(['is_after' => ThingUtilities::boolishToBool(val: $this->is_after)]);}
-        if($this->is_manual && $this->is_manual !== '') { $this->merge(['is_manual' => ThingUtilities::boolishToBool(val: $this->is_manual)]);}
-    }
 
+        $this->merge([
+            'tags' => ThingUtilities::getArray(source: $this->tags),
+        ]);
+    }
     /**
-     * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
@@ -61,17 +58,15 @@ class HookRequest extends FormRequest
 
         return [
 
-
-            /** @uses ThingHook::action_type_id */
             'action_id' => ['integer', 'nullable', new ValidateAction],
-
-            /** @uses ThingHook::action_type */
             'action_type' => ['string', 'nullable', new ValidateAction],
-
-
             'filter_owner_id' => ['integer', 'nullable', new ValidateOwnerFilter],
-
             'filter_owner_type' => ['string', 'nullable', new ValidateOwnerFilter],
+
+            'owner_id' => ['integer', 'nullable', new ValidateOwner],
+            'owner_type' => ['string', 'nullable', new ValidateOwner],
+
+            'uuid' => ['uuid', 'nullable'],
 
             /** @uses ThingHook::hook_callback_type */
             'callback_type' => ['nullable',Rule::enum(TypeOfCallback::class)],
@@ -84,27 +79,20 @@ class HookRequest extends FormRequest
             "tags.*" => "required|string|distinct|min:1",
 
 
-            /** @uses ThingHook::hook_data_template */
-            'data_template' => ['nullable',Rule::array()],
+            'ttl_shared_min' => ['nullable', Rule::numeric()->min(0)->integer()],
+            'ttl_shared_max' => ['nullable', Rule::numeric()->min(0)->integer()],
 
+            'priority_min' => ['nullable', Rule::numeric()->min(0)->integer()],
+            'priority_max' => ['nullable', Rule::numeric()->min(0)->integer()],
 
-            /** @uses ThingHook::hook_header_template */
-            'header_template' => ['nullable',Rule::array()],
+            'status' => ['nullable',Rule::enum(TypeOfCallbackStatus::class)],
+            'hook_callback_type' => ['nullable',Rule::enum(TypeOfCallback::class)],
 
-            /** @uses ThingHook::ttl_shared */
-            'ttl_shared' => ['nullable','numeric','integer','min:0'],
+            'ran_at_min' => ['date', 'nullable'],
+            'ran_at_max' => ['date', 'nullable'],
+            'created_at_min' => ['date', 'nullable'],
+            'created_at_max' => ['date', 'nullable'],
 
-            /** @uses ThingHook::hook_priority */
-            'priority' => ['nullable','numeric','integer','min:0'],
-
-            /** @uses ThingHook::hook_notes */
-            "notes" => ['nullable','string'],
-
-            /** @uses ThingHook::hook_name */
-            "name" => ['nullable','string',Rule::exists(ThingHook::class,'hook_name')->whereNot('hook_name',$this->name)],
-
-            /** @uses ThingHook::address */
-            "address" => ['nullable','string'],
 
             /** @uses ThingHook::is_on */
             "hook_on" => ['nullable','boolean'],
@@ -123,6 +111,8 @@ class HookRequest extends FormRequest
 
             /** @uses ThingHook::is_manual */
             "is_manual" => ['nullable','boolean'],
+
+
 
         ];
     }

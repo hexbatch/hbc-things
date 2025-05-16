@@ -17,12 +17,19 @@ return new class extends Migration
 
             $table->bigInteger('owner_type_id')
                 ->nullable()->default(null)
+                ->index()
                 ->comment("The id of the owner, see type to lookup");
 
 
             $table->bigInteger('action_type_id')
                 ->nullable()->default(null)
                 ->comment("The id of the action, see type to lookup");
+
+
+            $table->bigInteger('filter_owner_type_id')
+                ->nullable()->default(null)
+                ->index()
+                ->comment("hooks can be set to run on things of an owner");
 
 
 
@@ -83,16 +90,7 @@ return new class extends Migration
             $table->text('hook_notes')->nullable()->default(null)
                 ->comment('optional notes');
 
-            $table->string('action_type',30)
-                ->nullable()->default(null)
-                ->comment("The type of action");
 
-            $table->string('owner_type',30)
-                ->nullable()->default(null)
-                ->comment("The type of owner");
-
-            $table->index(['action_type','action_type_id'],'idx_hook_action_type_id');
-            $table->index(['owner_type','owner_type_id'],'idx_hook_owner_type_id');
 
         });
 
@@ -143,6 +141,24 @@ return new class extends Migration
 
 
         Schema::table('thing_hooks', function (Blueprint $table) {
+
+            $table->string('action_type',30)
+                ->nullable()->default(null)
+                ->comment("The type of action");
+
+            $table->string('owner_type',30)
+                ->nullable()->default(null)
+                ->index()
+                ->comment("The type of owner");
+
+            $table->string('filter_owner_type',30)
+                ->nullable()->default(null)
+                ->index()
+                ->comment("Hooks can filter on an owner type");
+
+            $table->index(['action_type','action_type_id'],'idx_thing_hook_action');
+            $table->index(['owner_type_id','owner_type'],'idx_thing_hook_owner');
+            $table->index(['filter_owner_type_id','filter_owner_type'],'idx_thing_hook_filter_owner');
 
             $table->string('hook_name')
                 ->nullable()->default(null)

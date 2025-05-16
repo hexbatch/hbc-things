@@ -28,8 +28,13 @@ class CallbackResponse  implements  JsonSerializable
     #[OA\Property( title:"Thing",format: 'uuid')]
     protected string $thing_uuid;
 
+
+
     #[OA\Property( title:"Error",nullable: true)]
     protected ?ThingErrorResponse $error;
+
+    #[OA\Property( title:"Shared callback source")]
+    protected ?CallbackResponse $shared_source = null;
 
     #[OA\Property( title:"Alert target",nullable: true)]
     protected ?CallbackResponse $alert_target = null;
@@ -38,7 +43,7 @@ class CallbackResponse  implements  JsonSerializable
     protected ?CallbackResponse $alerted_by = null;
 
     #[OA\Property( title:"Code of response")]
-    protected int $code;
+    protected ?int $code;
 
     #[OA\Property( title:"Response of callback",nullable: true)]
     /** @var mixed[] $response */
@@ -92,7 +97,7 @@ class CallbackResponse  implements  JsonSerializable
             $this->hook = new HookResponse(hook: $this->callback->owning_hook);
         }
         if($b_include_hook) {
-            $this->thing = new ThingResponse(thing: $this->callback->thing_source);
+            $this->thing = new ThingResponse(thing: $this->callback->thing_source,b_include_hooks: false,b_include_children: false);
         }
 
         /** @uses \Hexbatch\Things\Models\ThingCallback::alert_target() */
@@ -103,6 +108,11 @@ class CallbackResponse  implements  JsonSerializable
         /** @uses \Hexbatch\Things\Models\ThingCallback::alerted_by() */
         if($this->callback->alerted_by) {
             $this->alerted_by = new CallbackResponse(callback: $this->callback->alerted_by);
+        }
+
+        /** @uses \Hexbatch\Things\Models\ThingCallback::shared_callback_source() */
+        if($this->callback->shared_callback_source) {
+            $this->shared_source = new CallbackResponse(callback: $this->callback->shared_callback_source);
         }
     }
 
@@ -135,6 +145,10 @@ class CallbackResponse  implements  JsonSerializable
 
         if ($this->alerted_by) {
             $arr['alerted_by'] = $this->alerted_by;
+        }
+
+        if ($this->shared_source) {
+            $arr['shared_source'] = $this->shared_source;
         }
 
         return $arr;

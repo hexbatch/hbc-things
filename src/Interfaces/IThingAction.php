@@ -10,6 +10,7 @@ interface IThingAction
     public function isActionComplete() : bool;
     public function isActionSuccess() : bool;
     public function isActionFail() : bool;
+    public function isActionError() : bool;
 
     public function getActionId() : int;
     public function getActionRef() : ?string;

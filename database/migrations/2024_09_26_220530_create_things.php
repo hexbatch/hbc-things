@@ -53,6 +53,7 @@ return new class extends Migration
 
             $table->bigInteger('owner_type_id')
                 ->nullable()->default(null)
+                ->index()
                 ->comment("The id of the owner, see type to lookup");
 
 
@@ -129,11 +130,12 @@ return new class extends Migration
 
             $table->string('owner_type',30)
                 ->nullable()->default(null)
+                ->index()
                 ->comment("The type of owner");
 
 
             $table->index(['action_type','action_type_id'],'idx_thing_action');
-            $table->index(['owner_type','owner_type_id'],'idx_thing_owner');
+            $table->index(['owner_type_id','owner_type'],'idx_thing_owner');
         });
 
 

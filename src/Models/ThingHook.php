@@ -6,11 +6,13 @@ namespace Hexbatch\Things\Models;
 use ArrayObject;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Interfaces\IHookParams;
+use Hexbatch\Things\Enums\TypeOfOwnerGroup;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
+use Hexbatch\Things\OpenApi\Hooks\HookParams;
+use Hexbatch\Things\OpenApi\Hooks\HookSearchParams;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +28,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int action_type_id
  * @property string owner_type
  * @property int owner_type_id
+ * @property int filter_owner_type_id
+ * @property string filter_owner_type
  * @property bool is_on
  * @property bool is_manual
  * @property bool is_after
@@ -67,6 +71,8 @@ class ThingHook extends Model
         'action_type_id',
         'owner_type',
         'owner_type_id',
+        'filter_owner_type_id',
+        'filter_owner_type',
         'is_on',
         'is_manual',
         'is_after',
@@ -155,20 +161,18 @@ class ThingHook extends Model
     }
 
     public static function buildHook(
-        ?int            $me_id = null,
-        ?TypeOfHookMode $mode = null,
-        ?IThingAction   $action = null,
-        ?string         $action_type = null,
-        ?int            $action_id = null,
-        ?IThingOwner    $owner = null,
-        ?string         $owner_type = null,
-        ?int            $owner_id = null,
-        array           $owners = [],
-        ?array          $tags = null,
-        ?bool           $is_on = null,
-        ?bool           $is_after = null,
-        ?bool           $is_blocking = null,
-        ?TypeOfCallback $callback_type = null,
+        ?int              $me_id = null,
+        ?TypeOfHookMode   $mode = null,
+        ?IThingAction     $action = null,
+        ?IThingOwner      $hook_owner = null,
+        ?IThingOwner      $hook_owner_group = null,
+        ?TypeOfOwnerGroup $hook_group_hint = null,
+        ?array            $tags = null,
+        ?bool             $is_on = null,
+        ?bool             $is_after = null,
+        ?bool             $is_blocking = null,
+        ?TypeOfCallback   $callback_type = null,
+        ?HookSearchParams $params = null,
     )
     : Builder
     {
@@ -184,95 +188,110 @@ class ThingHook extends Model
             $build->where('thing_hooks.id',$me_id);
         }
 
-        if ($is_on !== null) {
-            $build->where('thing_hooks.is_on',$is_on);
-        }
-        if ($is_after !== null) {
-            $build->where('thing_hooks.is_after',$is_after);
-        }
-        if ($is_blocking !== null) {
-            $build->where('thing_hooks.is_blocking',$is_blocking);
+        if ($is_on !== null || ($params?->getHookOn() !== null)) {
+            $build->where('thing_hooks.is_on',$is_on || $params?->getHookOn());
         }
 
-        if ($callback_type) { $build->where('thing_hooks.hook_callback_type',$callback_type); }
-        if ($action_type) { $build->where('thing_hooks.action_type',$action_type); }
-        if ($action_id) { $build->where('thing_hooks.action_type_id',$action_id); }
-        if ($owner_type) { $build->where('thing_hooks.owner_type',$owner_type); }
-        if ($owner_id) { $build->where('thing_hooks.owner_type_id',$owner_id); }
 
-        $action_clause = function(Builder $build) use($action){
+        if ($is_after !== null || ($params?->getIsAfter() !== null)) {
+            $build->where('thing_hooks.is_after',$is_after || $params?->getIsAfter());
+        }
+
+
+        if ($is_blocking !== null || ($params?->getIsBlocking() !== null)) {
+            $build->where('thing_hooks.is_blocking',$is_blocking || $params?->getIsBlocking());
+        }
+
+
+        if ($callback_type || $params?->getCallbackType()) {
+            $build->where('thing_hooks.hook_callback_type',$callback_type?:$params->getCallbackType());
+        }
+
+        if ($mode || $params?->getMode()) {
+            $build->where('thing_hooks.hook_mode',$mode?:$params->getMode());
+        }
+
+
+
+        if ($hook_owner) {
+            $build->where('thing_hooks.owner_type',$hook_owner->getOwnerType());
+            $build->where('thing_hooks.owner_type_id',$hook_owner->getOwnerId());
+        }
+
+
+
+
+
+        if ($tags !== null ||($params->getTags() !== null)) {
+            $use_tags = $tags?: $params->getTags();
+            if (count($use_tags) ) {
+                $tags_json = json_encode(array_values($use_tags));
+                $build->whereRaw("array(select jsonb_array_elements(thing_hooks.hook_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
+            } else {
+                $build->whereRaw("(jsonb_array_length(thing_hooks.hook_tags) is null OR jsonb_array_length(thing_hooks.hook_tags) = 0)");
+            }
+        }
+
+
+       if ($action && $hook_group_hint !== TypeOfOwnerGroup::HOOK_CALLBACK_CREATION) {
+           $build->where('thing_hooks.action_type',$action->getActionType());
+           $build->where('thing_hooks.action_type_id',$action->getActionId());
+       }
+
+
+        if ($hook_group_hint === TypeOfOwnerGroup::HOOK_CALLBACK_CREATION ) {
+
+            if ($hook_owner_group) {
+                $hook_owner_group->setReadGroupBuilding(builder: $build, connecting_table_name: 'thing_hooks',
+                    connecting_owner_type_column: 'filter_owner_type', connecting_owner_id_column: 'filter_owner_type_id',
+                    hint: $hook_group_hint,alias: 'gul');
+
+                $build->where(function (Builder $q)  {
+                    $q->where(function (Builder $q) {
+                        $q->whereRaw('thing_hooks.filter_owner_type_id = gul.id');
+                    })
+                        ->orWhere(function (Builder $q) {
+                            $q->whereNull('thing_hooks.filter_owner_type')->whereNull('thing_hooks.filter_owner_type_id');
+                        });
+                });
+            }
+
             if ($action) {
                 $build->where(function (Builder $q) use($action) {
                     $q->where(function (Builder $q) use($action) {
-                        $q->where('thing_hooks.action_type',$action->getActionType());
-                        $q->where('thing_hooks.action_type_id',$action->getActionId());
-                    })
-                        ->orWhere(function (Builder $q) {
-                            $q->whereNull('thing_hooks.action_type')->orWhereNull('thing_hooks.action_type_id');
-                        });
-                });
-            }
-        };
-
-
-        $owner_clause = function(Builder $build) use($owner) {
-            if ($owner) {
-                $build->where(function (Builder $q) use($owner) {
-                    $q->where(function (Builder $q) use($owner) {
-                        $q->where('thing_hooks.owner_type',$owner->getOwnerType());
-                        $q->where('thing_hooks.owner_type_id',$owner->getOwnerId());
-                    })
-                        ->orWhere(function (Builder $q) {
-                            $q->whereNull('thing_hooks.owner_type')->orWhereNull('thing_hooks.owner_type_id');
-                        });
-                });
-            }
-        };
-
-        if ($action && $owner) {
-            $build->where(function (Builder $q) use($action_clause,$owner_clause) {
-                $q->where(function (Builder $q) use($owner_clause) {
-                    $owner_clause(build: $q);
-                });
-
-                $q->orWhere(function (Builder $q) use($action_clause) {
-                    $action_clause(build: $q);
-                });
-            });
-        } elseif ($action) {
-            $action_clause(build: $build);
-        } elseif ($owner) {
-            $owner_clause(build: $build);
-        }
-
-
-
-
-
-        if (count($owners)) {
-            $build->where(function (Builder $q) use($owners) {
-                foreach ($owners as $some_owner) {
-                    $q->orWhere(function (Builder $q) use($some_owner) {
-                        $q->where('thing_hooks.owner_type',$some_owner->getOwnerType());
-                        $q->where('thing_hooks.owner_type_id',$some_owner->getOwnerId());
+                        $q->where(function (Builder $q) use($action) {
+                            $q->where('thing_hooks.action_type',$action->getActionType());
+                            $q->where('thing_hooks.action_type_id',$action->getActionId());
+                        })
+                            ->orWhere(function (Builder $q) {
+                                $q->whereNull('thing_hooks.action_type')->whereNull('thing_hooks.action_type_id');
+                            });
                     });
-                }
-            });
-        }
-
-
-        if ($mode) {
-            $build->where('thing_hooks.hook_mode',$mode);
-        }
-
-
-        if ($tags !== null ) {
-            if (count($tags) ) {
-                $tags_json = json_encode(array_values($tags));
-                $build->whereRaw("array(select jsonb_array_elements(thing_hooks.hook_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
-            } else {
-                $build->whereRaw("jsonb_array_length(thing_hooks.hook_tags) is null OR jsonb_array_length(thing_hooks.hook_tags) = 0");
+                });
             }
+        }
+        elseif ( $hook_group_hint === TypeOfOwnerGroup::HOOK_LIST) {
+
+            $hook_owner_group?->setReadGroupBuilding(builder: $build,connecting_table_name: 'thing_hooks',
+                connecting_owner_type_column: 'owner_type',connecting_owner_id_column: 'owner_type_id',hint: $hook_group_hint);
+
+        }
+
+        if($params) {
+            if ($params->getUuid()) { $build->where('thing_hooks.ref_uuid',$params->getUuid()); }
+            if ($params->getActionType()) { $build->where('thing_hooks.action_type',$params->getActionType()); }
+            if ($params->getActionId()) { $build->where('thing_hooks.action_type_id',$params->getActionId()); }
+            if ($params->getOwnerType()) { $build->where('thing_hooks.owner_type',$params->getOwnerType()); }
+            if ($params->getOwnerId()) { $build->where('thing_hooks.owner_type_id',$params->getOwnerId()); }
+            if ($params->getFilterOwnerType()) { $build->where('thing_hooks.filter_owner_type',$params->getFilterOwnerType()); }
+            if ($params->getFilterOwnerId()) { $build->where('thing_hooks.filter_owner_type_id',$params->getFilterOwnerId()); }
+            if ($params->getIsWriting() !== null) { $build->where('thing_hooks.is_writing_data_to_thing',$params->getIsWriting()); }
+            if ($params->getIsSharing() !== null) { $build->where('thing_hooks.is_sharing',$params->getIsSharing()); }
+            if ($params->getIsManual() !== null) { $build->where('thing_hooks.is_manual',$params->getIsManual()); }
+            if ($params->getTtlSharedMin() !== null) { $build->where('thing_hooks.ttl_shared','>=',$params->getTtlSharedMin()); }
+            if ($params->getTtlSharedMax() !== null) { $build->where('thing_hooks.ttl_shared','<=',$params->getTtlSharedMax()); }
+            if ($params->getPriorityMin() !== null) { $build->where('thing_hooks.hook_priority','>=',$params->getPriorityMin()); }
+            if ($params->getPriorityMax() !== null) { $build->where('thing_hooks.hook_priority','<=',$params->getPriorityMax()); }
         }
 
 
@@ -280,11 +299,14 @@ class ThingHook extends Model
         return $build;
     }
 
-    public function updateHook(IHookParams $it)
+    public function updateHook(HookParams $it)
     {
         $owner = $it->getHookOwner();
         $this->owner_type_id = $owner?->getOwnerId() ;
         $this->owner_type = $owner?->getOwnerType() ;
+
+        $this->filter_owner_type_id = $owner?->getOwnerId() ;
+        $this->filter_owner_type = $owner?->getOwnerType() ;
 
         $action = $it->getHookAction();
         $this->action_type_id = $action?->getActionId() ;
@@ -300,7 +322,7 @@ class ThingHook extends Model
 
         if ($it->getHookNotes() !== null) { $this->hook_notes = $it->getHookNotes() ; }
         if ($it->getHookName() !== null) { $this->hook_name = $it->getHookName() ;}
-        if ($it->getHookMode() !== null) {  $this->hook_mode = $it->getHookMode() ;}
+
         if ($it->getSharedTtl() !== null) {  $this->ttl_shared = $it->getSharedTtl() ;}
         if ($it->getPriority() !== null) {  $this->hook_priority = $it->getPriority() ;}
 
@@ -310,9 +332,19 @@ class ThingHook extends Model
         if ($it->getHookTags() !== null) { $this->hook_tags = $it->getHookTags() ; }
         if ($it->getDataTemplate() !== null) {   $this->hook_data_template = $it->getDataTemplate();}
         if ($it->getHeaderTemplate() !== null) {  $this->hook_header_template = $it->getHeaderTemplate();}
+
+        if ($it->getHookMode() !== null) {  $this->hook_mode = $it->getHookMode() ;}
+        if (!$this->is_blocking && $this->is_after) {
+            $this->hook_mode = TypeOfHookMode::NODE_FINALLY;
+        }
+        if (in_array($this->hook_mode,[TypeOfHookMode::NODE_FINALLY,TypeOfHookMode::NODE_FAILURE,TypeOfHookMode::NODE_SUCCESS])) {
+            $this->is_after = true;
+            $this->is_blocking = false;
+            $this->is_writing_data_to_thing = false;
+        }
     }
 
-    public static function createHook(IHookParams $it)
+    public static function createHook(HookParams $it)
     : ThingHook
     {
 

@@ -30,7 +30,7 @@ Do a partial bus for each group of them.
 
 A thing stops running when all the blocking callbacks are finished for it. Non-blocking callbacks, when finished, do not change thing state or condition.
 
-if a manual is non blocking, then the address part is put in the non blocking and has no special handling, and it does not matter if the manual is filled in
+if a manual is non-blocking, then the address part is put in the non-blocking and has no special handling, and it does not matter if the manual is filled in
 
 -----------------
 testing

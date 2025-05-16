@@ -5,12 +5,10 @@ namespace Hexbatch\Things\OpenApi\Hooks;
 
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Interfaces\IHookParams;
 use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Models\ThingHook;
 use Hexbatch\Things\Requests\HookRequest;
-use Illuminate\Http\Request;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
 
@@ -19,7 +17,7 @@ use OpenApi\Attributes as OA;
  */
 #[OA\Schema(schema: 'HookParams',title: "Hook creation data")]
 
-class HookParams implements IHookParams, JsonSerializable
+class HookParams implements JsonSerializable
 {
 
 
@@ -100,6 +98,13 @@ class HookParams implements IHookParams, JsonSerializable
         #[OA\Property( title:"Address",description: 'the url|callable|evemt')]
         protected ?string $address = null,
 
+
+        #[OA\Property( title: 'Owner type filter',description: 'Filter to run on things by this owner type. Type must exist when set',nullable: true)]
+        protected ?string  $filter_owner_type = null,
+
+        #[OA\Property( title: 'Owner id filter',description: 'Filter to run on things by one owner.',nullable: true)]
+        protected ?string  $filter_owner_id = null,
+
         /**
          * @var mixed[]|null
          */
@@ -132,12 +137,13 @@ class HookParams implements IHookParams, JsonSerializable
             'tags' => $this->tags,
 
             'callback_type' => $this->callback_type->value,
-            'sharing' => $this->callback_type->value,
             'ttl_shared' => $this->ttl_shared,
             'priority' => $this->priority,
             'data_template' => $this->data_template,
             'header_template' => $this->header_template,
             'address' => $this->address,
+            'filter_owner_id' => $this->filter_owner_id,
+            'filter_owner_type' => $this->filter_owner_type,
         ];
 
     }
@@ -171,6 +177,14 @@ class HookParams implements IHookParams, JsonSerializable
 
         if ($action_id = (int)($source['action_id']??null) ) {
             $this->action_id = $action_id;
+        }
+
+        if ($owner_type = (string)($source['filter_owner_type']??null)) {
+            $this->filter_owner_type = $owner_type;
+        }
+
+        if ($owner_id = (int)($source['filter_owner_id']??null) ) {
+            $this->filter_owner_id = $owner_id;
         }
 
         if (array_key_exists('hook_on',$source)) {
@@ -236,6 +250,16 @@ class HookParams implements IHookParams, JsonSerializable
         $node = new static();
         $node->fillFromArray(source: $request->validated());
         return $node;
+    }
+
+    public function getFilterOwnerType(): ?string
+    {
+        return $this->filter_owner_type;
+    }
+
+    public function getFilterOwnerId(): ?string
+    {
+        return $this->filter_owner_id;
     }
 
 
@@ -310,7 +334,7 @@ class HookParams implements IHookParams, JsonSerializable
     }
 
 
-    public function setHookOwner(?IThingOwner $owner): IHookParams
+    public function setHookOwner(?IThingOwner $owner): self
     {
         $this->owner = $owner;
         return $this;

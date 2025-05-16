@@ -48,6 +48,9 @@ class ThingResponse  implements  JsonSerializable
     #[OA\Property( title:"Action ref")]
     protected string $action_ref;
 
+    #[OA\Property( title:"Async")]
+    protected bool $async;
+
     #[OA\Property( title:"Hooks")]
     protected ?HookCollectionResponse $hooks = null;
 
@@ -74,6 +77,7 @@ class ThingResponse  implements  JsonSerializable
 
         $this->uuid = $this->thing->ref_uuid;
         $this->parent_uuid = $this->thing->thing_parent?->ref_uuid;
+        $this->async = $this->thing->is_async;
 
         $this->error = null;
         /** @uses \Hexbatch\Things\Models\Thing::thing_error() */
@@ -115,6 +119,7 @@ class ThingResponse  implements  JsonSerializable
         $arr = [];
         $arr['uuid'] = $this->uuid;
         $arr['parent_uuid'] = $this->parent_uuid;
+        $arr['async'] = $this->async;
         $arr['started_at'] = $this->started_at;
         $arr['ran_at'] = $this->ran_at;
         $arr['error'] = $this->error;
@@ -122,9 +127,7 @@ class ThingResponse  implements  JsonSerializable
         $arr['status'] = $this->status->value;
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;
-        if($this->action_data) {
-            $arr['action_data'] = $this->action_data;
-        }
+        $arr['action_data'] = $this->action_data;
         $arr['action_html'] = $this->action_html;
         $arr['tags'] = array_values($this->tags);
         if ($this->b_include_hooks) {
