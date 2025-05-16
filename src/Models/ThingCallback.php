@@ -337,10 +337,13 @@ class ThingCallback extends Model
         $action = $thing->getAction();
 
         $uuid_data = [
-            'callback' => $this->ref_uuid,
-            'hook' => $hook->ref_uuid,
-            'thing' => $thing->ref_uuid,
-            'action' => $action?->getActionRef()??null,
+            'thing_meta' => [
+                'callback' => $this->ref_uuid,
+                'hook' => $hook->ref_uuid,
+                'thing' => $thing->ref_uuid,
+                'action' => $action?->getActionRef()??null,
+            ]
+
         ];
 
         $action_constants = $action?->getInitialConstantData()??[];
