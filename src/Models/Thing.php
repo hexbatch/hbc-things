@@ -302,25 +302,32 @@ class Thing extends Model
 
         try {
             DB::beginTransaction();
-
-            $action = $this->getAction();
-            $action->runAction();
             if($this->thing_invalid_after && Carbon::parse($this->thing_start_after)->isAfter($this->thing_invalid_after)) {
                 $status  = TypeOfThingStatus::THING_INVALID;
-            }
-            else if ($action->isActionComplete())
-            {
-                if ($action->isActionSuccess()) {
-                    $status  = TypeOfThingStatus::THING_SUCCESS;
-                } else if ($action->isActionError()) {
-                    $status  = TypeOfThingStatus::THING_ERROR;
-                } else if ($action->isActionFail()) {
-                    $status  = TypeOfThingStatus::THING_FAIL;
-                } else {
-                    $status  = TypeOfThingStatus::THING_ERROR;
-                }
             } else {
-                $status  = TypeOfThingStatus::THING_WAITING;
+
+                $action = $this->getAction();
+                $action->runAction();
+                if ($this->thing_parent) {
+
+                    $more_actions = $action->getMoreSiblingActions();
+                    foreach ($more_actions as $extra_action) {
+                        Thing::makeThingTree(action: $extra_action,parent: $this->thing_parent);
+                    }
+                }
+                if ($action->isActionComplete()) {
+                    if ($action->isActionSuccess()) {
+                        $status = TypeOfThingStatus::THING_SUCCESS;
+                    } else if ($action->isActionError()) {
+                        $status = TypeOfThingStatus::THING_ERROR;
+                    } else if ($action->isActionFail()) {
+                        $status = TypeOfThingStatus::THING_FAIL;
+                    } else {
+                        $status = TypeOfThingStatus::THING_ERROR;
+                    }
+                } else {
+                    $status = TypeOfThingStatus::THING_WAITING;
+                }
             }
 
             if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
@@ -623,18 +630,18 @@ class Thing extends Model
      */
     protected static function makeThingTree(
         IThingAction $action,
-        ?string $hint = null,
         array $extra_tags = [],
-        IThingOwner $owner = null
+        IThingOwner $owner = null,
+        ?Thing $parent = null
     )
     : Thing {
         $owner = $owner? : $action->getActionOwner();
         try {
             DB::beginTransaction();
-            $root = static::makeThingFromAction(parent_thing: null, action: $action,extra_tags: $extra_tags,owner: $owner);
+            $root = static::makeThingFromAction(parent_thing: $parent, action: $action,extra_tags: $extra_tags,owner: $owner);
 
-            $tree = $action->getChildrenTree(key: $hint);
-            $roots = $tree->getRootNodes();
+            $tree = $action->getChildrenTree();
+            $roots = $tree?->getRootNodes()??[];
             foreach ($roots as $a_node) {
                 static::makeTreeNodes(parent_thing: $root, node: $a_node);
             }
