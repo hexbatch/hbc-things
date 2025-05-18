@@ -718,7 +718,6 @@ class Thing extends Model
     protected static function makeTreeNodes(Thing $parent_thing, \BlueM\Tree\Node $node) : Thing {
 
         /** @var IThingAction $the_action */
-        /** @noinspection PhpUndefinedFieldInspection accessed via magic method*/
         $the_action = $node->action;
 
         $children = $node->getChildren();

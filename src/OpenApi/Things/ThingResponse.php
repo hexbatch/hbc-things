@@ -36,8 +36,8 @@ class ThingResponse  implements  JsonSerializable
     protected ?array $tags;
 
     #[OA\Property( title:"Action data",nullable: true)]
-    /** @var mixed[] $action_data */
-    protected ?array $action_data;
+    /** @var mixed[] $action_info */
+    protected ?array $action_info;
 
     #[OA\Property( title:"Status")]
     protected TypeOfThingStatus $status;
@@ -80,7 +80,7 @@ class ThingResponse  implements  JsonSerializable
         $this->async = $this->thing->is_async;
 
         $this->error = null;
-        /** @uses \Hexbatch\Things\Models\Thing::thing_error() */
+        /** @uses Thing::thing_error() */
         if ($this->thing->thing_error) {
             $this->error = new ThingErrorResponse(error: $this->thing->thing_error);
         }
@@ -89,7 +89,7 @@ class ThingResponse  implements  JsonSerializable
         $action = $this->thing->getAction();
         $this->action_name = $action?->getActionType();
         $this->action_ref = $action?->getActionRef();
-        $this->action_data = $action?->getDataSnapshot();
+        $this->action_info = $action?->getDataSnapshot();
         $this->tags = $this->thing->thing_tags?->getArrayCopy()??[];
 
         if($this->thing->thing_started_at) {
@@ -101,7 +101,7 @@ class ThingResponse  implements  JsonSerializable
         }
 
         if ($this->b_include_hooks) {
-            /** @uses  \Hexbatch\Things\Models\Thing::attached_hooks() */
+            /** @uses Thing::attached_hooks() */
             $this->hooks = new HookCollectionResponse(given_hooks: $this->thing->attached_hooks,b_include_callbacks: true,callbacks_scoped_to_thing: $this->thing);
         }
 
@@ -127,7 +127,7 @@ class ThingResponse  implements  JsonSerializable
         $arr['status'] = $this->status->value;
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;
-        $arr['action_data'] = $this->action_data;
+        $arr['action_info'] = $this->action_info;
         $arr['action_html'] = $this->action_html;
         $arr['tags'] = array_values($this->tags);
         if ($this->b_include_hooks) {
