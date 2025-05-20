@@ -1,4 +1,7 @@
-# version 1.1.0  May 18, 2025
+# version 1.1.1  May 18, 2025
+* Decouple call response and hook handler in the interface
+
+* # version 1.1.0  May 18, 2025
 * Now can build new subtrees of the parent when a node finishes running
 
 # version 1.0.0  May 16, 2025
