@@ -1,4 +1,7 @@
-# version 1.1.1  May 18, 2025
+# version 1.1.2  May 23, 2025
+* Added status accessors on thing
+
+* # version 1.1.1  May 18, 2025
 * Decouple call response and hook handler in the interface
 
 * # version 1.1.0  May 18, 2025

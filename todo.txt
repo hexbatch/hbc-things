@@ -1,0 +1,8 @@
+todo things add wait_until timestamp on things, when it is set into waiting, make cron job to wake it up
+ (select expired set to pending, and null out the wait_unti)
+
+todo hook callbacks get a new function /data return called wait timeout, if provided, will put the thing into wait
+
+todo make sure the callbacks will stop the thing and other hooks if set to fail, and will set the thing to wait if the new wait timeout used
+
+

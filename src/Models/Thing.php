@@ -145,7 +145,13 @@ class Thing extends Model
 
 
 
+    public function isSuccess() : bool {
+        return $this->thing_status === TypeOfThingStatus::THING_SUCCESS;
+    }
 
+    public function isFailedOrError() : bool {
+        return in_array($this->thing_status,[TypeOfThingStatus::THING_ERROR,TypeOfThingStatus::THING_FAIL]);
+    }
 
 
     public function isComplete() : bool {
