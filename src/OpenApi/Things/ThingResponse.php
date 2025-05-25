@@ -48,6 +48,13 @@ class ThingResponse  implements  JsonSerializable
     #[OA\Property( title:"Action ref")]
     protected string $action_ref;
 
+
+    #[OA\Property( title:"Owner name")]
+    protected string $owner_name;
+
+    #[OA\Property( title:"Owner ref")]
+    protected string $owner_ref;
+
     #[OA\Property( title:"Async")]
     protected bool $async;
 
@@ -67,6 +74,10 @@ class ThingResponse  implements  JsonSerializable
 
     #[OA\Property( title: 'Ran at',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
     public ?string $ran_at = null;
+
+
+    #[OA\Property( title: 'Wait until ',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
+    public ?string $thing_wait_until_at = null;
 
 
     public function __construct(
@@ -92,12 +103,20 @@ class ThingResponse  implements  JsonSerializable
         $this->action_info = $action?->getDataSnapshot();
         $this->tags = $this->thing->thing_tags?->getArrayCopy()??[];
 
+        $owner = $thing->getOwner();
+        $this->owner_name = $owner->getName();
+        $this->owner_ref = $owner->getOwnerUuid();
+
         if($this->thing->thing_started_at) {
             $this->started_at = Carbon::parse($this->thing->thing_started_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
         }
 
         if($this->thing->thing_ran_at) {
             $this->ran_at = Carbon::parse($this->thing->thing_ran_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
+        }
+
+        if($this->thing->thing_wait_until_at) {
+            $this->thing_wait_until_at = Carbon::parse($this->thing->thing_wait_until_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
         }
 
         if ($this->b_include_hooks) {
@@ -122,11 +141,17 @@ class ThingResponse  implements  JsonSerializable
         $arr['async'] = $this->async;
         $arr['started_at'] = $this->started_at;
         $arr['ran_at'] = $this->ran_at;
+        if ($this->thing_wait_until_at) {
+            $arr['thing_wait_until_at'] = $this->thing_wait_until_at;
+        }
         $arr['error'] = $this->error;
         $arr['priority'] = $this->priority;
         $arr['status'] = $this->status->value;
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;
+
+        $arr['owner_name'] = $this->action_name;
+        $arr['owner_ref'] = $this->action_ref;
         $arr['action_info'] = $this->action_info;
         $arr['action_html'] = $this->action_html;
         $arr['tags'] = array_values($this->tags);

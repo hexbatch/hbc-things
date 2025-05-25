@@ -10,7 +10,8 @@ class CallResponse implements ICallResponse
     public function __construct(
         protected int $code,
         protected bool $successful,
-        protected null|object|array $data
+        protected null|object|array $data,
+        protected ?int $wait_timeout_seconds = null
     )
     {
     }
@@ -31,5 +32,10 @@ class CallResponse implements ICallResponse
         if (!$this->data) { return null;}
         if (is_array($this->data) ) {return $this->data;}
         return (array)$this->data;
+    }
+
+    public function getWaitTimeoutInSeconds(): ?int
+    {
+        return $this->wait_timeout_seconds;
     }
 }

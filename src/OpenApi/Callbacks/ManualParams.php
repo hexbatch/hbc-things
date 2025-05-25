@@ -26,6 +26,9 @@ class ManualParams  implements  JsonSerializable  , ICallResponse
         #[OA\Property( title:"Code", nullable: true)]
         protected int $code = CodeOf::HTTP_OK,
 
+        #[OA\Property( title:"Wait timeout", nullable: true)]
+        protected ?int $wait_in_seconds = null,
+
         #[OA\Property( title: "Data", items: new OA\Items(), nullable: true)]
 
         protected ?array $data = null,
@@ -40,6 +43,7 @@ class ManualParams  implements  JsonSerializable  , ICallResponse
     {
         $arr = [];
         $arr['code'] = $this->code;
+        $arr['wait'] = $this->wait_in_seconds;
         $arr['data'] = $this->data;
         return $arr;
     }
@@ -54,6 +58,11 @@ class ManualParams  implements  JsonSerializable  , ICallResponse
         if (array_key_exists('code',$source)) {
             $this->code =  (int)$source['code'];
             if ($this->code < 0) { $this->code = 0;}
+        }
+
+        if (array_key_exists('wait',$source)) {
+            $this->wait_in_seconds =  (int)$source['wait'];
+            if ($this->wait_in_seconds < 0) { $this->wait_in_seconds = null;}
         }
 
         if ( ($data = ($source['data']??null) ) && is_array($data)) {
@@ -87,5 +96,8 @@ class ManualParams  implements  JsonSerializable  , ICallResponse
     }
 
 
-
+    public function getWaitTimeoutInSeconds(): ?int
+    {
+        return $this->wait_in_seconds;
+    }
 }

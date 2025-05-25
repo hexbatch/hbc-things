@@ -3,6 +3,7 @@ namespace Hexbatch\Things\Jobs;
 
 
 
+use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Models\ThingCallback;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -41,6 +42,14 @@ class SendCallback implements ShouldQueue
 
         try {
             $this->callback->runCallback();
+            if ($this->callback->is_halting_thing_stack) {
+                $this->fail();
+            }
+            else if ($this->callback->thing_callback_status === TypeOfCallbackStatus::CALLBACK_ERROR) {
+                if (!$this->callback->owning_hook->is_after) {
+                    $this->fail();
+                }
+            }
         } catch (\Exception $e) {
             Log::error(message: "while running callback: ".$e->getMessage(),context: ['callback_id'=>$this->callback?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
             $this->fail($e);

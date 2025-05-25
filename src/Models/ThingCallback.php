@@ -9,6 +9,7 @@ use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 
 use Hexbatch\Things\Enums\TypeOfOwnerGroup;
+use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Exceptions\HbcThingException;
 
 use Hexbatch\Things\Helpers\CallResponse;
@@ -42,6 +43,7 @@ use TorMorten\Eventy\Facades\Eventy;
  *
  * @property int callback_http_code
  * @property bool is_signalling_when_done
+ * @property bool is_halting_thing_stack
  *
  * @property string ref_uuid
  *
@@ -49,6 +51,8 @@ use TorMorten\Eventy\Facades\Eventy;
  * @property ArrayObject callback_incoming_data
  * @property ArrayObject  callback_outgoing_header
  * @property TypeOfCallbackStatus thing_callback_status
+ *
+ * @property int wait_in_seconds
  *
  * @property string callback_run_at
  * @property string created_at
@@ -93,6 +97,7 @@ class ThingCallback extends Model
      */
     protected $casts = [
         'is_signalling_when_done' => 'boolean',
+        'is_halting_thing_stack' => 'boolean',
         'callback_outgoing_data' => AsArrayObject::class,
         'callback_incoming_data' => AsArrayObject::class,
         'callback_outgoing_header' => AsArrayObject::class,
@@ -334,7 +339,7 @@ class ThingCallback extends Model
         /** @uses static::thing_source() */
         if (!$thing) {$thing = $this->thing_source;}
 
-        $action = $thing->getAction();
+        $action = $thing?->getAction();
 
         $uuid_data = [
             'thing_meta' => [
@@ -342,6 +347,7 @@ class ThingCallback extends Model
                 'hook' => $hook->ref_uuid,
                 'thing' => $thing->ref_uuid,
                 'action' => $action?->getActionRef()??null,
+                'status' => $thing?->thing_status
             ]
 
         ];
@@ -541,7 +547,28 @@ class ThingCallback extends Model
             }
         }
 
-        return new CallResponse(code: $response->getStatusCode(),successful: $response->successful(),data: $data);
+        $headers = [];
+        if ($response) {
+            $headers = $response->headers();
+            $data['headers'] = $headers;
+        }
+
+        $seconds = null;
+        if ($maybe_valid_seconds = (string)$this->callback_incoming_data->offsetGet('wait_seconds')) {
+            $seconds = max(Thing::MINIMUM_WAIT_TIME,intval($maybe_valid_seconds));
+        } else if (array_key_exists('hexbatch-wait-seconds',$headers)) {
+            $stuff_in_header = $headers['hexbatch-wait-seconds'];
+            if (is_array($stuff_in_header)) {
+                $maybe_valid_seconds = (string)$stuff_in_header[0];
+            } else {
+                $maybe_valid_seconds = (string)$stuff_in_header;
+            }
+            if ($maybe_valid_seconds) { //allow for empty responses
+                $seconds = max(Thing::MINIMUM_WAIT_TIME,intval($maybe_valid_seconds));
+            }
+
+        }
+        return new CallResponse(code: $response->getStatusCode(),successful: $response->successful(),data: $data,wait_timeout_seconds: $seconds);
     }
 
     public function runCallback() :void  {
@@ -592,7 +619,7 @@ class ThingCallback extends Model
                     }
                 }
 
-
+                $this->is_halting_thing_stack = false;
                 $this->callback_http_code = $response->getCode();
                 if ($this->callback_http_code >=200 && $this->callback_http_code < 300) {
                     $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_SUCCESSFUL;
@@ -600,19 +627,41 @@ class ThingCallback extends Model
                     $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
                 }
                 $this->callback_incoming_data = $response->getData();
+                if ($response->getWaitTimeoutInSeconds()) {
+                    $this->wait_in_seconds = $response->getWaitTimeoutInSeconds();
+                } else {
+                    $this->wait_in_seconds = null;
+                }
+
             } //end if this callback is waiting
 
 
-            if (!($this->owning_hook->is_manual && $this->owning_hook->address) && $this->owning_hook->is_writing_data_to_thing)
+            if (!($this->owning_hook->is_manual && $this->owning_hook->address))
             {
-                //if not a jump start, then do data and maybe signalling
-                if ($this->owning_hook->is_blocking) {
+                if ($this->owning_hook->is_writing_data_to_thing && $this->owning_hook->is_blocking) {
+                    //if not a jump start, then do data and maybe signalling
                     if ($this->owning_hook->is_after) {
                         $this->thing_source->thing_parent?->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy() ?? []);
                     } else {
                         $this->thing_source->getAction()->addDataBeforeRun(data: $this->callback_incoming_data?->getArrayCopy() ?? []);
                     }
                 }
+
+                if ($this->owning_hook->is_blocking) {
+                    if ($this->owning_hook->is_after ) {
+                        if ($this->thing_callback_status === TypeOfCallbackStatus::CALLBACK_ERROR) {
+                            $this->thing_source->setRunData(TypeOfThingStatus::THING_FAIL);
+                        }
+
+                    } else {
+                        //running before the thing
+                        if (null !== $this->wait_in_seconds ) {
+                            $this->thing_source->setRunData(TypeOfThingStatus::THING_WAITING,$this->wait_in_seconds);
+                            $this->is_halting_thing_stack = true; //stop thing from running, in case not callback error already
+                        }
+                    }
+                }
+
 
                 if ($this->is_signalling_when_done) {
                     $this->thing_source->signal_parent();

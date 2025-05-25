@@ -40,8 +40,8 @@ class HookResponse extends HookParams implements  JsonSerializable
             mode: $hook->hook_mode,
             name: $hook->hook_name,
             notes: $hook->hook_notes,
-            action_type: $hook->getAction()?->getActionType(),
-            action_id: $hook->getAction()?->getActionId(),
+            action_type: $hook->action_type,
+            action_id: $hook->action_type_id,
             tags: array_values($hook->hook_tags?->getArrayCopy()??[]),
             hook_on: $hook->is_on,
             is_blocking: $hook->is_blocking,
@@ -54,11 +54,13 @@ class HookResponse extends HookParams implements  JsonSerializable
             data_template: $hook->hook_data_template?->getArrayCopy()??[],
             header_template: $hook->hook_header_template?->getArrayCopy()??[],
             address: $hook->address,
+            filter_owner_type: $this->hook->filter_owner_type,
+            filter_owner_id: $this->hook->filter_owner_type_id,
         );
 
         $this->uuid = $hook->ref_uuid;
 
-        $this->owner_id = $hook->getOwner()?->getOwnerId();
+        $this->owner_id = $hook->getOwner()?->getOwnerUuid();
         $this->owner_type = $hook->getOwner()?->getOwnerType();
 
         if ($this->b_include_callbacks) {

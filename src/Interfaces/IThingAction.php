@@ -8,11 +8,14 @@ use Carbon\Carbon;
 interface IThingAction
 {
     public function isActionComplete() : bool;
+    public function isActionWaiting() : bool;
+    public function getWaitTimeout() : ?int;
     public function isActionSuccess() : bool;
     public function isActionFail() : bool;
     public function isActionError() : bool;
 
     public function getActionId() : int;
+    public function getActionUuid() : string;
     public function getActionRef() : ?string;
     public function getActionPriority() : int;
     public function getActionType() : string;
@@ -40,6 +43,7 @@ interface IThingAction
 
 
     public static function resolveAction(int $action_id) : IThingAction;
+    public static function resolveActionFromUiid(string $uuid) : IThingAction;
 
     public static function registerAction() : void;
 

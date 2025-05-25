@@ -51,9 +51,11 @@ class ThingSearchParams  implements  JsonSerializable
         /** @var string[] $tags */
         protected ?array $tags = null,
 
-        #[OA\Property( title:"Status of hook", nullable: true)]
+        #[OA\Property( title:"Status of thing", nullable: true)]
         protected ?TypeOfThingStatus $status = null,
 
+        #[OA\Property( title: 'Waiting until this time', description: "Thing status is waiting and is waiting before this Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
+        protected ?string $wait_until = null,
 
         #[OA\Property( title: 'Ran at range min', description: "Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
         public ?string $ran_at_min = null,
@@ -95,6 +97,7 @@ class ThingSearchParams  implements  JsonSerializable
 
 
 
+        $arr['wait_until'] = $this->wait_until;
         $arr['ran_at_min'] = $this->ran_at_min;
         $arr['ran_at_max'] = $this->ran_at_max;
         $arr['created_at_min'] = $this->ran_at_max;
@@ -153,6 +156,12 @@ class ThingSearchParams  implements  JsonSerializable
         }
 
 
+
+        if (array_key_exists('wait_until',$source)) {
+            if ($time_string = (string)$source['wait_until'] ?? null) {
+                $this->wait_until = Carbon::parse($time_string)->timezone('UTC')->toIso8601String();
+            }
+        }
 
         if (array_key_exists('ran_at_max',$source)) {
             if ($time_string = (string)$source['ran_at_max'] ?? null) {
@@ -231,6 +240,11 @@ class ThingSearchParams  implements  JsonSerializable
     public function getStatus(): ?TypeOfThingStatus
     {
         return $this->status;
+    }
+
+    public function getWaitUntil(): Carbon|string|null
+    {
+        return $this->wait_until;
     }
 
     public function getRanAtMin(): ?string

@@ -305,12 +305,11 @@ class ThingHook extends Model
         $this->owner_type_id = $owner?->getOwnerId() ;
         $this->owner_type = $owner?->getOwnerType() ;
 
-        $this->filter_owner_type_id = $owner?->getOwnerId() ;
-        $this->filter_owner_type = $owner?->getOwnerType() ;
+        $this->filter_owner_type_id = $it->getFilterOwnerId() ;
+        $this->filter_owner_type = $it->getFilterOwnerType() ;
 
-        $action = $it->getHookAction();
-        $this->action_type_id = $action?->getActionId() ;
-        $this->action_type = $action?->getActionType() ;
+        $this->action_type_id = $it->getActionId() ;
+        $this->action_type = $it->getActionType() ;
 
 
         if ($it->isHookOn() !== null) { $this->is_on = $it->isHookOn() ;}

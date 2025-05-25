@@ -9,6 +9,7 @@ interface IThingOwner
 {
 
     public function getOwnerId() : int;
+    public function getOwnerUuid() : string;
     public function getName() : string;
 
     /**
@@ -28,6 +29,8 @@ interface IThingOwner
     public function getOwnerType() : string;
     public static function getOwnerTypeStatic() : string;
     public static function resolveOwner(int $owner_id) : IThingOwner;
+
+    public static function resolveOwnerFromUiid(string $uuid) : IThingOwner;
     public static function registerOwner() : void;
 
 }

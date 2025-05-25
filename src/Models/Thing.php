@@ -57,6 +57,7 @@ use Ramsey\Uuid\Uuid;
  * @property string thing_invalid_after
  * @property string thing_started_at
  * @property string thing_ran_at
+ * @property string thing_wait_until_at
  *
  *
  * @property string ref_uuid
@@ -92,6 +93,7 @@ class Thing extends Model
         'thing_started_at',
         'thing_invalid_after',
         'thing_ran_at',
+        'thing_wait_until_at',
         'thing_status',
         'is_signalling_when_done',
     ];
@@ -106,6 +108,8 @@ class Thing extends Model
         'is_signalling_when_done' => 'boolean',
         'is_async' => 'boolean',
     ];
+
+    const int MINIMUM_WAIT_TIME = 5*60; //five minutes
 
 
     public function attached_hooks() : HasManyThrough
@@ -278,11 +282,17 @@ class Thing extends Model
         ]);
     }
 
-    protected function setRunData(TypeOfThingStatus $status) {
-        $this->update([
+    public function setRunData(TypeOfThingStatus $status,?int $wait_seconds = null) {
+
+        $what = [
             'thing_status' => $status,
             'thing_ran_at'=>DB::raw("NOW()"),
-        ]);
+        ];
+
+        if (( $status === TypeOfThingStatus::THING_WAITING) &&  ( (null !== $wait_seconds) && $wait_seconds >=0 ) ) {
+            $what['thing_wait_until_at'] = DB::raw("NOW() + interval '$wait_seconds seconds'");
+        }
+        $this->update($what);
     }
 
     public function setException(Exception $e) {
@@ -675,8 +685,10 @@ class Thing extends Model
             }
         }
 
+        $root_action_tags = $parent_thing?->thing_root?->getAction()?->getActionTags()??[];
         $root_tags = array_values( ($parent_thing?->thing_root?:$parent_thing)?->thing_tags?->getArrayCopy()??[]);
-        $thing_tags = array_values(array_unique(array_merge($action->getActionTags()??[],$root_tags,array_values($extra_tags))));
+        $root_tags_without_action_stuff = array_diff($root_tags,$root_action_tags);
+        $thing_tags = array_values(array_unique(array_merge($action->getActionTags()??[],$root_tags_without_action_stuff,array_values($extra_tags))));
         if (empty($thing_tags) ) {
             $thing_tags = [];
         }
@@ -869,6 +881,11 @@ class Thing extends Model
                 $build->where('things.thing_status',$params->getStatus());
             }
 
+            if ($params->getWaitUntil() ) {
+                $build->where('things.thing_status',TypeOfThingStatus::THING_WAITING);
+                $build->where('things.thing_wait_until_at','<=',$params->getWaitUntil());
+            }
+
             if ($params->getRanAtMin() ) {
                 $build->where('things.thing_ran_at','>=',$params->getRanAtMin());
             }
@@ -928,11 +945,17 @@ class Thing extends Model
     /**
      * @throws Exception
      */
-    public function continueThing() {
-        if ($this->thing_status !== TypeOfThingStatus::THING_WAITING) {return;}
+    public function continueThing() :bool
+    {
+        if ($this->thing_status !== TypeOfThingStatus::THING_WAITING) {return false;}
+        if ($this->thing_wait_until_at) {
+            if (Carbon::parse($this->thing_wait_until_at,'UTC')->isBefore(Carbon::now('UTC'))) {return false;}
+        }
         $this->thing_status = TypeOfThingStatus::THING_PENDING;
+        $this->thing_wait_until_at = null;
         $this->save();
         $this->dispatchThing();
+        return true;
     }
 
 

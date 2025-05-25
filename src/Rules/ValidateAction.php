@@ -6,6 +6,7 @@ use Closure;
 use Hexbatch\Things\Models\Thing;
 use Illuminate\Contracts\Validation\DataAwareRule;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Ramsey\Uuid\Uuid;
 
 class ValidateAction implements ValidationRule,DataAwareRule
 {
@@ -19,6 +20,7 @@ class ValidateAction implements ValidationRule,DataAwareRule
 
     protected ?string $action_type = null;
     protected ?int $action_id = null;
+    protected ?string $action_uuid = null;
 
     /**
      * Run the validation rule.
@@ -28,10 +30,10 @@ class ValidateAction implements ValidationRule,DataAwareRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
 
-        if ($this->action_id && $this->action_type) {
+        if (($this->action_id || $this->action_uuid) && $this->action_type) {
 
-            if (!Thing::isRegisteredAction(action_type: $this->action_type,action_id: $this->action_id) ) {
-                $fail(sprintf("%s %s is not a registered thing action",$this->action_type,$this->action_id));
+            if (!Thing::isRegisteredAction(action_type: $this->action_type,action_id: $this->action_id,uuid: $this->action_uuid) ) {
+                $fail(sprintf("%s %s is not a registered thing action",$this->action_type,$this->action_id?: $this->action_uuid));
             }
         } else if ($this->action_type) {
             if (!Thing::isRegisteredActionType(action_type: $this->action_type) ) {
@@ -51,7 +53,14 @@ class ValidateAction implements ValidationRule,DataAwareRule
             $this->action_type = (string)$data['action_type'];
         }
         if (!empty($data['action_type_id'])) {
-            $this->action_id = (int)$data['action_type_id'];
+            $test =  (string)$data['action_type_id'];
+            if (Uuid::isValid($test)) {
+                $this->action_uuid = $test;
+                $this->action_id = null;
+            } else {
+                $this->action_uuid = null;
+                $this->action_id = $test;
+            }
         }
         return $this;
     }

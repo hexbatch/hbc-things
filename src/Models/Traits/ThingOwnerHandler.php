@@ -14,12 +14,17 @@ trait ThingOwnerHandler
         return static::resolveOwner(owner_type: $this->owner_type, owner_id: $this->owner_type_id);
     }
 
-    protected static function resolveOwner(?string $owner_type, ?int $owner_id) : ?IThingOwner {
+    protected static function resolveOwner(?string $owner_type, ?int $owner_id = null,?string $owner_uuid = null) : ?IThingOwner {
         if (!$owner_type) {return null;}
-        if (is_null($owner_id)) {return null;}
+        if (!($owner_id|| $owner_uuid)) {return null;}
         $resolver = static::$owner_type_lookup[$owner_type]??null;
         if (!$resolver) {return null;}
-        return $resolver::resolveOwner(owner_id: $owner_id);
+        if ($owner_uuid) {
+            return $resolver::resolveOwnerFromUiid(uuid: $owner_uuid);
+        } else {
+            return $resolver::resolveOwner(owner_id: $owner_id);
+        }
+
     }
 
 
@@ -27,8 +32,8 @@ trait ThingOwnerHandler
         return !empty(static::$owner_type_lookup[$owner_type]);
     }
 
-    protected static function isRegisteredOwner(string $owner_type, int $owner_id) : bool {
-        return !!static::resolveOwner(owner_type: $owner_type,owner_id: $owner_id);
+    protected static function isRegisteredOwner(string $owner_type, int $owner_id = null,?string $owner_uuid = null) : bool {
+        return !!static::resolveOwner(owner_type: $owner_type,owner_id: $owner_id, owner_uuid: $owner_uuid);
     }
 
     public static function registerOwnerType(IThingOwner|string $owner_class) :void {

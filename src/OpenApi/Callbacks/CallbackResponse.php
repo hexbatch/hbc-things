@@ -71,6 +71,9 @@ class CallbackResponse  implements  JsonSerializable
     #[OA\Property( title: 'Ran at',description: "Iso 8601 datetime string for when this ran", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
     public ?string $ran_at = null;
 
+    #[OA\Property( title: 'Wait in seconds',description: "When the callback tells the thing to wait")]
+    public ?int $wait_seconds = null;
+
 
 
     public function __construct(
@@ -93,6 +96,7 @@ class CallbackResponse  implements  JsonSerializable
         $this->headers_sent = $this->callback->callback_outgoing_header?->getArrayCopy()??null;
         $this->data_sent = $this->callback->callback_outgoing_data?->getArrayCopy()??null;
         $this->status = $this->callback->thing_callback_status;
+        $this->wait_seconds = $this->callback->wait_in_seconds;
         $this->ran_at = Carbon::parse($this->callback->callback_run_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
         if($b_include_hook) {
             $this->hook = new HookResponse(hook: $this->callback->owning_hook);
@@ -131,6 +135,7 @@ class CallbackResponse  implements  JsonSerializable
         $arr['code'] = $this->code;
         $arr['status'] = $this->status->value;
         $arr['ran_at'] = $this->ran_at;
+        $arr['wait_seconds'] = $this->wait_seconds;
         $arr['headers_sent'] = $this->headers_sent;
         $arr['data_sent'] = $this->data_sent;
         $arr['response'] = $this->response;
