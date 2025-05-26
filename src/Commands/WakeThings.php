@@ -14,7 +14,7 @@ class WakeThings extends Command
      *
      * @var string
      */
-    protected $signature = 'hex-thing:wake';
+    protected $signature = 'hex:wake_things';
 
     /**
      * The console command description.
