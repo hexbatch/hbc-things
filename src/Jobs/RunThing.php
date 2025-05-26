@@ -39,7 +39,7 @@ class RunThing implements ShouldQueue
     {
         try {
             $this->thing->runThing();
-            if ($this->thing->thing_status === TypeOfThingStatus::THING_ERROR) {
+            if (!$this->thing->isComplete()) {
                 $this->fail();
             }
         } catch (\Exception $e) {

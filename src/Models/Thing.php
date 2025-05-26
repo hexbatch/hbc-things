@@ -148,13 +148,18 @@ class Thing extends Model
     }
 
 
-
+    /** @noinspection PhpUnused */
     public function isSuccess() : bool {
         return $this->thing_status === TypeOfThingStatus::THING_SUCCESS;
     }
 
+    /** @noinspection PhpUnused */
     public function isFailedOrError() : bool {
         return in_array($this->thing_status,[TypeOfThingStatus::THING_ERROR,TypeOfThingStatus::THING_FAIL]);
+    }
+
+    public function isWaiting() : bool {
+        return $this->thing_status === TypeOfThingStatus::THING_WAITING;
     }
 
 
@@ -345,9 +350,9 @@ class Thing extends Model
                     $status = TypeOfThingStatus::THING_WAITING;
                 }
             }
+            $this->setRunData(status: $status,wait_seconds: $action->getWaitTimeout());
 
             if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
-                $this->setRunData(status: $status,wait_seconds: $action->getWaitTimeout());
                 if ($this->is_signalling_when_done) {
                     //it is done, for better or worse
                     $this->signal_parent();
@@ -578,15 +583,21 @@ class Thing extends Model
 
             })->catch(function (Batch $batch, \Throwable $e){
 
-                Log::warning(sprintf("failed job for %s |  %s \n",$batch->id,$batch->name).$e);
+
                 try {
                     $thing = Thing::getThing(ref_uuid: $batch->name);
-                    $fails = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FAILURE);
+                    if ($thing->isWaiting()) {
+                        Log::debug(sprintf("waiting thing for %s |  %s \n",$batch->id,$batch->name).$e);
+                    } else {
+                        Log::warning(sprintf("failed job for %s |  %s \n",$batch->id,$batch->name).$e);
+                        $fails = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FAILURE);
 
-                    if (count($fails)) {
-                        Log::debug(sprintf("failed handler found %s callbacks to run", count($fails)));
-                        Bus::batch($fails)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                        if (count($fails)) {
+                            Log::debug(sprintf("failed handler found %s callbacks to run", count($fails)));
+                            Bus::batch($fails)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                        }
                     }
+
                 } catch (Exception|\Error $e) {
                     Log::error("batch catch had issue: \n". $e);
                 }
