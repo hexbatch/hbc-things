@@ -5,6 +5,8 @@ namespace Hexbatch\Things\OpenApi\Callbacks;
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfHookMode;
+use Hexbatch\Things\Interfaces\IThingOwner;
+use Hexbatch\Things\Models\ThingHook;
 use Hexbatch\Things\Requests\CallbackSearchRequest;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
@@ -55,35 +57,56 @@ class CallbackSearchParams  implements  JsonSerializable
         protected ?bool $is_after = null,
 
         #[OA\Property( title:"Sharing", nullable: true)]
-        protected ?bool $is_sharing = null,
+        protected ?bool                 $is_sharing = null,
 
 
         #[OA\Property( title:"Status of callback", nullable: true)]
         protected ?TypeOfCallbackStatus $status = null,
 
         #[OA\Property( title:"Callback type", nullable: true)]
-        protected ?TypeOfHookMode $hook_callback_type = null,
+        protected ?TypeOfHookMode       $hook_callback_type = null,
 
-        #[OA\Property( title: 'Owner type filter',description: 'Optional type of owner used to filter. Type must exist when set',nullable: true)]
-        protected ?string  $owner_type = null,
+        #[OA\Property( title: 'Thing owner type filter',description: 'Optional type of owner used to filter. Type must exist when set',nullable: true)]
+        protected ?string               $thing_owner_type = null,
 
-        #[OA\Property( title: 'Owner id filter',description: 'Optional owner used to filter.',nullable: true)]
-        protected ?string  $owner_id = null,
+        #[OA\Property( title: 'Thing owner id filter',description: 'Optional owner used to filter.',nullable: true)]
+        protected ?string               $thing_owner_id = null,
+
+
+        #[OA\Property( title: 'Hook owner type filter',description: 'Optional type of owner used to filter. Type must exist when set',nullable: true)]
+        protected ?string $hook_owner_type = null,
+
+        #[OA\Property( title: 'Hook owner id filter',description: 'Optional owner used to filter.',nullable: true)]
+        protected ?string $hook_owner_id = null,
+
+
+        #[OA\Property( title: 'Thing action type filter',description: 'Optional type of action used to filter. Type must exist when set',nullable: true)]
+        protected ?string $thing_action_type = null,
+
+        #[OA\Property( title: 'Thing action id filter',description: 'Optional action used to filter.',nullable: true)]
+        protected ?string $thing_action_id = null,
 
 
         #[OA\Property( title: 'Ran at range min', description: "Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
-        public ?string $ran_at_min = null,
+        public ?string    $ran_at_min = null,
 
         #[OA\Property( title: 'Ran at range max', description: "Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
-        public ?string $ran_at_max = null,
+        public ?string    $ran_at_max = null,
 
         #[OA\Property( title: 'Created at range min', description: "Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
-        public ?string $created_at_min = null,
+        public ?string    $created_at_min = null,
 
         #[OA\Property( title: 'Created at range max', description: "Iso 8601 datetime string", format: 'datetime', example: "2025-01-25T15:00:59-06:00", nullable: true)]
         public ?string $created_at_max = null
     ) {
 
+    }
+
+    public function setHookOwner(?IThingOwner $owner): void
+    {
+        if (!$owner) { return;}
+        $this->hook_owner_type = $owner->getOwnerType();
+        $this->hook_owner_id = $owner->getOwnerId();
     }
 
 
@@ -108,8 +131,12 @@ class CallbackSearchParams  implements  JsonSerializable
         $arr['ran_at_max'] = $this->ran_at_max;
         $arr['created_at_min'] = $this->ran_at_max;
         $arr['created_at_max'] = $this->ran_at_max;
-        $arr['owner_type'] = $this->owner_type;
-        $arr['owner_id'] = $this->owner_id;
+        $arr['thing_owner_type'] = $this->thing_owner_type;
+        $arr['thing_owner_id'] = $this->getThingOwnerGuid()?: $this->getThingOwnerId();
+        $arr['hook_owner_type'] = $this->thing_owner_type;
+        $arr['hook_owner_id'] = $this->getHookOwnerGuid()?: $this->getHookOwnerId();
+        $arr['thing_action_id'] = $this->getActionGuid()?: $this->getThingActionId();
+        $arr['thing_action_type'] = $this->thing_action_type;
 
         return $arr;
     }
@@ -206,12 +233,28 @@ class CallbackSearchParams  implements  JsonSerializable
             }
         }
 
-        if ($owner_type = (string)($source['owner_type']??null)) {
-            $this->owner_type = $owner_type;
+        if ($owner_type = (string)($source['thing_owner_type']??null)) {
+            $this->thing_owner_type = $owner_type;
         }
 
-        if ($owner_id = (int)($source['owner_id']??null) ) {
-            $this->owner_id = $owner_id;
+        if ($owner_id = (string)($source['thing_owner_id']??null) ) {
+            $this->thing_owner_id = $owner_id;
+        }
+
+        if ($owner_type = (string)($source['hook_owner_type']??null)) {
+            $this->hook_owner_type = $owner_type;
+        }
+
+        if ($owner_id = (string)($source['hook_owner_id']??null) ) {
+            $this->hook_owner_id = $owner_id;
+        }
+
+        if ($action_type = (string)($source['thing_action_type']??null)) {
+            $this->thing_action_type = $action_type;
+        }
+
+        if ($action_id = (string)($source['thing_action_id']??null) ) {
+            $this->thing_action_id = $action_id;
         }
     }
 
@@ -315,20 +358,124 @@ class CallbackSearchParams  implements  JsonSerializable
         return $this->created_at_max;
     }
 
-    public function getOwnerType(): ?string
+    public function getThingOwnerType(): ?string
     {
-        return $this->owner_type;
+        return $this->thing_owner_type;
     }
 
-    public function getOwnerId(): ?string
+    public function getThingOwnerId(): ?int
     {
-        return $this->owner_id;
+        if (!$this->thing_owner_id) {return null;}
+        if (Uuid::isValid($this->thing_owner_id)) {
+            if ($this->thing_owner_type) {
+                $owner = ThingHook::resolveOwner(owner_type: $this->thing_owner_type,owner_uuid: $this->thing_owner_id);
+                if (!$owner) {
+                    throw new \LogicException("[getThingOwnerId] Owner id $this->thing_owner_id for type $this->thing_owner_type was passed in without validation");
+                }
+                return $owner->getOwnerId();
+            }
+            return null;
+        }
+        return $this->thing_owner_id;
+    }
+
+    public function getThingOwnerGuid(): ?string
+    {
+        if (!$this->thing_owner_id) {return null;}
+        if (!Uuid::isValid($this->thing_owner_id)) {
+            if ($this->thing_owner_type) {
+                $owner = ThingHook::resolveOwner(owner_type: $this->thing_owner_type,owner_id: $this->thing_owner_id);
+                if (!$owner) {
+                    throw new \LogicException("[getThingOwnerGuid] Owner id $this->thing_owner_id for type $this->thing_owner_type was passed in without validation");
+                }
+                return $owner->getOwnerUuid();
+            }
+            return null;
+        }
+        return $this->thing_owner_id;
+    }
+
+    public function getHookOwnerType(): ?string
+    {
+        return $this->hook_owner_type;
+    }
+
+    public function getHookOwnerId(): ?int
+    {
+        if (!$this->hook_owner_id) {return null;}
+        if (Uuid::isValid($this->hook_owner_id)) {
+            if ($this->hook_owner_type) {
+                $owner = ThingHook::resolveOwner(owner_type: $this->hook_owner_type,owner_uuid: $this->hook_owner_id);
+                if (!$owner) {
+                    throw new \LogicException("[getFilterOwnerId] Hook owner id $this->hook_owner_id for type $this->hook_owner_type was passed in without validation");
+                }
+                return $owner->getOwnerId();
+            }
+            return null;
+        }
+        return $this->hook_owner_id;
+    }
+
+    public function getHookOwnerGuid(): ?string
+    {
+        if (!$this->hook_owner_id) {return null;}
+        if (!Uuid::isValid($this->hook_owner_id)) {
+            if ($this->hook_owner_type) {
+                $owner = ThingHook::resolveOwner(owner_type: $this->hook_owner_type,owner_id: $this->hook_owner_id);
+                if (!$owner) {
+                    throw new \LogicException("[getHookOwnerGuid] Hook owner id $this->hook_owner_id for type $this->hook_owner_type was passed in without validation");
+                }
+                return $owner->getOwnerUuid();
+            }
+            return null;
+        }
+        return $this->hook_owner_id;
     }
 
     public function getIsManualNotice(): ?bool
     {
         return $this->is_manual_notice;
     }
+
+    public function getThingActionId(): ?int
+    {
+        if (!$this->thing_action_id) {return null;}
+        if (Uuid::isValid($this->thing_action_id)) {
+            if ($this->thing_action_type) {
+                $action = ThingHook::resolveAction(action_type: $this->thing_action_type,uuid: $this->thing_action_id);
+                if (!$action) {
+                    throw new \LogicException("[getActionId (callback)] Action id $this->thing_action_id for type $this->thing_action_type was passed in without validation");
+                }
+                return $action->getActionId();
+            }
+            return null;
+        }
+        return $this->thing_action_id;
+    }
+
+
+    public function getActionGuid(): ?string
+    {
+        if (!$this->thing_action_id) {return null;}
+        if (!Uuid::isValid($this->thing_action_id)) {
+            if ($this->thing_action_type) {
+                $action = ThingHook::resolveAction(action_type: $this->thing_action_type,action_id: $this->thing_action_id);
+                if (!$action) {
+                    throw new \LogicException("[getActionGuid (callback)] Action uuid $this->thing_action_id for type $this->thing_action_type was passed in without validation");
+                }
+                return $action->getActionUuid();
+            }
+            return null;
+        }
+        return $this->thing_action_id;
+    }
+
+    public function getThingActionType(): ?string
+    {
+        return $this->thing_action_type;
+    }
+
+
 
 
 }

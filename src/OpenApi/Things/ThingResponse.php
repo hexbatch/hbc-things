@@ -4,18 +4,20 @@ namespace Hexbatch\Things\OpenApi\Things;
 
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
+use Hexbatch\Things\Interfaces\ICallResponse;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\OpenApi\Errors\ThingErrorResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
+use Symfony\Component\HttpFoundation\Response as CodeOf;
 
 #[OA\Schema(schema: 'ThingResponse',title: "Callback")]
 
 /**
  * Show a Hook
  */
-class ThingResponse  implements  JsonSerializable
+class ThingResponse  implements  JsonSerializable,ICallResponse
 {
 
     #[OA\Property( title:"Self",format: 'uuid')]
@@ -163,5 +165,29 @@ class ThingResponse  implements  JsonSerializable
         }
 
         return $arr;
+    }
+
+    public function getCode(): int
+    {
+        return match ($this->thing->thing_status)
+        {
+          TypeOfThingStatus::THING_SUCCESS, TypeOfThingStatus::THING_SHORT_CIRCUITED => CodeOf::HTTP_OK,
+          TypeOfThingStatus::THING_FAIL => CodeOf::HTTP_BAD_REQUEST,
+          TypeOfThingStatus::THING_INVALID => CodeOf::HTTP_NOT_ACCEPTABLE,
+          TypeOfThingStatus::THING_ERROR => CodeOf::HTTP_INTERNAL_SERVER_ERROR,
+          TypeOfThingStatus::THING_RUNNING,TypeOfThingStatus::THING_PENDING,
+          TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_WAITING => CodeOf::HTTP_ACCEPTED
+        };
+//
+    }
+
+    public function getData(): ?array
+    {
+        return $this->jsonSerialize();
+    }
+
+    public function getWaitTimeoutInSeconds(): ?int
+    {
+        return null;
     }
 }

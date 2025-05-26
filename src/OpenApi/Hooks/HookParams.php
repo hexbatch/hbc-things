@@ -5,7 +5,6 @@ namespace Hexbatch\Things\OpenApi\Hooks;
 
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfHookMode;
-use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Models\ThingHook;
 use Hexbatch\Things\Requests\HookRequest;
@@ -256,9 +255,9 @@ class HookParams implements JsonSerializable
 
     public function getFilterOwnerId(): ?int
     {
-
+        if (!$this->filter_owner_id) {return null;}
         if (Uuid::isValid($this->filter_owner_id)) {
-            if ($this->action_type) {
+            if ($this->filter_owner_type) {
                 $owner = ThingHook::resolveOwner(owner_type: $this->filter_owner_type,owner_uuid: $this->filter_owner_id);
                 if (!$owner) {
                     throw new \LogicException("[getFilterOwnerId] Owner id $this->filter_owner_id for type $this->filter_owner_type was passed in without validation");
@@ -270,14 +269,14 @@ class HookParams implements JsonSerializable
         return $this->filter_owner_id;
     }
 
-    public function getFilterOwnerGuid(): ?int
+    public function getFilterOwnerGuid(): ?string
     {
-
+        if (!$this->filter_owner_id) {return null;}
         if (!Uuid::isValid($this->filter_owner_id)) {
-            if ($this->action_type) {
+            if ($this->filter_owner_type) {
                 $owner = ThingHook::resolveOwner(owner_type: $this->filter_owner_type,owner_id: $this->filter_owner_id);
                 if (!$owner) {
-                    throw new \LogicException("[getFilterOwnerId] Owner id $this->filter_owner_id for type $this->filter_owner_type was passed in without validation");
+                    throw new \LogicException("[getFilterOwnerGuid] Owner id $this->filter_owner_id for type $this->filter_owner_type was passed in without validation");
                 }
                 return $owner->getOwnerUuid();
             }
@@ -300,6 +299,7 @@ class HookParams implements JsonSerializable
 
     public function getActionId(): ?int
     {
+        if (!$this->action_id) {return null;}
         if (Uuid::isValid($this->action_id)) {
             if ($this->action_type) {
                 $action = ThingHook::resolveAction(action_type: $this->action_type,uuid: $this->action_id);
@@ -316,6 +316,7 @@ class HookParams implements JsonSerializable
 
     public function getActionGuid(): ?string
     {
+        if (!$this->action_id) {return null;}
         if (!Uuid::isValid($this->action_id)) {
             if ($this->action_type) {
                 $action = ThingHook::resolveAction(action_type: $this->action_type,action_id: $this->action_id);

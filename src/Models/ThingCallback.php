@@ -222,7 +222,10 @@ class ThingCallback extends Model
                 $build->where('thing_callbacks.created_at','<=',$params->getCreatedAtMax());
             }
 
-            if ($params->getHookUuid() || $params->getOwnerId() || $params->getOwnerType()) {
+            if ($params->getHookUuid() || $params->getThingOwnerId() || $params->getThingOwnerType()
+                || $params->getThingActionId() || $params->getThingActionType()
+            )
+            {
                 $build->join('things as param_thing','param_thing.id','=','thing_callbacks.source_thing_id');
             }
 
@@ -230,12 +233,20 @@ class ThingCallback extends Model
                 $build->where('param_thing.ref_uuid',$params->getThingUuid());
             }
 
-            if ($params->getOwnerId() ) {
-                $build->where('param_thing.owner_type_id',$params->getOwnerId());
+            if ($params->getThingOwnerId() ) {
+                $build->where('param_thing.owner_type_id',$params->getThingOwnerId());
             }
 
-            if ($params->getOwnerType() ) {
-                $build->where('param_thing.owner_type',$params->getOwnerType());
+            if ($params->getThingOwnerType() ) {
+                $build->where('param_thing.owner_type',$params->getThingOwnerType());
+            }
+
+            if ($params->getThingActionId() ) {
+                $build->where('param_thing.action_type_id',$params->getThingActionId());
+            }
+
+            if ($params->getThingActionType() ) {
+                $build->where('param_thing.action_type',$params->getThingActionType());
             }
 
             if ($params->getErrorUuid() ) {
@@ -250,12 +261,21 @@ class ThingCallback extends Model
 
             if ($params->getHookUuid() ||  $params->isManual() ||  $params->isBlocking() ||  $params->isAfter()
                 ||  $params->isSharing()||  $params->getHookCallbackType()
+                || $params->getHookOwnerType() || $params->getHookOwnerId()
             )
             {
                 $build->join('thing_hooks as param_hook','param_hook.id','=','thing_callbacks.owning_hook_id');
 
                 if ($params->getHookUuid() ) {
                     $build->where('param_hook.ref_uuid', $params->getHookUuid());
+                }
+
+                if ($params->getHookOwnerType() ) {
+                    $build->where('param_hook.owner_type', $params->getHookOwnerType());
+                }
+
+                if ($params->getHookOwnerId() ) {
+                    $build->where('param_hook.owner_type_id', $params->getHookOwnerId());
                 }
 
                 if ($params->isManual() || $params->getIsManualNotice() ) {
@@ -385,7 +405,8 @@ class ThingCallback extends Model
         try {
             /** @var IHookCode|string $callable */
             $callable = $this->owning_hook->address;
-            $ret = $callable::runHook(header: $this->callback_outgoing_header?->getArrayCopy()??[],body: $this->callback_outgoing_data?->getArrayCopy()??[]  );
+            $ret = $callable::runHook(callback:$this,thing: $this->thing_source,hook: $this->owning_hook,
+                header: $this->callback_outgoing_header?->getArrayCopy()??[],body: $this->callback_outgoing_data?->getArrayCopy()??[]  );
 
         } catch (\Exception|\Error $e) {
             Log::warning("Got error when calling $callable :".$e->getMessage());
