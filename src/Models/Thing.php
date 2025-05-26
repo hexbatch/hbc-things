@@ -347,7 +347,7 @@ class Thing extends Model
             }
 
             if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
-                $this->setRunData(status: $status);
+                $this->setRunData(status: $status,wait_seconds: $action->getWaitTimeout());
                 if ($this->is_signalling_when_done) {
                     //it is done, for better or worse
                     $this->signal_parent();
