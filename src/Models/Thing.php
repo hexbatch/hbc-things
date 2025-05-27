@@ -441,7 +441,9 @@ class Thing extends Model
     public function getCallbacksOfType(TypeOfHookMode $which,?bool $blocking = null,?bool $after = null,&$unresolved_manual = []) : array {
 
         /** @var ThingHook[] $hooks */
-        $hooks = ThingHook::buildHook( mode:$which,action: $this->getAction(), hook_owner_group: $this->getOwner(),
+        $hooks = ThingHook::buildHook( mode:$which,
+            action_type: $this->getAction()?->getActionType(), maybe_action_id: $this->getAction()?->getActionId(),
+            hook_owner_group: $this->getOwner(),
             hook_group_hint: TypeOfOwnerGroup::HOOK_CALLBACK_CREATION,
             tags: $this->thing_tags->getArrayCopy(),is_on: true,is_after: $after,is_blocking: $blocking)->get();
 
@@ -757,7 +759,10 @@ class Thing extends Model
         $the_action = $node->action;
 
         $children = $node->getChildren();
-
+        if (count($children) === 0) {
+            $use_this_tree = $the_action->getChildrenTree();
+            $children = $use_this_tree?->getRootNodes()??[];
+        }
         $tree_node = static::makeThingFromAction(parent_thing: $parent_thing,action: $the_action);
 
         foreach ( $children as $child) {

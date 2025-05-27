@@ -9,7 +9,9 @@ trait ThingActionHandler
     /** @var array<string,string|IThingAction> $action_type_lookup  */
     protected static array $action_type_lookup = [];
 
-
+    public static function getLookupHash() : array {
+        return array_keys(static::$action_type_lookup);
+    }
     public function getAction() : ?IThingAction {
         return static::resolveAction(action_type: $this->action_type,action_id: $this->action_type_id);
     }
@@ -24,7 +26,7 @@ trait ThingActionHandler
         } elseif ($uuid) {
             return $resolver::resolveActionFromUiid(uuid: $uuid);
         }
-
+        return null;
     }
 
     protected static function isRegisteredActionType(string $action_type) : bool {

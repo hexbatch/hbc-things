@@ -7,7 +7,6 @@ use ArrayObject;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfHookMode;
 use Hexbatch\Things\Enums\TypeOfOwnerGroup;
-use Hexbatch\Things\Interfaces\IThingAction;
 use Hexbatch\Things\Interfaces\IThingOwner;
 use Hexbatch\Things\Models\Traits\ThingActionHandler;
 use Hexbatch\Things\Models\Traits\ThingOwnerHandler;
@@ -160,10 +159,12 @@ class ThingHook extends Model
         return $ret;
     }
 
+    //if a hook has an action set, only use it if it matches that action
     public static function buildHook(
         ?int              $me_id = null,
         ?TypeOfHookMode   $mode = null,
-        ?IThingAction     $action = null,
+        ?string           $action_type = null,
+        ?int              $maybe_action_id = null,
         ?IThingOwner      $hook_owner = null,
         ?IThingOwner      $hook_owner_group = null,
         ?TypeOfOwnerGroup $hook_group_hint = null,
@@ -223,7 +224,7 @@ class ThingHook extends Model
 
 
         if ($tags !== null ||($params->getTags() !== null)) {
-            $use_tags = $tags?: $params->getTags();
+            $use_tags = $tags?: $params?->getTags()??[];
             if (count($use_tags) ) {
                 $tags_json = json_encode(array_values($use_tags));
                 $build->whereRaw("array(select jsonb_array_elements(thing_hooks.hook_tags) ) && array(select jsonb_array_elements(?) )", $tags_json);
@@ -233,9 +234,18 @@ class ThingHook extends Model
         }
 
 
-       if ($action && $hook_group_hint !== TypeOfOwnerGroup::HOOK_CALLBACK_CREATION) {
-           $build->where('thing_hooks.action_type',$action->getActionType());
-           $build->where('thing_hooks.action_type_id',$action->getActionId());
+       if ($action_type ) {
+           $build->where(function (Builder $q) use($action_type)  {
+               $q->where('thing_hooks.action_type',$action_type)
+                   ->orWhereNull('thing_hooks.action_type');
+           });
+       }
+
+       if ($maybe_action_id ) {
+           $build->where(function (Builder $q) use($maybe_action_id)  {
+                $q->where('thing_hooks.action_type_id',$maybe_action_id)
+                ->orWhereNull('thing_hooks.action_type_id');
+           });
        }
 
 
@@ -256,19 +266,6 @@ class ThingHook extends Model
                 });
             }
 
-            if ($action) {
-                $build->where(function (Builder $q) use($action) {
-                    $q->where(function (Builder $q) use($action) {
-                        $q->where(function (Builder $q) use($action) {
-                            $q->where('thing_hooks.action_type',$action->getActionType());
-                            $q->where('thing_hooks.action_type_id',$action->getActionId());
-                        })
-                            ->orWhere(function (Builder $q) {
-                                $q->whereNull('thing_hooks.action_type')->whereNull('thing_hooks.action_type_id');
-                            });
-                    });
-                });
-            }
         }
         elseif ( $hook_group_hint === TypeOfOwnerGroup::HOOK_LIST) {
 
