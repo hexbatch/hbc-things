@@ -5,6 +5,7 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Carbon\Carbon;
+use Exception;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 
@@ -386,7 +387,7 @@ class ThingCallback extends Model
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     protected function callCode()
     :ICallResponse
@@ -408,7 +409,7 @@ class ThingCallback extends Model
             $ret = $callable::runHook(callback:$this,thing: $this->thing_source,hook: $this->owning_hook,
                 header: $this->callback_outgoing_header?->getArrayCopy()??[],body: $this->callback_outgoing_data?->getArrayCopy()??[]  );
 
-        } catch (\Exception|\Error $e) {
+        } catch (Exception|\Error $e) {
             Log::warning("Got error when calling $callable :".$e->getMessage());
             throw $e;
         }
@@ -417,7 +418,7 @@ class ThingCallback extends Model
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     protected function callEvent()
     : ICallResponse
@@ -484,7 +485,7 @@ class ThingCallback extends Model
 
     /**
      * @throws ConnectionException
-     * @throws \Exception
+     * @throws Exception
      */
     protected function callRemote() : ICallResponse {
         $params = $this->callback_outgoing_data?->getArrayCopy()??[];
@@ -685,18 +686,30 @@ class ThingCallback extends Model
 
 
                 if ($this->is_signalling_when_done) {
-                    $this->thing_source->signal_parent();
+                    $this->thing_source->pushLeavesToJobs();
                 }
             }
 
-        } catch (\Exception $e) {
-            $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
+        } catch (Exception $e) {
+            $this->setException($e);
             Log::error("Thing result callback had error: ". $e->getMessage());
         } finally {
             $this->callback_run_at = Carbon::now()->timezone('UTC')->toDateTime();
             $this->save();
         }
 
+    }
+
+    public function setException(Exception $e) {
+
+        $hook_tags = array_values($this->owning_hook->hook_tags?->getArrayCopy()??[]);
+        $thing_tags = array_values($this->thing_source->thing_tags?->getArrayCopy()??[]);
+        $all_tags = array_unique(array_merge($hook_tags,$thing_tags));
+        $hex = ThingError::createFromException(exception: $e,related_tags: $all_tags);
+        $this->update([
+            'thing_callback_status' => TypeOfCallbackStatus::CALLBACK_ERROR,
+            'thing_error_id'=>$hex?->id??null,
+        ]);
     }
 
     public static function createCallback(ThingHook $hook, Thing $thing) : ThingCallback {
@@ -748,7 +761,7 @@ class ThingCallback extends Model
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function setManualAnswer(ICallResponse $setter) {
 
@@ -780,7 +793,7 @@ class ThingCallback extends Model
             //either no more, or all done
             $this->thing_source->continueThing();
             DB::commit();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollback();
             throw $e;
         }

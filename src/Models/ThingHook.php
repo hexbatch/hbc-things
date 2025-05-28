@@ -270,7 +270,7 @@ class ThingHook extends Model
         elseif ( $hook_group_hint === TypeOfOwnerGroup::HOOK_LIST) {
 
             $hook_owner_group?->setReadGroupBuilding(builder: $build,connecting_table_name: 'thing_hooks',
-                connecting_owner_type_column: 'owner_type',connecting_owner_id_column: 'owner_type_id',hint: $hook_group_hint);
+                connecting_owner_type_column: 'owner_type',connecting_owner_id_column: 'owner_type_id',hint: $hook_group_hint,alias: 'hook_owner');
 
         }
 

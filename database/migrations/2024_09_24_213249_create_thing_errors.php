@@ -27,8 +27,15 @@ return new class extends Migration
                 ->nullable(false)
                 ->comment("used for display and id outside the code");
 
+
+
+
             $table->text('thing_error_file')->default(null)->nullable()
                 ->comment('The file of the exception');
+
+            $table->jsonb('related_tags')
+                ->nullable()->default(null)
+                ->comment("array of string tags from the thing or hook");
 
             $table->text('thing_error_message')->default(null)->nullable()
                 ->comment('the message');

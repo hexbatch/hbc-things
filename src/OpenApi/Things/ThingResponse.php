@@ -52,10 +52,10 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
 
 
     #[OA\Property( title:"Owner name")]
-    protected string $owner_name;
+    protected ?string $owner_name;
 
     #[OA\Property( title:"Owner ref")]
-    protected string $owner_ref;
+    protected ?string $owner_ref;
 
     #[OA\Property( title:"Async")]
     protected bool $async;
@@ -106,8 +106,8 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
         $this->tags = $this->thing->thing_tags?->getArrayCopy()??[];
 
         $owner = $thing->getOwner();
-        $this->owner_name = $owner->getName();
-        $this->owner_ref = $owner->getOwnerUuid();
+        $this->owner_name = $owner?->getName();
+        $this->owner_ref = $owner?->getOwnerUuid();
 
         if($this->thing->thing_started_at) {
             $this->started_at = Carbon::parse($this->thing->thing_started_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
@@ -152,8 +152,8 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;
 
-        $arr['owner_name'] = $this->action_name;
-        $arr['owner_ref'] = $this->action_ref;
+        $arr['owner_name'] = $this->owner_name;
+        $arr['owner_ref'] = $this->owner_ref;
         $arr['action_info'] = $this->action_info;
         $arr['action_html'] = $this->action_html;
         $arr['tags'] = array_values($this->tags);

@@ -78,8 +78,8 @@ class HookResponse extends HookParams implements  JsonSerializable
     {
         $arr = parent::jsonSerialize();
         $arr['uuid'] = $this->uuid;
-        $arr['owner_id'] = $this->owner_id;
-        $arr['owner_type'] = $this->owner_type;
+        $arr['owner_id'] = $this?->owner_id;
+        $arr['owner_type'] = $this?->owner_type;
 
         if ($this->b_include_callbacks) {
             $arr['callbacks'] = $this->callbacks;
