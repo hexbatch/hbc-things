@@ -3,7 +3,6 @@ namespace Hexbatch\Things\Jobs;
 
 
 
-use Hexbatch\Things\Enums\TypeOfThingStatus;
 use Hexbatch\Things\Models\Thing;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -44,11 +43,6 @@ class RunThing implements ShouldQueue
             }
         } catch (\Exception $e) {
             Log::error(message: "while running thing: ".$e->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$e->getFile(),'line'=>$e->getLine(),'code'=>$e->getCode()]);
-            try {
-                $this->thing->setException($e) ;
-            } catch (\Exception $f) {
-                Log::error(message: "while in error state and saving : ".$f->getMessage(),context: ['thing_id'=>$this->thing?->id??null,'file'=>$f->getFile(),'line'=>$f->getLine(),'code'=>$f->getCode()]);
-            }
             $this->fail($e);
         }
     }

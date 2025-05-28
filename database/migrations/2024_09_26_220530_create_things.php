@@ -42,7 +42,7 @@ return new class extends Migration
                 ->index()
                 ->constrained('thing_errors')
                 ->cascadeOnUpdate()
-                ->cascadeOnDelete();
+                ->nullOnDelete();
 
 
 
@@ -88,9 +88,6 @@ return new class extends Migration
                 ->nullable(false)->default(0)
                 ->comment("if true, then will not complete immediately");
 
-            $table->boolean('is_signalling_when_done')
-                ->nullable(false)->default(0)
-                ->comment("if true, then will try to call the parent when its logic is done");
 
 
             $table->uuid('ref_uuid')

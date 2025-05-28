@@ -50,7 +50,6 @@ use Ramsey\Uuid\Uuid;
  * @property int owner_type_id
  *
  * @property bool is_async
- * @property bool is_signalling_when_done
  *
  *
  * @property string thing_start_after
@@ -95,7 +94,6 @@ class Thing extends Model
         'thing_ran_at',
         'thing_wait_until_at',
         'thing_status',
-        'is_signalling_when_done',
     ];
 
     /** @var array<int, string> */
@@ -105,7 +103,6 @@ class Thing extends Model
     protected $casts = [
         'thing_status' => TypeOfThingStatus::class,
         'thing_tags' => AsArrayObject::class,
-        'is_signalling_when_done' => 'boolean',
         'is_async' => 'boolean',
     ];
 
@@ -217,23 +214,34 @@ class Thing extends Model
             );
 
 
+        $incomplete_children = DB::table("things as par")
+            ->distinct()
+            ->selectRaw('par.id as maybe_parent_id, count(waiting_child_things.id) OVER (PARTITION BY waiting_child_things.parent_thing_id) as number_incomplete_children')
+            ->leftJoin("things as waiting_child_things",
+                /**
+                 * @param JoinClause $join
+                 */
+                function (JoinClause $join)  {
+                    $join
+                        ->on("waiting_child_things.parent_thing_id",'=',"par.id")
+                        ->whereIn('waiting_child_things.thing_status',TypeOfThingStatus::INCOMPLETE_STATUSES);
+                }
+            )
+           ;
+
+
         $lar =  Thing::select('things.*')
 
             ->selectRaw("extract(epoch from  things.created_at) as created_at_ts")
             ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
             ->selectRaw("extract(epoch from  things.thing_start_after) as thing_start_at_ts")
             ->selectRaw("extract(epoch from  things.thing_invalid_after) as thing_invalid_at_ts")
-            ->withExpression('thing_descendants',$query_descendants)
+            ->withRecursiveExpression('thing_descendants',$query_descendants)
+            ->withExpression('incomplete_children',$incomplete_children)
             ->join('thing_descendants', 'thing_descendants.id', '=', 'things.id')
-            ->leftJoin('things as y', 'y.parent_thing_id', '=', 'term.id')
-            /** @param Builder $q  */
-            ->where(function ( $q){
-                $q  ->whereNotIn('y.thing_status',[
-                    //children must be completed or be leaves
-                    TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_PENDING,TypeOfThingStatus::THING_WAITING,TypeOfThingStatus::THING_RUNNING])
-                    ->orWhereNull('y.id');
-            })
-            ->whereRaw("things.thing_priority = thing_descendants.max_priority")
+            ->join('incomplete_children', 'incomplete_children.maybe_parent_id', '=', 'things.id')
+            //->whereRaw("things.thing_priority = thing_descendants.max_priority") -- priority not used now
+            ->whereRaw("incomplete_children.number_incomplete_children = 0")
             ->where('things.thing_status',TypeOfThingStatus::THING_BUILDING)
             ;
 
@@ -250,10 +258,9 @@ class Thing extends Model
     }
 
 
-    protected function setStartData(bool $signal_when_done) {
+    protected function setStartData() {
         $this->update([
             'thing_status' => TypeOfThingStatus::THING_PENDING,
-            'is_signalling_when_done'=>$signal_when_done,
             'thing_started_at'=>DB::raw("NOW()")
         ]);
     }
@@ -321,16 +328,6 @@ class Thing extends Model
                     $status = TypeOfThingStatus::THING_WAITING;
                 }
             }
-            $this->setRunData(status: $status,wait_seconds: $action->getWaitTimeout());
-
-            if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
-                $this->signal_parent();
-                if ($this->is_signalling_when_done) {
-                    //see if all children ran, if so, put the parent on the processing
-                    $this->pushLeavesToJobs();
-                }
-            } //else the thing will have to be resumed later with continueThing by the outside
-
             DB::commit();
         } catch (Exception $e) {
             DB::rollBack();
@@ -338,6 +335,10 @@ class Thing extends Model
             throw $e;
         }
 
+        $this->setRunData(status: $status,wait_seconds: $action->getWaitTimeout());
+        if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
+            $this->signal_parent();
+        }
     }
 
     /**
@@ -470,6 +471,7 @@ class Thing extends Model
      */
     protected function dispatchThing() {
 
+        if($this->thing_status !== TypeOfThingStatus::THING_BUILDING) {return;} //its already handled
 
         if ( $this->thing_invalid_after && Carbon::now('UTC')->greaterThanOrEqualTo(Carbon::parse($this->thing_invalid_after,'UTC')) ) {
             $this->setRunData(status: TypeOfThingStatus::THING_FAIL);
@@ -491,11 +493,9 @@ class Thing extends Model
             return; //not until they are resolved
         }
         $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: true,after: true);
-        if (count($blocking_post)) {
-            $blocking_post[count($blocking_post)-1]->getCallback()->setSignalWhenDone();
-        }
 
-        $this->setStartData(signal_when_done:  !count($blocking_post)); //combine with status change here in the update
+
+        $this->setStartData();
 
         if (!$this->is_async) {
             $this->refresh();
@@ -555,6 +555,8 @@ class Thing extends Model
                 Log::debug(sprintf("Finally handler for %s |  %s",$batch->id,$batch->name));
                 try {
                     $thing = Thing::getThing(ref_uuid: $batch->name);
+
+
                     $always = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FINALLY);
                     if (count($always)) {
                         Log::debug(sprintf("finally handler found %s callbacks to run", count($always)));
@@ -562,6 +564,11 @@ class Thing extends Model
                     } else {
                         Log::debug(("finally handler found no callbacks for thing id ".$thing->id));
                     }
+
+                    if (in_array($thing->thing_status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
+                      //  $thing->pushLeavesToJobs(); //todo restore push later
+                    }
+
                 } catch (Exception|\Error $e) {
                     Log::error("Finally had issue: \n". $e);
                 }
@@ -590,7 +597,7 @@ class Thing extends Model
             DB::beginTransaction();
             $root = static::makeThingTree(action: $action, extra_tags: $extra_tags,owner: $owner);
 
-            $root->pushLeavesToJobs();
+            // $root->pushLeavesToJobs(); //todo restore push after testing
             DB::commit();
             return $root;
         } catch (Exception $e) {
@@ -639,7 +646,7 @@ class Thing extends Model
                                                   IThingOwner $owner = null)
     : Thing
     {
-        if (!$owner) {
+        if (!$owner) { //todo check to see why owner not sent to kids
             $owner = $parent_thing?->getOwner();
             if (!$owner) {
                 $owner = $action->getActionOwner();
@@ -958,7 +965,7 @@ class Thing extends Model
         if ($this->thing_wait_until_at) {
             if (Carbon::parse($this->thing_wait_until_at,'UTC')->isBefore(Carbon::now('UTC'))) {return false;}
         }
-        $this->thing_status = TypeOfThingStatus::THING_PENDING;
+        $this->thing_status = TypeOfThingStatus::THING_BUILDING;
         $this->thing_wait_until_at = null;
         $this->save();
         $count_incomplete_children = 0;

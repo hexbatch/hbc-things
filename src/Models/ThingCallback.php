@@ -43,7 +43,6 @@ use TorMorten\Eventy\Facades\Eventy;
  *
  *
  * @property int callback_http_code
- * @property bool is_signalling_when_done
  * @property bool is_halting_thing_stack
  *
  * @property string ref_uuid
@@ -81,7 +80,6 @@ class ThingCallback extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'is_signalling_when_done'
     ];
 
     /**
@@ -97,7 +95,6 @@ class ThingCallback extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'is_signalling_when_done' => 'boolean',
         'is_halting_thing_stack' => 'boolean',
         'callback_outgoing_data' => AsArrayObject::class,
         'callback_incoming_data' => AsArrayObject::class,
@@ -367,7 +364,7 @@ class ThingCallback extends Model
                 'callback' => $this->ref_uuid,
                 'hook' => $hook->ref_uuid,
                 'thing' => $thing->ref_uuid,
-                'action' => $action?->getActionRef()??null,
+                'action' => $action?->getActionUuid()??null,
                 'status' => $thing?->thing_status
             ]
 
@@ -459,26 +456,8 @@ class ThingCallback extends Model
         if (!$thing) {$thing = $this->thing_source;}
 
         $found_data = $this->getOutgoingDataAsArray(hook: $hook,thing: $thing);
-
-        if (empty($found_data)) {
-            $prep = $found_data;
-        } else {
-            $prep = [];
-            foreach ($source as $key => $value) {
-                if ($value === null && isset($found_data[$key])) {
-                    $prep[$key] = $found_data[$key];
-                } else {
-                    $prep[$key] = $value;
-                }
-            }
-        }
-
-        foreach ($prep as $p_key => $p_val) {
-            if ($p_val === null) { unset($prep[$p_key]);}
-        }
-
-
-        return $prep;
+        return $found_data;
+        //todo figure out better templating
     }
 
 
@@ -684,10 +663,6 @@ class ThingCallback extends Model
                     }
                 }
 
-
-                if ($this->is_signalling_when_done) {
-                    $this->thing_source->pushLeavesToJobs();
-                }
             }
 
         } catch (Exception $e) {
@@ -799,9 +774,6 @@ class ThingCallback extends Model
         }
     }
 
-    public function setSignalWhenDone() {
-        $this->update(['is_signalling_when_done'=>true]);
-    }
 
 
 }
