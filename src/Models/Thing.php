@@ -240,7 +240,7 @@ class Thing extends Model
             ->withExpression('incomplete_children',$incomplete_children)
             ->join('thing_descendants', 'thing_descendants.id', '=', 'things.id')
             ->join('incomplete_children', 'incomplete_children.maybe_parent_id', '=', 'things.id')
-            //->whereRaw("things.thing_priority = thing_descendants.max_priority") -- priority not used now
+            //->whereRaw("things.thing_priority = thing_descendants.max_priority") -- todo priority not used now, take it out
             ->whereRaw("incomplete_children.number_incomplete_children = 0")
             ->where('things.thing_status',TypeOfThingStatus::THING_BUILDING)
             ;
@@ -565,8 +565,8 @@ class Thing extends Model
                         Log::debug(("finally handler found no callbacks for thing id ".$thing->id));
                     }
 
-                    if (in_array($thing->thing_status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
-                      //  $thing->pushLeavesToJobs(); //todo restore push later
+                    if ($thing->is_async && in_array($thing->thing_status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
+                        $thing->pushLeavesToJobs();
                     }
 
                 } catch (Exception|\Error $e) {
@@ -597,7 +597,16 @@ class Thing extends Model
             DB::beginTransaction();
             $root = static::makeThingTree(action: $action, extra_tags: $extra_tags,owner: $owner);
 
-            // $root->pushLeavesToJobs(); //todo restore push after testing
+            $root->pushLeavesToJobs();
+            if (!$root->is_async) {
+                $counter = 0;
+                while(!$root->isComplete() && $counter < 12) {
+                    //todo improve, this is for testing
+                    $root->refresh();
+                    $counter++;
+                    $root->pushLeavesToJobs();
+                }
+            }
             DB::commit();
             return $root;
         } catch (Exception $e) {
@@ -646,7 +655,7 @@ class Thing extends Model
                                                   IThingOwner $owner = null)
     : Thing
     {
-        if (!$owner) { //todo check to see why owner not sent to kids
+        if (!$owner) {
             $owner = $parent_thing?->getOwner();
             if (!$owner) {
                 $owner = $action->getActionOwner();
