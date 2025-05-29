@@ -1,4 +1,4 @@
-# Hexbatch Things, version 1.0
+# Hexbatch Things
 
 Creates tree structures to run actions from the leaves up. The code for the actions and owners is made by the project which uses this.
 When each action runs, optional hooks can be set before, after or for completion or error, these hooks can call http, code or fire events.
@@ -7,6 +7,16 @@ This is a laravel package that employes job queues and batches to run each task,
 
 
 ## Releases
+
+# version 1.2.1 May 28
+* Action wait timeout now set
+* Thing response can be used as a code callback
+* Fixup some issues with waiting and saving status
+* Add migration to help with database resets; renamed cron job
+* Simplified leaf gathering
+* More settable properties from children trees
+* Errors now have related tags
+* Many bug fixes
 
 # version 1.2.0  May 25, 2025
 * Owner and action ids are now displayed as their uuid and not the numberic id.
