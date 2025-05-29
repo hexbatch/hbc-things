@@ -5,6 +5,7 @@ namespace Hexbatch\Things\Models;
 
 use ArrayObject;
 use Carbon\Carbon;
+use Exception;
 use Hexbatch\Things\Enums\TypeOfCallback;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 
@@ -42,7 +43,6 @@ use TorMorten\Eventy\Facades\Eventy;
  *
  *
  * @property int callback_http_code
- * @property bool is_signalling_when_done
  * @property bool is_halting_thing_stack
  *
  * @property string ref_uuid
@@ -80,7 +80,6 @@ class ThingCallback extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'is_signalling_when_done'
     ];
 
     /**
@@ -96,7 +95,6 @@ class ThingCallback extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'is_signalling_when_done' => 'boolean',
         'is_halting_thing_stack' => 'boolean',
         'callback_outgoing_data' => AsArrayObject::class,
         'callback_incoming_data' => AsArrayObject::class,
@@ -222,7 +220,10 @@ class ThingCallback extends Model
                 $build->where('thing_callbacks.created_at','<=',$params->getCreatedAtMax());
             }
 
-            if ($params->getHookUuid() || $params->getOwnerId() || $params->getOwnerType()) {
+            if ($params->getHookUuid() || $params->getThingOwnerId() || $params->getThingOwnerType()
+                || $params->getThingActionId() || $params->getThingActionType()
+            )
+            {
                 $build->join('things as param_thing','param_thing.id','=','thing_callbacks.source_thing_id');
             }
 
@@ -230,12 +231,20 @@ class ThingCallback extends Model
                 $build->where('param_thing.ref_uuid',$params->getThingUuid());
             }
 
-            if ($params->getOwnerId() ) {
-                $build->where('param_thing.owner_type_id',$params->getOwnerId());
+            if ($params->getThingOwnerId() ) {
+                $build->where('param_thing.owner_type_id',$params->getThingOwnerId());
             }
 
-            if ($params->getOwnerType() ) {
-                $build->where('param_thing.owner_type',$params->getOwnerType());
+            if ($params->getThingOwnerType() ) {
+                $build->where('param_thing.owner_type',$params->getThingOwnerType());
+            }
+
+            if ($params->getThingActionId() ) {
+                $build->where('param_thing.action_type_id',$params->getThingActionId());
+            }
+
+            if ($params->getThingActionType() ) {
+                $build->where('param_thing.action_type',$params->getThingActionType());
             }
 
             if ($params->getErrorUuid() ) {
@@ -250,12 +259,21 @@ class ThingCallback extends Model
 
             if ($params->getHookUuid() ||  $params->isManual() ||  $params->isBlocking() ||  $params->isAfter()
                 ||  $params->isSharing()||  $params->getHookCallbackType()
+                || $params->getHookOwnerType() || $params->getHookOwnerId()
             )
             {
                 $build->join('thing_hooks as param_hook','param_hook.id','=','thing_callbacks.owning_hook_id');
 
                 if ($params->getHookUuid() ) {
                     $build->where('param_hook.ref_uuid', $params->getHookUuid());
+                }
+
+                if ($params->getHookOwnerType() ) {
+                    $build->where('param_hook.owner_type', $params->getHookOwnerType());
+                }
+
+                if ($params->getHookOwnerId() ) {
+                    $build->where('param_hook.owner_type_id', $params->getHookOwnerId());
                 }
 
                 if ($params->isManual() || $params->getIsManualNotice() ) {
@@ -346,7 +364,7 @@ class ThingCallback extends Model
                 'callback' => $this->ref_uuid,
                 'hook' => $hook->ref_uuid,
                 'thing' => $thing->ref_uuid,
-                'action' => $action?->getActionRef()??null,
+                'action' => $action?->getActionUuid()??null,
                 'status' => $thing?->thing_status
             ]
 
@@ -366,7 +384,7 @@ class ThingCallback extends Model
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     protected function callCode()
     :ICallResponse
@@ -385,9 +403,10 @@ class ThingCallback extends Model
         try {
             /** @var IHookCode|string $callable */
             $callable = $this->owning_hook->address;
-            $ret = $callable::runHook(header: $this->callback_outgoing_header?->getArrayCopy()??[],body: $this->callback_outgoing_data?->getArrayCopy()??[]  );
+            $ret = $callable::runHook(callback:$this,thing: $this->thing_source,hook: $this->owning_hook,
+                header: $this->callback_outgoing_header?->getArrayCopy()??[],body: $this->callback_outgoing_data?->getArrayCopy()??[]  );
 
-        } catch (\Exception|\Error $e) {
+        } catch (Exception|\Error $e) {
             Log::warning("Got error when calling $callable :".$e->getMessage());
             throw $e;
         }
@@ -396,7 +415,7 @@ class ThingCallback extends Model
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     protected function callEvent()
     : ICallResponse
@@ -437,33 +456,15 @@ class ThingCallback extends Model
         if (!$thing) {$thing = $this->thing_source;}
 
         $found_data = $this->getOutgoingDataAsArray(hook: $hook,thing: $thing);
-
-        if (empty($found_data)) {
-            $prep = $found_data;
-        } else {
-            $prep = [];
-            foreach ($source as $key => $value) {
-                if ($value === null && isset($found_data[$key])) {
-                    $prep[$key] = $found_data[$key];
-                } else {
-                    $prep[$key] = $value;
-                }
-            }
-        }
-
-        foreach ($prep as $p_key => $p_val) {
-            if ($p_val === null) { unset($prep[$p_key]);}
-        }
-
-
-        return $prep;
+        return $found_data;
+        //todo figure out better templating
     }
 
 
 
     /**
      * @throws ConnectionException
-     * @throws \Exception
+     * @throws Exception
      */
     protected function callRemote() : ICallResponse {
         $params = $this->callback_outgoing_data?->getArrayCopy()??[];
@@ -662,20 +663,28 @@ class ThingCallback extends Model
                     }
                 }
 
-
-                if ($this->is_signalling_when_done) {
-                    $this->thing_source->signal_parent();
-                }
             }
 
-        } catch (\Exception $e) {
-            $this->thing_callback_status = TypeOfCallbackStatus::CALLBACK_ERROR;
+        } catch (Exception $e) {
+            $this->setException($e);
             Log::error("Thing result callback had error: ". $e->getMessage());
         } finally {
             $this->callback_run_at = Carbon::now()->timezone('UTC')->toDateTime();
             $this->save();
         }
 
+    }
+
+    public function setException(Exception $e) {
+
+        $hook_tags = array_values($this->owning_hook->hook_tags?->getArrayCopy()??[]);
+        $thing_tags = array_values($this->thing_source->thing_tags?->getArrayCopy()??[]);
+        $all_tags = array_unique(array_merge($hook_tags,$thing_tags));
+        $hex = ThingError::createFromException(exception: $e,related_tags: $all_tags);
+        $this->update([
+            'thing_callback_status' => TypeOfCallbackStatus::CALLBACK_ERROR,
+            'thing_error_id'=>$hex?->id??null,
+        ]);
     }
 
     public static function createCallback(ThingHook $hook, Thing $thing) : ThingCallback {
@@ -727,7 +736,7 @@ class ThingCallback extends Model
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function setManualAnswer(ICallResponse $setter) {
 
@@ -759,15 +768,12 @@ class ThingCallback extends Model
             //either no more, or all done
             $this->thing_source->continueThing();
             DB::commit();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollback();
             throw $e;
         }
     }
 
-    public function setSignalWhenDone() {
-        $this->update(['is_signalling_when_done'=>true]);
-    }
 
 
 }

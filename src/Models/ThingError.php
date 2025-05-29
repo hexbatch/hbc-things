@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Log;
  * @property string thing_error_message
  * @property ArrayObject thing_error_trace
  * @property ArrayObject thing_previous_errors
+ * @property ArrayObject related_tags
  * @property string thing_error_file
  * @property string ref_uuid
  *
@@ -55,21 +56,22 @@ class ThingError extends Model
     protected $casts = [
         'thing_error_trace' => AsArrayObject::class,
         'thing_previous_errors' => AsArrayObject::class,
+        'related_tags' => AsArrayObject::class,
     ];
 
-    public static function createFromException(\Exception $e) : ?ThingError {
+    public static function createFromException(\Exception $exception, ?array $related_tags = null) : ?ThingError {
         try {
             $node = new ThingError();
-            $node->thing_error_code = $e->getCode();
-            $node->thing_error_line = $e->getLine();
-            $node->thing_error_file = $e->getLine();
+            $node->thing_error_code = $exception->getCode();
+            $node->thing_error_line = $exception->getLine();
+            $node->thing_error_file = $exception->getFile();
             $node->thing_code_version = \Hexbatch\Things\Helpers\ThingUtilities::getVersionAsString(for_lib: true);
             $node->hbc_version = \Hexbatch\Things\Helpers\ThingUtilities::getVersionAsString(for_lib: false);
-            $node->thing_error_message = $e->getMessage();
-            $node->thing_error_trace = $e->getTraceAsString();
+            $node->thing_error_message = $exception->getMessage();
+            $node->thing_error_trace = $exception->getTraceAsString();
 
             $previous_errors = [];
-            $prev = $e;
+            $prev = $exception;
             while ($prev = $prev->getPrevious()) {
                 $x = [];
                 $x['message'] = $prev->getMessage();
@@ -80,6 +82,10 @@ class ThingError extends Model
                 $previous_errors[] = $x;
             }
             $node->thing_previous_errors = $previous_errors;
+
+            if ($related_tags !== null) {
+                $node->related_tags = $related_tags;
+            }
             $node->save();
             return $node;
         } catch (\Exception $f) {

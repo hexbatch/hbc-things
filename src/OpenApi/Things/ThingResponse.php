@@ -4,18 +4,20 @@ namespace Hexbatch\Things\OpenApi\Things;
 
 use Carbon\Carbon;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
+use Hexbatch\Things\Interfaces\ICallResponse;
 use Hexbatch\Things\Models\Thing;
 use Hexbatch\Things\OpenApi\Errors\ThingErrorResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use JsonSerializable;
 use OpenApi\Attributes as OA;
+use Symfony\Component\HttpFoundation\Response as CodeOf;
 
 #[OA\Schema(schema: 'ThingResponse',title: "Callback")]
 
 /**
  * Show a Hook
  */
-class ThingResponse  implements  JsonSerializable
+class ThingResponse  implements  JsonSerializable,ICallResponse
 {
 
     #[OA\Property( title:"Self",format: 'uuid')]
@@ -50,10 +52,10 @@ class ThingResponse  implements  JsonSerializable
 
 
     #[OA\Property( title:"Owner name")]
-    protected string $owner_name;
+    protected ?string $owner_name;
 
     #[OA\Property( title:"Owner ref")]
-    protected string $owner_ref;
+    protected ?string $owner_ref;
 
     #[OA\Property( title:"Async")]
     protected bool $async;
@@ -104,8 +106,8 @@ class ThingResponse  implements  JsonSerializable
         $this->tags = $this->thing->thing_tags?->getArrayCopy()??[];
 
         $owner = $thing->getOwner();
-        $this->owner_name = $owner->getName();
-        $this->owner_ref = $owner->getOwnerUuid();
+        $this->owner_name = $owner?->getName();
+        $this->owner_ref = $owner?->getOwnerUuid();
 
         if($this->thing->thing_started_at) {
             $this->started_at = Carbon::parse($this->thing->thing_started_at,'UTC')->timezone(config('app.timezone'))->toIso8601String();
@@ -150,8 +152,8 @@ class ThingResponse  implements  JsonSerializable
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;
 
-        $arr['owner_name'] = $this->action_name;
-        $arr['owner_ref'] = $this->action_ref;
+        $arr['owner_name'] = $this->owner_name;
+        $arr['owner_ref'] = $this->owner_ref;
         $arr['action_info'] = $this->action_info;
         $arr['action_html'] = $this->action_html;
         $arr['tags'] = array_values($this->tags);
@@ -163,5 +165,29 @@ class ThingResponse  implements  JsonSerializable
         }
 
         return $arr;
+    }
+
+    public function getCode(): int
+    {
+        return match ($this->thing->thing_status)
+        {
+          TypeOfThingStatus::THING_SUCCESS, TypeOfThingStatus::THING_SHORT_CIRCUITED => CodeOf::HTTP_OK,
+          TypeOfThingStatus::THING_FAIL => CodeOf::HTTP_BAD_REQUEST,
+          TypeOfThingStatus::THING_INVALID => CodeOf::HTTP_NOT_ACCEPTABLE,
+          TypeOfThingStatus::THING_ERROR => CodeOf::HTTP_INTERNAL_SERVER_ERROR,
+          TypeOfThingStatus::THING_RUNNING,TypeOfThingStatus::THING_PENDING,
+          TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_WAITING => CodeOf::HTTP_ACCEPTED
+        };
+//
+    }
+
+    public function getData(): ?array
+    {
+        return $this->jsonSerialize();
+    }
+
+    public function getWaitTimeoutInSeconds(): ?int
+    {
+        return null;
     }
 }

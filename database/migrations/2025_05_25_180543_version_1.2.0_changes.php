@@ -69,36 +69,11 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('things', function (Blueprint $table) {
-            $table->string('action_type',30)
-                ->nullable()->default(null)
-                ->comment("The type of action")
-                ->change();
-
-            $table->string('owner_type',30)
-                ->nullable()->default(null)
-                ->comment("The type of owner")
-                ->change();
 
             $table->dropColumn('thing_wait_until_at');
         });
 
-
-        Schema::table('thing_hooks', function (Blueprint $table) {
-            $table->string('action_type',30)
-                ->nullable()->default(null)
-                ->comment("Hooks can filter on a specific action")
-                ->change();
-
-            $table->string('owner_type',30)
-                ->nullable()->default(null)
-                ->comment("The type of owner")
-                ->change();
-
-            $table->string('filter_owner_type',30)
-                ->nullable()->default(null)
-                ->comment("Hooks can filter on an owner type")
-                ->change();
-        });
+        //don't change the column size back, it will not work unless no data or the names are short
 
         Schema::table('thing_callbacks', function (Blueprint $table) {
             $table->dropColumn('wait_in_seconds');

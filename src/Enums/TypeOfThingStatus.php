@@ -35,6 +35,10 @@ enum TypeOfThingStatus : string {
         self::THING_FAIL,
     ];
 
+    const array INCOMPLETE_STATUSES = [
+        self::THING_BUILDING,self::THING_PENDING,self::THING_WAITING,self::THING_RUNNING
+    ];
+
 
 }
 

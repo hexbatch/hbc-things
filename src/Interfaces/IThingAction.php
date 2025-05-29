@@ -15,7 +15,7 @@ interface IThingAction
     public function isActionError() : bool;
 
     public function getActionId() : int;
-    public function getActionUuid() : string;
+    public function getActionUuid() : ?string;
     public function getActionRef() : ?string;
     public function getActionPriority() : int;
     public function getActionType() : string;

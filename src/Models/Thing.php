@@ -50,7 +50,6 @@ use Ramsey\Uuid\Uuid;
  * @property int owner_type_id
  *
  * @property bool is_async
- * @property bool is_signalling_when_done
  *
  *
  * @property string thing_start_after
@@ -95,7 +94,6 @@ class Thing extends Model
         'thing_ran_at',
         'thing_wait_until_at',
         'thing_status',
-        'is_signalling_when_done',
     ];
 
     /** @var array<int, string> */
@@ -105,7 +103,6 @@ class Thing extends Model
     protected $casts = [
         'thing_status' => TypeOfThingStatus::class,
         'thing_tags' => AsArrayObject::class,
-        'is_signalling_when_done' => 'boolean',
         'is_async' => 'boolean',
     ];
 
@@ -148,13 +145,18 @@ class Thing extends Model
     }
 
 
-
+    /** @noinspection PhpUnused */
     public function isSuccess() : bool {
         return $this->thing_status === TypeOfThingStatus::THING_SUCCESS;
     }
 
+    /** @noinspection PhpUnused */
     public function isFailedOrError() : bool {
         return in_array($this->thing_status,[TypeOfThingStatus::THING_ERROR,TypeOfThingStatus::THING_FAIL]);
+    }
+
+    public function isWaiting() : bool {
+        return $this->thing_status === TypeOfThingStatus::THING_WAITING;
     }
 
 
@@ -211,53 +213,35 @@ class Thing extends Model
                     ->join('thing_descendants', 'thing_descendants.id', '=', 'desc_b.parent_thing_id')
             );
 
-        /** @noinspection PhpUndefinedMethodInspection */
-        $query_nodes = DB::table("things as node_a")
-            ->selectRaw("node_a.id, thing_descendants.level, thing_descendants.max_priority")
-            ->where('node_a.id', $this->id)
-            ->where('node_a.thing_status', TypeOfThingStatus::THING_BUILDING)
-            ->whereRaw("(node_a.thing_start_after IS NULL OR node_a.thing_start_after <= NOW() )")
-            ->whereRaw("(node_a.thing_invalid_after IS NULL OR node_a.thing_invalid_after < NOW())")
 
-            ->join('thing_descendants', 'thing_descendants.id', '=', 'node_a.id')
-            ->unionAll(
-                DB::table('things as node_b')
-                    ->selectRaw('node_b.id,thing_descendants.level as level,thing_descendants.max_priority')
-
-                    ->join('thing_nodes', 'thing_nodes.id', '=', 'node_b.parent_thing_id')
-                    ->join('thing_descendants', 'thing_descendants.id', '=', 'node_b.id')
-                    ->whereRaw("node_b.thing_priority = thing_descendants.max_priority")
-                    ->where('node_b.thing_status', TypeOfThingStatus::THING_BUILDING)
-                    ->whereRaw("(node_b.thing_start_after IS NULL OR node_b.thing_start_after <= NOW() )")
-                    ->whereRaw("(node_b.thing_invalid_after IS NULL OR node_b.thing_invalid_after < NOW())")
-
-            )->withRecursiveExpression('thing_descendants',$query_descendants);
-
-        /** @noinspection PhpUndefinedMethodInspection */
-        $query_term = DB::table("things as term")
+        $incomplete_children = DB::table("things as par")
             ->distinct()
-            ->selectRaw("term.id, term.thing_priority, max(term.thing_priority) OVER () as max_thinger")
-            ->join('thing_nodes', 'thing_nodes.id', '=', 'term.id')
-            ->leftJoin('things as y', 'y.parent_thing_id', '=', 'term.id')
-                /** @param Builder $q  */
-            ->where(function ( $q){
-                $q  ->whereNotIn('y.thing_status',[
-                    //children must be completed or be leaves
-                    TypeOfThingStatus::THING_BUILDING,TypeOfThingStatus::THING_PENDING,TypeOfThingStatus::THING_WAITING,TypeOfThingStatus::THING_RUNNING])
-                    ->orWhereNull('y.id');
-            })
+            ->selectRaw('par.id as maybe_parent_id, count(waiting_child_things.id) OVER (PARTITION BY waiting_child_things.parent_thing_id) as number_incomplete_children')
+            ->leftJoin("things as waiting_child_things",
+                /**
+                 * @param JoinClause $join
+                 */
+                function (JoinClause $join)  {
+                    $join
+                        ->on("waiting_child_things.parent_thing_id",'=',"par.id")
+                        ->whereIn('waiting_child_things.thing_status',TypeOfThingStatus::INCOMPLETE_STATUSES);
+                }
+            )
+           ;
 
-            ->withRecursiveExpression('thing_nodes',$query_nodes)
-            ;
 
         $lar =  Thing::select('things.*')
+
             ->selectRaw("extract(epoch from  things.created_at) as created_at_ts")
             ->selectRaw("extract(epoch from  things.updated_at) as updated_at_ts")
             ->selectRaw("extract(epoch from  things.thing_start_after) as thing_start_at_ts")
             ->selectRaw("extract(epoch from  things.thing_invalid_after) as thing_invalid_at_ts")
-            ->withExpression('terminal_list',$query_term)
-            ->join('terminal_list', 'terminal_list.id', '=', 'things.id')
-            ->whereRaw("things.thing_priority = terminal_list.max_thinger")
+            ->withRecursiveExpression('thing_descendants',$query_descendants)
+            ->withExpression('incomplete_children',$incomplete_children)
+            ->join('thing_descendants', 'thing_descendants.id', '=', 'things.id')
+            ->join('incomplete_children', 'incomplete_children.maybe_parent_id', '=', 'things.id')
+            //->whereRaw("things.thing_priority = thing_descendants.max_priority") -- todo priority not used now, take it out
+            ->whereRaw("incomplete_children.number_incomplete_children = 0")
             ->where('things.thing_status',TypeOfThingStatus::THING_BUILDING)
             ;
 
@@ -274,10 +258,9 @@ class Thing extends Model
     }
 
 
-    protected function setStartData(bool $signal_when_done) {
+    protected function setStartData() {
         $this->update([
             'thing_status' => TypeOfThingStatus::THING_PENDING,
-            'is_signalling_when_done'=>$signal_when_done,
             'thing_started_at'=>DB::raw("NOW()")
         ]);
     }
@@ -296,7 +279,7 @@ class Thing extends Model
     }
 
     public function setException(Exception $e) {
-        $hex = ThingError::createFromException($e);
+        $hex = ThingError::createFromException(exception: $e,related_tags: $this->thing_tags->getArrayCopy());
         $this->update([
             'thing_status' => TypeOfThingStatus::THING_ERROR,
             'thing_ran_at'=>DB::raw("NOW()"),
@@ -345,15 +328,6 @@ class Thing extends Model
                     $status = TypeOfThingStatus::THING_WAITING;
                 }
             }
-
-            if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
-                $this->setRunData(status: $status);
-                if ($this->is_signalling_when_done) {
-                    //it is done, for better or worse
-                    $this->signal_parent();
-                }
-            } //else the thing will have to be resumed later with continueThing by the outside
-
             DB::commit();
         } catch (Exception $e) {
             DB::rollBack();
@@ -361,6 +335,10 @@ class Thing extends Model
             throw $e;
         }
 
+        $this->setRunData(status: $status,wait_seconds: $action->getWaitTimeout());
+        if (in_array($status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
+            $this->signal_parent();
+        }
     }
 
     /**
@@ -382,41 +360,8 @@ class Thing extends Model
                 $this->thing_parent->save();
                 $this->thing_parent->markIncompleteDescendantsAs(TypeOfThingStatus::THING_SHORT_CIRCUITED);
             }
-            //see if all children ran, if so, put the parent on the processing
-            $this->maybeQueueMore();
+
         }
-    }
-
-    /**
-     * If have children, if any non-pending have not finished, return
-     * if only remaining children are pending, then push leaves
-     * else push leaves of grandparent (starts )
-     * @throws Exception
-     */
-    protected function maybeQueueMore() : bool {
-
-        $count_waiting_children = 0;
-        foreach ($this->thing_children as $thang) {
-            if ($thang->thing_status === TypeOfThingStatus::THING_WAITING) { $count_waiting_children++; }
-        }
-
-        foreach ($this->thing_children as $thang) {
-            if (!$thang->isComplete()) {
-                if (!$count_waiting_children) {  return false; }
-            }
-        }
-
-        if ($count_waiting_children) { $this->pushLeavesToJobs();}
-
-        //the parent is ready to run, but perhaps its priority is low and there are others to run first, so ask the grandparent to push leaves
-        if ($this->thing_parent?->thing_parent) {
-            $this->thing_parent?->thing_parent?->pushLeavesToJobs();
-        } else {
-            //if not grandparent, this means the parent is root, so run that
-            $this->thing_parent->dispatchThing();
-        }
-
-        return true;
     }
 
 
@@ -424,8 +369,10 @@ class Thing extends Model
      * leaf must run async if any of its ancestors are async, found in stats for it
      * @throws Exception
      */
-    protected function pushLeavesToJobs() :void {
-        foreach ($this->getLeaves() as $leaf) {
+    public function pushLeavesToJobs() :void {
+        $root = $this->thing_root;
+        if (!$root) { $root = $this;}
+        foreach ($root->getLeaves() as $leaf) {
             $leaf->dispatchThing();
         }
     }
@@ -436,7 +383,9 @@ class Thing extends Model
     public function getCallbacksOfType(TypeOfHookMode $which,?bool $blocking = null,?bool $after = null,&$unresolved_manual = []) : array {
 
         /** @var ThingHook[] $hooks */
-        $hooks = ThingHook::buildHook( mode:$which,action: $this->getAction(), hook_owner_group: $this->getOwner(),
+        $hooks = ThingHook::buildHook( mode:$which,
+            action_type: $this->getAction()?->getActionType(), maybe_action_id: $this->getAction()?->getActionId(),
+            hook_owner_group: $this->getOwner(),
             hook_group_hint: TypeOfOwnerGroup::HOOK_CALLBACK_CREATION,
             tags: $this->thing_tags->getArrayCopy(),is_on: true,is_after: $after,is_blocking: $blocking)->get();
 
@@ -522,6 +471,7 @@ class Thing extends Model
      */
     protected function dispatchThing() {
 
+        if($this->thing_status !== TypeOfThingStatus::THING_BUILDING) {return;} //its already handled
 
         if ( $this->thing_invalid_after && Carbon::now('UTC')->greaterThanOrEqualTo(Carbon::parse($this->thing_invalid_after,'UTC')) ) {
             $this->setRunData(status: TypeOfThingStatus::THING_FAIL);
@@ -543,12 +493,16 @@ class Thing extends Model
             return; //not until they are resolved
         }
         $blocking_post = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: true,after: true);
-        if (count($blocking_post)) {
-            $blocking_post[count($blocking_post)-1]->getCallback()->setSignalWhenDone();
+
+
+        $this->setStartData();
+
+        if (!$this->is_async) {
+            $this->refresh();
         }
 
-        $this->setStartData(signal_when_done:  !count($blocking_post)); //combine with status change here in the update
         $blocking = array_merge($blocking_pre,[new RunThing(thing: $this)],$blocking_post);
+
         $non_blocking_pre = $this->getCallbacksOfType(which: TypeOfHookMode::NODE,blocking: false,after: false);
 
         $chaining = [];
@@ -578,15 +532,21 @@ class Thing extends Model
 
             })->catch(function (Batch $batch, \Throwable $e){
 
-                Log::warning(sprintf("failed job for %s |  %s \n",$batch->id,$batch->name).$e);
+
                 try {
                     $thing = Thing::getThing(ref_uuid: $batch->name);
-                    $fails = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FAILURE);
+                    if ($thing->isWaiting()) {
+                        Log::debug(sprintf("waiting thing for %s |  %s \n",$batch->id,$batch->name).$e);
+                    } else {
+                        Log::warning(sprintf("failed job for %s |  %s \n",$batch->id,$batch->name).$e);
+                        $fails = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FAILURE);
 
-                    if (count($fails)) {
-                        Log::debug(sprintf("failed handler found %s callbacks to run", count($fails)));
-                        Bus::batch($fails)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                        if (count($fails)) {
+                            Log::debug(sprintf("failed handler found %s callbacks to run", count($fails)));
+                            Bus::batch($fails)->onConnection($thing->is_async ? config('hbc-things.queues.default_connection') : 'sync')->dispatch();
+                        }
                     }
+
                 } catch (Exception|\Error $e) {
                     Log::error("batch catch had issue: \n". $e);
                 }
@@ -595,6 +555,8 @@ class Thing extends Model
                 Log::debug(sprintf("Finally handler for %s |  %s",$batch->id,$batch->name));
                 try {
                     $thing = Thing::getThing(ref_uuid: $batch->name);
+
+
                     $always = $thing->getCallbacksOfType(which: TypeOfHookMode::NODE_FINALLY);
                     if (count($always)) {
                         Log::debug(sprintf("finally handler found %s callbacks to run", count($always)));
@@ -602,6 +564,11 @@ class Thing extends Model
                     } else {
                         Log::debug(("finally handler found no callbacks for thing id ".$thing->id));
                     }
+
+                    if ($thing->is_async && in_array($thing->thing_status,TypeOfThingStatus::STATUSES_OF_COMPLETION)) {
+                        $thing->pushLeavesToJobs();
+                    }
+
                 } catch (Exception|\Error $e) {
                     Log::error("Finally had issue: \n". $e);
                 }
@@ -631,6 +598,15 @@ class Thing extends Model
             $root = static::makeThingTree(action: $action, extra_tags: $extra_tags,owner: $owner);
 
             $root->pushLeavesToJobs();
+            if (!$root->is_async) {
+                $counter = 0;
+                while(!$root->isComplete() && $counter < 12) {
+                    //todo improve, this is for testing
+                    $root->refresh();
+                    $counter++;
+                    $root->pushLeavesToJobs();
+                }
+            }
             DB::commit();
             return $root;
         } catch (Exception $e) {
@@ -675,6 +651,7 @@ class Thing extends Model
      * @throws Exception
      */
     protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action,array $extra_tags = [],
+                                                  ?int $priority = null,TypeOfThingStatus $initial_status = TypeOfThingStatus::THING_BUILDING,
                                                   IThingOwner $owner = null)
     : Thing
     {
@@ -685,7 +662,16 @@ class Thing extends Model
             }
         }
 
-        $root_action_tags = $parent_thing?->thing_root?->getAction()?->getActionTags()??[];
+        $root_action_tags = [];
+        if ($parent_thing) {
+            if ($parent_thing->thing_root) {
+                $root_action_tags = $parent_thing->thing_root->getAction()?->getActionTags()??[];
+            } else {
+                $root_action_tags = $parent_thing->getAction()?->getActionTags()??[];
+            }
+        }
+
+
         $root_tags = array_values( ($parent_thing?->thing_root?:$parent_thing)?->thing_tags?->getArrayCopy()??[]);
         $root_tags_without_action_stuff = array_diff($root_tags,$root_action_tags);
         $thing_tags = array_values(array_unique(array_merge($action->getActionTags()??[],$root_tags_without_action_stuff,array_values($extra_tags))));
@@ -693,13 +679,20 @@ class Thing extends Model
             $thing_tags = [];
         }
 
-        $calculated_priority = max($parent_thing?->thing_priority??0, $action->getActionPriority());
 
         if ($parent_thing?->is_async) {
             $async = true;
         } else {
             $async = $action->isAsync();
         }
+
+        $calculated_priority = $priority;
+        if ($calculated_priority === null) {
+            $calculated_priority = $action->getActionPriority();
+        }
+
+
+
         try {
             DB::beginTransaction();
             $tree_node = new Thing();
@@ -720,6 +713,7 @@ class Thing extends Model
             if (!$tree_node->root_thing_id && $tree_node->parent_thing_id) {
                 $tree_node->root_thing_id = $tree_node->parent_thing_id;
             }
+            $tree_node->thing_status = $initial_status;
             $tree_node->action_type = $action->getActionType();
             $tree_node->action_type_id = $action->getActionId();
             $tree_node->owner_type = $owner?->getOwnerType();
@@ -745,9 +739,38 @@ class Thing extends Model
         /** @var IThingAction $the_action */
         $the_action = $node->action;
 
-        $children = $node->getChildren();
+        $node_priority = isset($node->priority)? intval($node->priority): null;
 
-        $tree_node = static::makeThingFromAction(parent_thing: $parent_thing,action: $the_action);
+        $initial_status = TypeOfThingStatus::THING_BUILDING;
+        if (isset($node->is_waiting) && $node->is_waiting) {
+            $initial_status = TypeOfThingStatus::THING_WAITING;
+        }
+
+        $extra_tags = [];
+        if (isset($node->extra_tags)) {
+            if (is_array($node->extra_tags)) { $extra_tags = $node->extra_tags;}
+            else if (is_object($node->extra_tags) || is_bool($node->extra_tags) || is_int($node->extra_tags) || is_float($node->extra_tags)) {
+                $extra_tags = [(string)$node->extra_tags];}
+            else { $extra_tags = [$node->extra_tags]; }
+        }
+        if (isset($node->title)) {
+            $extra_tags[] = (string) $node->title;
+        }
+
+
+        $first_children = $node->getChildren();
+        $also_this_tree = $the_action->getChildrenTree()?->getRootNodes()??[];
+        $children = array_merge($first_children,$also_this_tree);
+        //can be duplicates
+        array_filter($children,function(\BlueM\Tree\Node $node_a){
+            $a = $node_a->action??null;
+            if (!$a) {return false;}
+            static $mems = [];
+            if (array_key_exists($a->getActionUuid(),$mems)) {return false;}
+            $mems[$a->getActionUuid()] = $a;
+            return true;
+        });
+        $tree_node = static::makeThingFromAction(parent_thing: $parent_thing, action: $the_action, extra_tags: $extra_tags, priority: $node_priority, initial_status: $initial_status);
 
         foreach ( $children as $child) {
             static::makeTreeNodes(parent_thing: $tree_node,node: $child);
@@ -951,10 +974,17 @@ class Thing extends Model
         if ($this->thing_wait_until_at) {
             if (Carbon::parse($this->thing_wait_until_at,'UTC')->isBefore(Carbon::now('UTC'))) {return false;}
         }
-        $this->thing_status = TypeOfThingStatus::THING_PENDING;
+        $this->thing_status = TypeOfThingStatus::THING_BUILDING;
         $this->thing_wait_until_at = null;
         $this->save();
-        $this->dispatchThing();
+        $count_incomplete_children = 0;
+        foreach ($this->thing_children as $that) {
+            if (!$that->isComplete()) { $count_incomplete_children++;}
+        }
+        if (!$count_incomplete_children) {
+            $this->dispatchThing();
+        }
+
         return true;
     }
 
