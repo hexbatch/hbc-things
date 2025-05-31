@@ -112,6 +112,7 @@ Route::prefix('hbc-things')->group(function () {
                         use($hbc_thing_editable)
                     {
                         Route::get('show', [ThingController::class, 'thing_show'])->name('hbc-things.things.show');
+                        Route::get('show_errors', [ThingController::class, 'thing_show_errors'])->name('hbc-things.things.show_errors');
                         Route::middleware($hbc_thing_editable)->group(function() {
                             Route::put('shortcut', [ThingController::class, 'thing_shortcut'])->name('hbc-things.things.shortcut');
                             Route::put('resume', [ThingController::class, 'thing_resume'])->name('hbc-things.things.resume');

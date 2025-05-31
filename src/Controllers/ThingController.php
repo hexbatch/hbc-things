@@ -15,6 +15,7 @@ use Hexbatch\Things\OpenApi\Callbacks\CallbackCollectionResponse;
 use Hexbatch\Things\OpenApi\Callbacks\CallbackResponse;
 use Hexbatch\Things\OpenApi\Callbacks\CallbackSearchParams;
 use Hexbatch\Things\OpenApi\Callbacks\ManualParams;
+use Hexbatch\Things\OpenApi\Errors\ThingErrorCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookCollectionResponse;
 use Hexbatch\Things\OpenApi\Hooks\HookParams;
 use Hexbatch\Things\OpenApi\Hooks\HookResponse;
@@ -294,6 +295,26 @@ class ThingController  {
     )]
     public function thing_show(Thing $thing) { //  (a tree)
         return response()->json(new ThingResponse(thing: $thing, b_include_hooks: true, b_include_children: true), CodeOf::HTTP_OK);
+    }
+
+    #[OA\Get(
+        path: '/api/hbc-things/v1/things/{thing}/show_errors',
+        operationId: 'hbc-things.things.show_errors',
+        description: "Shows the thing and any errors in the tree under it. The errors will be sorted by oldest first",
+        summary: 'Shows a thing and its errors',
+        security: [['bearerAuth' => []]],
+        tags: ['thing'],
+        parameters: [new OA\PathParameter( name: 'thing', description: "uuid of the thing", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
+        responses: [
+            new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingErrorCollectionResponse::class)),
+
+            new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
+                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+        ]
+    )]
+    public function thing_show_errors(Thing $thing) {
+
+        return response()->json(new ThingErrorCollectionResponse(thing: $thing,b_include_hooks: true), CodeOf::HTTP_OK);
     }
 
 

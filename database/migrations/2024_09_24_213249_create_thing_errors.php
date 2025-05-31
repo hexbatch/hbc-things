@@ -19,6 +19,10 @@ return new class extends Migration
             $table->integer('thing_error_code')->default(null)->nullable()
                 ->comment('The code of the exception');
 
+
+            $table->integer('thing_ref_code')->default(null)->nullable()
+                ->comment('Sometimes there is a ref code also');
+
             $table->integer('thing_error_line')->default(null)->nullable()
                 ->comment('The line of the exception');
 
@@ -51,6 +55,9 @@ return new class extends Migration
 
             $table->string('hbc_version',20)->default(null)->nullable()
                 ->comment('The version of the hexbatch code');
+
+            $table->string('thing_error_url')->default(null)->nullable()
+                ->comment('Optional url for the error');
 
         });
 

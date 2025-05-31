@@ -30,8 +30,7 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
     #[OA\Property( title: "Error", nullable: true)]
     protected ?ThingErrorResponse $error;
 
-    #[OA\Property( title:"Priority")]
-    protected int $priority;
+
 
     #[OA\Property( title:"Tags",nullable: true)]
     /** @var string[] $tags */
@@ -97,7 +96,7 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
         if ($this->thing->thing_error) {
             $this->error = new ThingErrorResponse(error: $this->thing->thing_error);
         }
-        $this->priority = $this->thing->thing_priority;
+
         $this->status = $this->thing->thing_status;
         $action = $this->thing->getAction();
         $this->action_name = $action?->getActionType();
@@ -147,7 +146,6 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
             $arr['thing_wait_until_at'] = $this->thing_wait_until_at;
         }
         $arr['error'] = $this->error;
-        $arr['priority'] = $this->priority;
         $arr['status'] = $this->status->value;
         $arr['action_name'] = $this->action_name;
         $arr['action_ref'] = $this->action_ref;

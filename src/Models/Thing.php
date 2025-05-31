@@ -5,6 +5,7 @@ namespace Hexbatch\Things\Models;
 
 
 
+use App\Helpers\Utilities;
 use ArrayObject;
 use Carbon\Carbon;
 use Exception;
@@ -43,7 +44,6 @@ use Ramsey\Uuid\Uuid;
  * @property int root_thing_id
  * @property int thing_error_id
  *
- * @property int thing_priority
  * @property string action_type
  * @property int action_type_id
  * @property string owner_type
@@ -85,7 +85,6 @@ class Thing extends Model
         'parent_thing_id',
         'thing_error_id',
         'parent_thing_id',
-        'thing_priority',
         'action_type',
         'action_type_id',
         'thing_start_after',
@@ -206,10 +205,10 @@ class Thing extends Model
     public function getLeaves() {
 
         $query_descendants = DB::table("things as desc_a")
-            ->selectRaw('desc_a.id, 0 as level, desc_a.thing_priority as max_priority')->where('desc_a.id', $this->id)
+            ->selectRaw('desc_a.id, 0 as level')->where('desc_a.id', $this->id)
             ->unionAll(
                 DB::table('things as desc_b')
-                    ->selectRaw('desc_b.id, level + 1 as level, max(desc_b.thing_priority) OVER (PARTITION BY desc_b.parent_thing_id) as max_priority')
+                    ->selectRaw('desc_b.id, level + 1 as level')
                     ->join('thing_descendants', 'thing_descendants.id', '=', 'desc_b.parent_thing_id')
             );
 
@@ -240,7 +239,6 @@ class Thing extends Model
             ->withExpression('incomplete_children',$incomplete_children)
             ->join('thing_descendants', 'thing_descendants.id', '=', 'things.id')
             ->join('incomplete_children', 'incomplete_children.maybe_parent_id', '=', 'things.id')
-            //->whereRaw("things.thing_priority = thing_descendants.max_priority") -- todo priority not used now, take it out
             ->whereRaw("incomplete_children.number_incomplete_children = 0")
             ->where('things.thing_status',TypeOfThingStatus::THING_BUILDING)
             ;
@@ -278,10 +276,10 @@ class Thing extends Model
         $this->update($what);
     }
 
-    public function setException(Exception $e) {
+    public function setException(Exception $e,TypeOfThingStatus $status = TypeOfThingStatus::THING_ERROR) {
         $hex = ThingError::createFromException(exception: $e,related_tags: $this->thing_tags->getArrayCopy());
         $this->update([
-            'thing_status' => TypeOfThingStatus::THING_ERROR,
+            'thing_status' => $status ,
             'thing_ran_at'=>DB::raw("NOW()"),
             'thing_error_id'=>$hex?->id??null,
         ]);
@@ -300,7 +298,7 @@ class Thing extends Model
         /** @var IThingAction|null $action */
 
         try {
-            DB::beginTransaction();
+
             if($this->thing_invalid_after && Carbon::parse($this->thing_start_after)->isAfter($this->thing_invalid_after)) {
                 $status  = TypeOfThingStatus::THING_INVALID;
             } else {
@@ -328,10 +326,12 @@ class Thing extends Model
                     $status = TypeOfThingStatus::THING_WAITING;
                 }
             }
-            DB::commit();
         } catch (Exception $e) {
-            DB::rollBack();
-            $this->setException($e);
+            $status = TypeOfThingStatus::THING_ERROR;
+            if ($action?->isActionFail()) {
+                $status = TypeOfThingStatus::THING_FAIL;
+            }
+            $this->setException(e: $e,status: $status);
             throw $e;
         }
 
@@ -596,24 +596,22 @@ class Thing extends Model
         try {
             DB::beginTransaction();
             $root = static::makeThingTree(action: $action, extra_tags: $extra_tags,owner: $owner);
-
-            $root->pushLeavesToJobs();
-            if (!$root->is_async) {
-                $counter = 0;
-                while(!$root->isComplete() && $counter < 12) {
-                    //todo improve, this is for testing
-                    $root->refresh();
-                    $counter++;
-                    $root->pushLeavesToJobs();
-                }
-            }
             DB::commit();
-            return $root;
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;
         }
 
+        $root->pushLeavesToJobs();
+        if (!$root->is_async) {
+            $counter = 0;
+            while(!$root->isComplete() && $counter < 12) {
+                $root->refresh();
+                $counter++;
+                $root->pushLeavesToJobs();
+            }
+        }
+        return $root;
     }
 
 
@@ -629,19 +627,20 @@ class Thing extends Model
     : Thing {
         $owner = $owner? : $action->getActionOwner();
         try {
-            DB::beginTransaction();
-            $root = static::makeThingFromAction(parent_thing: $parent, action: $action,extra_tags: $extra_tags,owner: $owner);
 
-            $tree = $action->getChildrenTree();
-            $roots = $tree?->getRootNodes()??[];
-            foreach ($roots as $a_node) {
-                static::makeTreeNodes(parent_thing: $root, node: $a_node);
+            $root = static::makeThingFromAction(parent_thing: $parent, action: $action,extra_tags: $extra_tags,owner: $owner);
+            if (!$root->isWaiting()) {
+                $tree = $action->getChildrenTree();
+                $roots = $tree?->getRootNodes()??[];
+                foreach ($roots as $a_node) {
+                    static::makeTreeNodes(parent_thing: $root, node: $a_node);
+                }
             }
 
-            DB::commit();
+
             return static::getThing(id: $root->id);
         } catch (Exception $e) {
-            DB::rollBack();
+            Utilities::ignoreVar($e);
             throw $e;
         }
     }
@@ -651,7 +650,7 @@ class Thing extends Model
      * @throws Exception
      */
     protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action,array $extra_tags = [],
-                                                  ?int $priority = null,TypeOfThingStatus $initial_status = TypeOfThingStatus::THING_BUILDING,
+                                                  TypeOfThingStatus $initial_status = TypeOfThingStatus::THING_BUILDING,
                                                   IThingOwner $owner = null)
     : Thing
     {
@@ -686,15 +685,9 @@ class Thing extends Model
             $async = $action->isAsync();
         }
 
-        $calculated_priority = $priority;
-        if ($calculated_priority === null) {
-            $calculated_priority = $action->getActionPriority();
-        }
-
 
 
         try {
-            DB::beginTransaction();
             $tree_node = new Thing();
             if ($start_at = $action->getStartAt()) {
                 $tree_node->thing_start_after = Carbon::parse($start_at)->timezone('UTC')->toDateTimeString();
@@ -718,14 +711,12 @@ class Thing extends Model
             $tree_node->action_type_id = $action->getActionId();
             $tree_node->owner_type = $owner?->getOwnerType();
             $tree_node->owner_type_id = $owner?->getOwnerId();
-            $tree_node->thing_priority = $calculated_priority;
             $tree_node->is_async = $async;
             $tree_node->thing_tags = $thing_tags;
             $tree_node->save();
-            DB::commit();
             return static::getThing(id: $tree_node->id);
         } catch (Exception $e) {
-            DB::rollBack();
+            Utilities::ignoreVar($e);
             throw $e;
         }
     }
@@ -739,7 +730,6 @@ class Thing extends Model
         /** @var IThingAction $the_action */
         $the_action = $node->action;
 
-        $node_priority = isset($node->priority)? intval($node->priority): null;
 
         $initial_status = TypeOfThingStatus::THING_BUILDING;
         if (isset($node->is_waiting) && $node->is_waiting) {
@@ -757,20 +747,26 @@ class Thing extends Model
             $extra_tags[] = (string) $node->title;
         }
 
-
-        $first_children = $node->getChildren();
-        $also_this_tree = $the_action->getChildrenTree()?->getRootNodes()??[];
-        $children = array_merge($first_children,$also_this_tree);
-        //can be duplicates
-        array_filter($children,function(\BlueM\Tree\Node $node_a){
-            $a = $node_a->action??null;
-            if (!$a) {return false;}
-            static $mems = [];
-            if (array_key_exists($a->getActionUuid(),$mems)) {return false;}
-            $mems[$a->getActionUuid()] = $a;
-            return true;
-        });
-        $tree_node = static::makeThingFromAction(parent_thing: $parent_thing, action: $the_action, extra_tags: $extra_tags, priority: $node_priority, initial_status: $initial_status);
+        $children = [];
+        if ($initial_status !== TypeOfThingStatus::THING_WAITING) {
+            $first_children = $node->getChildren();
+            $also_this_tree = $the_action->getChildrenTree()?->getRootNodes() ?? [];
+            $children = array_merge($first_children, $also_this_tree);
+            //can be duplicates
+            array_filter($children, function (\BlueM\Tree\Node $node_a) {
+                $a = $node_a->action ?? null;
+                if (!$a) {
+                    return false;
+                }
+                static $mems = [];
+                if (array_key_exists($a->getActionUuid(), $mems)) {
+                    return false;
+                }
+                $mems[$a->getActionUuid()] = $a;
+                return true;
+            });
+        }
+        $tree_node = static::makeThingFromAction(parent_thing: $parent_thing, action: $the_action, extra_tags: $extra_tags, initial_status: $initial_status);
 
         foreach ( $children as $child) {
             static::makeTreeNodes(parent_thing: $tree_node,node: $child);
@@ -986,6 +982,29 @@ class Thing extends Model
         }
 
         return true;
+    }
+
+    /**
+     * @return int[]
+     */
+    public function getTreeErrorIds() : array {
+
+        $query_descendants = DB::table("things as desc_a")
+            ->selectRaw('desc_a.id, 0 as level')->where('desc_a.id', $this->id)
+            ->unionAll(
+                DB::table('things as desc_b')
+                    ->selectRaw('desc_b.id, level + 1 as level')
+                    ->join('thing_descendants', 'thing_descendants.id', '=', 'desc_b.parent_thing_id')
+            );
+
+        $lar =  Thing::select('things.id', 'things.thing_error_id')
+            ->withRecursiveExpression('thing_descendants',$query_descendants)
+            ->join('thing_descendants', 'thing_descendants.id', '=', 'things.id')
+            ->whereNotNull('things.thing_error_id');
+
+        $lar->orderBy('thing_error_id','desc');
+
+        return $lar->pluck('thing_error_id')->toArray();
     }
 
 

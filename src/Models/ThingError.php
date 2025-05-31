@@ -3,10 +3,12 @@
 namespace Hexbatch\Things\Models;
 
 
+use App\Exceptions\HexbatchCoreException;
 use ArrayObject;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Log;
 
 
@@ -15,7 +17,9 @@ use Illuminate\Support\Facades\Log;
  * @mixin \Illuminate\Database\Query\Builder
  * @property int id
  * @property int thing_error_code
+ * @property int thing_ref_code
  * @property int thing_error_line
+ * @property string thing_error_url
  * @property string thing_code_version
  * @property string hbc_version
  * @property string thing_error_message
@@ -27,6 +31,9 @@ use Illuminate\Support\Facades\Log;
  *
  * @property string created_at
  * @property string updated_at
+ *
+ * @property Thing[] error_things
+ * @property ThingCallback[] error_callbacks
  */
 class ThingError extends Model
 {
@@ -59,15 +66,68 @@ class ThingError extends Model
         'related_tags' => AsArrayObject::class,
     ];
 
+    public function error_things() : HasMany {
+        return $this->hasMany(Thing::class,'thing_error_id','id');
+    }
+
+    public function error_callbacks() : HasMany {
+        return $this->hasMany(ThingCallback::class,'callback_error_id','id');
+    }
+
+
+    public static function buildError(
+        ?int    $me_id = null,
+        ?string $uuid = null,
+        array   $error_ids = [],
+        bool    $do_relations = null,
+
+    )
+    : Builder
+    {
+        /**
+         * @var Builder $build
+         */
+        $build = ThingError::select('thing_errors.*')
+            ->selectRaw(" extract(epoch from  thing_errors.created_at) as created_at_ts")
+            ->selectRaw("extract(epoch from  thing_errors.updated_at) as updated_at_ts");
+
+        if ($me_id) {
+            $build->where('thing_errors.id', $me_id);
+        }
+
+        if (count($error_ids)) {
+            $build->whereIn('thing_errors.id', $error_ids);
+        }
+
+        if ($uuid) {
+            $build->where('thing_errors.ref_uuid', $uuid);
+        }
+
+        if ($do_relations) {
+            /**
+             * @uses static::error_things(),static::error_callbacks()
+             */
+            $build->with('error_things', 'error_callbacks');
+        }
+
+        return $build;
+    }
+
     public static function createFromException(\Exception $exception, ?array $related_tags = null) : ?ThingError {
         try {
             $node = new ThingError();
-            $node->thing_error_code = $exception->getCode();
+            $extra = '';
+            $node->thing_error_code = $exception->getCode()??0;
+            if (!ctype_digit((string)$node->thing_error_code)) {
+                $extra = $node->thing_error_code. ' '; //some exceptions throw non-numeric codes
+                $node->thing_error_code = 0;
+
+            }
             $node->thing_error_line = $exception->getLine();
             $node->thing_error_file = $exception->getFile();
             $node->thing_code_version = \Hexbatch\Things\Helpers\ThingUtilities::getVersionAsString(for_lib: true);
             $node->hbc_version = \Hexbatch\Things\Helpers\ThingUtilities::getVersionAsString(for_lib: false);
-            $node->thing_error_message = $exception->getMessage();
+            $node->thing_error_message = $extra. $exception->getMessage();
             $node->thing_error_trace = $exception->getTraceAsString();
 
             $previous_errors = [];
@@ -85,6 +145,11 @@ class ThingError extends Model
 
             if ($related_tags !== null) {
                 $node->related_tags = $related_tags;
+            }
+
+            if ($exception instanceof HexbatchCoreException) {
+                $node->thing_ref_code = $exception->getRefCode();
+                $node->thing_error_url = $exception->getRefCodeUrl();
             }
             $node->save();
             return $node;

@@ -17,7 +17,8 @@ interface IThingAction
     public function getActionId() : int;
     public function getActionUuid() : ?string;
     public function getActionRef() : ?string;
-    public function getActionPriority() : int;
+
+    public function getActionName() : ?string;
     public function getActionType() : string;
     public static function getActionTypeStatic() : string;
     public function getChildrenTree() : ?Tree;

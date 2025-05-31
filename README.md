@@ -8,6 +8,11 @@ This is a laravel package that employes job queues and batches to run each task,
 
 ## Releases
 
+# version 1.2.2 May 30
+* New api response to show errors for a thing tree
+* No longer using priority
+* Errors can use hexbatch core exceptions for more info
+
 # version 1.2.1 May 28
 * Action wait timeout now set
 * Thing response can be used as a code callback
