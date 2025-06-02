@@ -32,7 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property bool is_on
  * @property bool is_manual
  * @property bool is_after
- * @property bool is_sharing
+ * @property bool is_sharing //todo shared should persist between trees and be allowed to optionally be manual
  *
  * @property bool is_blocking
  * @property bool is_writing_data_to_thing
