@@ -38,7 +38,7 @@ interface IThingAction
     public function getDataSnapshot() : array ;
     public function getActionTags() : ?array ;
     public function getRenderHtml() : ?string ;
-    public function getInitialConstantData() : ?array ;
+    public function getInitialConstantData() : array ;
     public function setChildActionResult(IThingAction $child) : void ;
     public function addDataBeforeRun(array $data) : void ;
 
