@@ -144,14 +144,17 @@ class Thing extends Model
     }
 
 
-    /** @noinspection PhpUnused */
     public function isSuccess() : bool {
         return $this->thing_status === TypeOfThingStatus::THING_SUCCESS;
     }
 
-    /** @noinspection PhpUnused */
+
     public function isFailedOrError() : bool {
         return in_array($this->thing_status,[TypeOfThingStatus::THING_ERROR,TypeOfThingStatus::THING_FAIL]);
+    }
+
+    public function isError() : bool {
+        return $this->thing_status == TypeOfThingStatus::THING_ERROR;
     }
 
     public function isWaiting() : bool {
