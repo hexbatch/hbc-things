@@ -258,7 +258,7 @@ class ThingHook extends Model
 
                 $build->where(function (Builder $q)  {
                     $q->where(function (Builder $q) {
-                        $q->whereRaw('thing_hooks.filter_owner_type_id = gul.id');
+                        $q->whereRaw('thing_hooks.filter_owner_type_id = gul.member_id');
                     })
                         ->orWhere(function (Builder $q) {
                             $q->whereNull('thing_hooks.filter_owner_type')->whereNull('thing_hooks.filter_owner_type_id');

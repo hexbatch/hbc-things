@@ -35,7 +35,7 @@ interface IThingAction
     public function isAsync() : bool;
     public function getActionResult() : array ;
     public function getPreRunData() : array ;
-    public function getDataSnapshot() : array ;
+    public function getDataSnapshot() : array|IThingBaseResponse ;
     public function getActionTags() : ?array ;
     public function getRenderHtml() : ?string ;
     public function getInitialConstantData() : array ;
