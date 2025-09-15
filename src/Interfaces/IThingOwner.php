@@ -14,7 +14,7 @@ interface IThingOwner
 
     /**
      * adds a join with conditions in the join,
-     * if @uses \Hexbatch\Things\Enums\TypeOfOwnerGroup::HOOK_CALLBACK_CREATION then left join
+     * if @uses TypeOfOwnerGroup::HOOK_CALLBACK_CREATION then left join
      * else inner join
      * @param \Illuminate\Contracts\Database\Query\Builder $builder
      */

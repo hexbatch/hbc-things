@@ -39,7 +39,7 @@ trait ThingMimimalResponseTrait
     protected ?string $thing_owner_name = null;
 
     #[OA\Property( title:"Owner ref")]
-    protected ?string $thing_owner_ref;
+    protected ?string $thing_owner_ref = null;
 
     #[OA\Property( title: 'Started at',description: "Iso 8601 datetime string for when this was started", format: 'datetime',example: "2025-01-25T15:00:59-06:00")]
     public ?string $thing_started_at = null;
@@ -52,7 +52,7 @@ trait ThingMimimalResponseTrait
 
     #[OA\Property( title:"Tags",nullable: true)]
     /** @var string[] $tags */
-    protected ?array $thing_tags;
+    protected ?array $thing_tags = [];
 
 
     protected ?Thing $thing = null;

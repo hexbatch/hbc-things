@@ -87,7 +87,7 @@ class CallbackResponse  implements  JsonSerializable
         $this->hook_uuid = $this->callback->owning_hook->ref_uuid;
         $this->thing_uuid = $this->callback->thing_source->ref_uuid;
         $this->error = null;
-        /** @uses \Hexbatch\Things\Models\ThingCallback::callback_error() */
+        /** @uses ThingCallback::callback_error */
         if ($this->callback->callback_error) {
             $this->error = new ThingErrorResponse(error: $this->callback->callback_error);
         }
@@ -107,19 +107,19 @@ class CallbackResponse  implements  JsonSerializable
 
 
         if ($this->b_alerted_by) {
-            /** @uses \Hexbatch\Things\Models\ThingCallback::alerted_by() */
+            /** @uses ThingCallback::alerted_by */
             if($this->callback->alerted_by) {
                 $this->alerted_by = new CallbackResponse(callback: $this->callback->alerted_by);
             }
         } else {
-            /** @uses \Hexbatch\Things\Models\ThingCallback::alert_target() */
+            /** @uses ThingCallback::alert_target */
             if($this->callback->alert_target) {
                 $this->alert_target = new CallbackResponse(callback: $this->callback->alert_target);
             }
         }
 
 
-        /** @uses \Hexbatch\Things\Models\ThingCallback::shared_callback_source() */
+        /** @uses ThingCallback::shared_callback_source */
         if($this->callback->shared_callback_source) {
             $this->shared_source = new CallbackResponse(callback: $this->callback->shared_callback_source);
         }
