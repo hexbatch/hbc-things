@@ -1,0 +1,50 @@
+store data used for each thing here with two morphs in the row
+
+the main thing is we do not want to save to the db unless pausing or end
+
+* generate the full tree with end at the root
+* in php convert to a priority queue thingee, so can grab the next leaf that is ready to go
+* all things are sent as a job, job may be set to sync
+* the thing tree may be run in three job modes
+ 1) all tasks are sync (for debugging), subtasks never report they are sync
+ 2) normal: put on async or sync job but once it starts it will post subjobs as async if needed
+
+  -- thing main loop below
+asyncs[] = [];
+while (next = house->getNext() ) :
+    if (next->async) { asyncs[] = $next[]; continue; }
+    next->run();
+:end while
+
+house->store();
+if (house->done) { do ending stuff)
+foreach(async as a) { a->dispatch() )
+
+
+
+when job for async runs, at end do the house loop again
+
+--
+
+the next is the thing, it has the link to the code to run, and holds the storage the code can access
+ the storage is in memory when the task runs, and is shared so that parents can get the child data.
+ It is only batch saved when the house is saved.
+
+ when the house saves, the status is saved for each thing, and the state (above).
+
+ a thing is async if it has any hooks that are marked as async. The code in the thing does not set the hooks.
+ the callbacks are set by previous hook definations and the tags in the things.
+ Once a house is made, callbacks are not changed.
+
+db changes:
+1) storage table, uses parent thing and child thing and data flag and morph for model and json field
+2) root table, stores the priority queue in json, updates this json to mark current status of queue when its saved
+3) thing table has morph
+ code hooks should be marked as sync_code and async_code.
+ event hooks likewise marked
+
+ uuid for things are made in the code, then assigned so the priority queue in the json can organize and search better
+
+ action data and action-collections are removed and not used anymore.
+ To help with that, code a data storage interface to the thing and still use them, and then mildless refactor the main code.
+ then can switch out the storage
