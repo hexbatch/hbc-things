@@ -2,8 +2,10 @@
 
 namespace Hexbatch\Things\Interfaces;
 
+use App\Data\ApiParams\Common\IResponse;
 use BlueM\Tree;
 use Carbon\Carbon;
+use Spatie\LaravelData\CursorPaginatedDataCollection;
 
 interface IThingAction
 {
@@ -35,7 +37,7 @@ interface IThingAction
     public function isAsync() : bool;
     public function getActionResult() : array ;
     public function getPreRunData() : array ;
-    public function getDataSnapshot() : array|IThingBaseResponse ;
+    public function getDataSnapshot() : array|IThingBaseResponse|IResponse|CursorPaginatedDataCollection ;
     public function getActionTags() : ?array ;
     public function getRenderHtml() : ?string ;
     public function getInitialConstantData() : array ;
