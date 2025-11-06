@@ -23,7 +23,7 @@ class ThingResponse  implements  JsonSerializable,ICallResponse
     use ThingMimimalResponseTrait;
 
 
-    #[OA\Property( title:"Action data",nullable: true)]
+    #[OA\Property( title:"Action data",items: new OA\Items(),nullable: true)]
     /** @var mixed[] $action_info */
     protected ?array $action_info;
 

@@ -45,15 +45,15 @@ class CallbackResponse  implements  JsonSerializable
     #[OA\Property( title:"Code of response")]
     protected ?int $code;
 
-    #[OA\Property( title:"Response of callback",nullable: true)]
+    #[OA\Property( title:"Response of callback",items: new OA\Items(),nullable: true)]
     /** @var mixed[] $response */
     protected ?array $response;
 
-    #[OA\Property( title:"Headers sent",nullable: true )]
+    #[OA\Property( title:"Headers sent",items: new OA\Items(),nullable: true )]
     /** @var mixed[] $headers_sent */
     protected ?array $headers_sent;
 
-    #[OA\Property( title:"Data sent",nullable: true)]
+    #[OA\Property( title:"Data sent",items: new OA\Items(),nullable: true)]
     /** @var mixed[] $data_sent */
     protected ?array $data_sent;
 
