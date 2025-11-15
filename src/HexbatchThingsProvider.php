@@ -41,10 +41,10 @@ class HexbatchThingsProvider extends PackageServiceProvider
             });
 
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
-            $schedule->command(WakeThings::class)
-                ->everyMinute()
-                ->withoutOverlapping()
-                ->appendOutputTo(storage_path('logs/wake-things.log'));
+//            $schedule->command(WakeThings::class)
+//                ->everyMinute()
+//                ->withoutOverlapping()
+//                ->appendOutputTo(storage_path('logs/wake-things.log'));
 
         });
 
