@@ -2,7 +2,7 @@
 
 namespace Hexbatch\Things\Controllers;
 
-use App\OpenApi\ErrorResponse;
+use App\Data\ApiParams\Data\ErrorData;
 use Hexbatch\Things\Enums\TypeOfCallbackStatus;
 use Hexbatch\Things\Enums\TypeOfOwnerGroup;
 use Hexbatch\Things\Enums\TypeOfThingStatus;
@@ -45,9 +45,9 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: HookSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
     public function hook_list(IThingOwner $owner,HookSearchRequest $request) {
@@ -71,11 +71,11 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: HookSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The hook list',content: new JsonContent(ref: HookCollectionResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_hook_list(HookSearchRequest $request) {
@@ -97,9 +97,9 @@ class ThingController  {
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_hook_destroy(ThingHook $hook) {
@@ -119,10 +119,10 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
 
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_hook_show(ThingHook $hook) {
@@ -143,9 +143,9 @@ class ThingController  {
         tags: ['hook'],
         responses: [
             new OA\Response( response: CodeOf::HTTP_CREATED, description: 'The created hook',content: new JsonContent(ref: HookResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function thing_hook_create(IThingOwner $owner,HookRequest $request) {
@@ -169,7 +169,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function thing_hook_show(ThingHook $hook) {
@@ -190,9 +190,9 @@ class ThingController  {
         parameters: [new OA\PathParameter( name: 'thing_hook', description: "uuid of the hook", in: 'path', required: true,  schema: new OA\Schema( type: 'string',format: 'uuid') )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The edited hook',content: new JsonContent(ref: HookResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function thing_hook_edit(ThingHook $hook,HookRequest $request) {
@@ -215,9 +215,9 @@ class ThingController  {
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The shown hook',content: new JsonContent(ref: HookResponse::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function thing_hook_destroy(ThingHook $hook) {
@@ -238,9 +238,9 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: ThingSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
     public function thing_list(IThingOwner $owner, ThingSearchRequest $request) {
@@ -263,11 +263,11 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: ThingSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The things',content: new JsonContent(ref: ThingCollectionResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function thing_admin_list(ThingSearchRequest $request) {
@@ -290,7 +290,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
     public function thing_show(Thing $thing) { //  (a tree)
@@ -309,7 +309,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingErrorCollectionResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
         ]
     )]
     public function thing_show_errors(Thing $thing) {
@@ -331,9 +331,9 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_thing_show(Thing $thing) {
@@ -358,7 +358,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The thing',content: new JsonContent(ref: ThingResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function thing_shortcut(Thing $thing) {  //(if child will return false to parent when it runs, if root then its just gone)
@@ -382,10 +382,10 @@ class ThingController  {
         responses: [
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The thing was resumed, here is the thing info',content: new JsonContent(ref: ThingResponse::class)),
 
-            new OA\Response( response: CodeOf::HTTP_NOT_FOUND, description: 'The thing was not waiting',content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_NOT_FOUND, description: 'The thing was not waiting',content: new JsonContent(ref: ErrorData::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function thing_resume(Thing $thing) {
@@ -418,7 +418,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function manual_answer(ThingCallback $callback,ManualFillRequest $request) {
@@ -454,7 +454,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_ACCEPTED, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function manual_question(ThingCallback $callback) {
@@ -486,7 +486,7 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function callback_show(ThingCallback $callback) {
@@ -504,9 +504,9 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: CallbackSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback list',content: new JsonContent(ref: CallbackCollectionResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function list_callbacks( IThingOwner $owner,CallbackSearchRequest $request) {
@@ -529,9 +529,9 @@ class ThingController  {
             allowEmptyValue: true, schema: new OA\Schema( ref: CallbackSearchParams::class) )],
         responses: [
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback list',content: new JsonContent(ref: CallbackCollectionResponse::class)),
-            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorResponse::class)),
+            new OA\Response( response: CodeOf::HTTP_UNPROCESSABLE_ENTITY, description: 'Validation fails', content: new JsonContent(ref: ErrorData::class)),
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."]))
         ]
     )]
     public function admin_list_callbacks( CallbackSearchRequest $request) {
@@ -554,10 +554,10 @@ class ThingController  {
             new OA\Response( response: CodeOf::HTTP_OK, description: 'The callback',content: new JsonContent(ref: CallbackResponse::class)),
 
             new OA\Response( response: CodeOf::HTTP_BAD_REQUEST, description: 'When not logged in',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_BAD_REQUEST,"message"=>"Unauthenticated."])),
 
             new OA\Response( response: CodeOf::HTTP_FORBIDDEN, description: 'When not admin',
-                content: new JsonContent(ref: ErrorResponse::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
+                content: new JsonContent(ref: ErrorData::class, example: ["status"=>CodeOf::HTTP_FORBIDDEN,"message"=>"Not an admin."]))
         ]
     )]
     public function admin_callback_show(ThingCallback $callback) {
