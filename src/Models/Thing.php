@@ -624,7 +624,7 @@ class Thing extends Model
     protected static function makeThingTree(
         IThingAction $action,
         array $extra_tags = [],
-        IThingOwner $owner = null,
+        ?IThingOwner $owner = null,
         ?Thing $parent = null
     )
     : Thing {
@@ -654,7 +654,7 @@ class Thing extends Model
      */
     protected static function makeThingFromAction(?Thing $parent_thing,IThingAction $action,array $extra_tags = [],
                                                   TypeOfThingStatus $initial_status = TypeOfThingStatus::THING_BUILDING,
-                                                  IThingOwner $owner = null)
+                                                  ?IThingOwner $owner = null)
     : Thing
     {
         if (!$owner) {

@@ -79,7 +79,7 @@ class ThingError extends Model
         ?int    $me_id = null,
         ?string $uuid = null,
         array   $error_ids = [],
-        bool    $do_relations = null,
+        bool    $do_relations = false,
 
     )
     : Builder

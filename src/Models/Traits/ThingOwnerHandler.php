@@ -32,7 +32,7 @@ trait ThingOwnerHandler
         return !empty(static::$owner_type_lookup[$owner_type]);
     }
 
-    protected static function isRegisteredOwner(string $owner_type, int $owner_id = null,?string $owner_uuid = null) : bool {
+    protected static function isRegisteredOwner(string $owner_type, ?int $owner_id = null,?string $owner_uuid = null) : bool {
         return !!static::resolveOwner(owner_type: $owner_type,owner_id: $owner_id, owner_uuid: $owner_uuid);
     }
 
